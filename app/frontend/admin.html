@@ -17,29 +17,40 @@
 </head>
 <body>
   <div class="container py-4">
-    <h1 class="h3 mb-4">OrdexSwap Admin</h1>
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+      <div class="d-flex align-items-center gap-2">
+        <img src="ordexnetwork.png" alt="OrdexNetwork" width="28" height="28" />
+        <div class="fw-bold">ORDEX <span class="text-warning">ADMIN</span></div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        <a class="text-decoration-none text-light small" href="#stats">Stats</a>
+        <a class="text-decoration-none text-light small" href="#graphs">Graphs</a>
+        <a class="text-decoration-none text-light small" href="#wallets">Wallets</a>
+        <a class="text-decoration-none text-light small" href="#queue">Queue</a>
+        <a class="text-decoration-none text-light small" href="#swaps">Swaps</a>
+        <a class="text-decoration-none text-light small" href="#password">Password</a>
+        <button class="btn btn-sm btn-outline-light" id="logout-btn" type="button">Logout</button>
+      </div>
+    </div>
 
     <div class="card p-3 mb-4" id="login-card">
       <div class="row g-2 align-items-end">
         <div class="col-md-4">
           <label class="form-label">Username</label>
-          <input class="form-control" id="admin-user" value="swap" />
+          <input class="form-control" id="admin-user" />
         </div>
         <div class="col-md-4">
           <label class="form-label">Password</label>
-          <input class="form-control" id="admin-pass" type="password" value="changeme26" />
+          <input class="form-control" id="admin-pass" type="password" />
         </div>
         <div class="col-md-4">
           <button class="btn btn-warning w-100" id="login-btn">Load Dashboard</button>
         </div>
       </div>
-      <div class="small text-warning mt-2">
-        Default credentials are prefilled for initial setup. Change them after first login.
-      </div>
     </div>
 
     <div id="dashboard" class="d-none">
-      <div class="row g-3 mb-4">
+      <div class="row g-3 mb-4" id="stats">
         <div class="col-md-4">
           <div class="card p-3">
             <div class="muted small fw-bold text-white">Total Fees Collected</div>
@@ -72,7 +83,7 @@
         </div>
       </div>
 
-      <div class="row g-3 mb-4">
+      <div class="row g-3 mb-4" id="graphs">
         <div class="col-md-6">
           <div class="card p-3">
             <div class="muted small mb-2">In / Out Graph</div>
@@ -87,29 +98,7 @@
         </div>
       </div>
 
-      <div class="card p-3 mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-          <h2 class="h5 mb-0 fw-bold text-white">Change Password</h2>
-        </div>
-        <div class="row g-2 mt-2">
-          <div class="col-md-4">
-            <label class="form-label fw-bold text-white">Username</label>
-            <input class="form-control" id="pw-user" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Current Password</label>
-            <input class="form-control" id="pw-current" type="password" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-bold text-white">New Password</label>
-            <input class="form-control" id="pw-new" type="password" />
-          </div>
-        </div>
-        <button class="btn btn-outline-warning mt-3" id="change-password">Update Password</button>
-        <div class="small mt-2 muted" id="pw-message"></div>
-      </div>
-
-      <div class="card p-3 mb-4">
+      <div class="card p-3 mb-4" id="wallets">
         <div class="d-flex justify-content-between align-items-center">
           <h2 class="h5 mb-0 fw-bold text-white">Wallets</h2>
           <button class="btn btn-outline-light btn-sm" id="refresh-wallets">Refresh</button>
@@ -130,7 +119,7 @@
         </div>
       </div>
 
-      <div class="card p-3 mb-4">
+      <div class="card p-3 mb-4" id="queue">
         <div class="d-flex justify-content-between align-items-center">
           <h2 class="h5 mb-0 fw-bold text-white">Delayed Queue</h2>
           <button class="btn btn-outline-warning btn-sm" id="process-queue">Process Queue</button>
@@ -151,7 +140,7 @@
         </div>
       </div>
 
-      <div class="card p-3 mb-4">
+      <div class="card p-3 mb-4" id="swaps">
         <div class="d-flex justify-content-between align-items-center">
           <h2 class="h5 mb-0 fw-bold text-white">Recent Swaps</h2>
           <button class="btn btn-outline-light btn-sm" id="refresh-swaps">Refresh</button>
@@ -170,6 +159,28 @@
             <tbody id="swaps-table"></tbody>
           </table>
         </div>
+      </div>
+
+      <div class="card p-3 mb-4" id="password">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0 fw-bold text-white">Change Password</h2>
+        </div>
+        <div class="row g-2 mt-2">
+          <div class="col-md-4">
+            <label class="form-label fw-bold text-white">Username</label>
+            <input class="form-control" id="pw-user" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold text-white">Current Password</label>
+            <input class="form-control" id="pw-current" type="password" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold text-white">New Password</label>
+            <input class="form-control" id="pw-new" type="password" />
+          </div>
+        </div>
+        <button class="btn btn-outline-warning mt-3" id="change-password">Update Password</button>
+        <div class="small mt-2 muted" id="pw-message"></div>
       </div>
     </div>
   </div>
@@ -195,6 +206,7 @@
     const pwCurrent = document.getElementById('pw-current');
     const pwNew = document.getElementById('pw-new');
     const pwMessage = document.getElementById('pw-message');
+    const logoutBtn = document.getElementById('logout-btn');
     let currentAdmin = null;
 
     function buildAuth() {
@@ -311,8 +323,13 @@
     document.getElementById('process-queue').addEventListener('click', processQueue);
     document.getElementById('change-password').addEventListener('click', async () => {
       pwMessage.textContent = '';
+      const username = (pwUser.value || currentAdmin || '').trim();
+      if (!username || !pwCurrent.value || !pwNew.value) {
+        pwMessage.textContent = 'Please fill all password fields.';
+        return;
+      }
       const payload = {
-        username: pwUser.value.trim(),
+        username: username,
         current_password: pwCurrent.value,
         new_password: pwNew.value,
       };
@@ -323,11 +340,27 @@
       });
       if (resp.ok) {
         pwMessage.textContent = 'Password updated.';
+        if (username === currentAdmin) {
+          authHeader = 'Basic ' + btoa(`${currentAdmin}:${pwNew.value}`);
+        }
         pwCurrent.value = '';
         pwNew.value = '';
       } else {
-        pwMessage.textContent = 'Password update failed.';
+        const data = await resp.json().catch(() => ({}));
+        pwMessage.textContent = data.error || 'Password update failed.';
       }
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      authHeader = null;
+      currentAdmin = null;
+      dashboard.classList.add('d-none');
+      loginCard.classList.remove('d-none');
+      pwUser.value = '';
+      pwCurrent.value = '';
+      pwNew.value = '';
+      pwMessage.textContent = '';
+      document.getElementById('admin-pass').value = '';
     });
 
     function renderInOutGraph(financial) {
@@ -344,7 +377,7 @@
       const max = Math.max(...values.map(v => v.value), 1);
       inoutGraph.innerHTML = values.map(v => `
         <div class="mb-2">
-          <div class="d-flex justify-content-between bar-label"><span>${v.label}</span><span>${v.value.toFixed(4)}</span></div>
+          <div class="d-flex justify-content-between bar-label text-light"><span>${v.label}</span><span>${v.value.toFixed(4)}</span></div>
           <div class="bar-track"><div class="bar-fill" style="width: ${(v.value / max) * 100}%"></div></div>
         </div>
       `).join('');
@@ -363,7 +396,7 @@
       const max = Math.max(...values.map(v => v.value), 1);
       statusGraph.innerHTML = values.map(v => `
         <div class="mb-2">
-          <div class="d-flex justify-content-between bar-label"><span>${v.label}</span><span>${v.value}</span></div>
+          <div class="d-flex justify-content-between bar-label text-light"><span>${v.label}</span><span>${v.value}</span></div>
           <div class="bar-track"><div class="bar-fill" style="width: ${(v.value / max) * 100}%"></div></div>
         </div>
       `).join('');

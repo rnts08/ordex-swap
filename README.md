@@ -277,7 +277,7 @@ docker run -p 8080:8080 -e TESTING_MODE=false ordex-swap
 Note: Container nginx runs on port 8080 internally, mapped to host port 8080.
 Daemons are started with localhost-only RPC and bind settings and use independent data dirs under `data/`.
 
-## Support the proejct
+## Support this and other project development by rnts08
 
 Support development of this project by donating:
 
