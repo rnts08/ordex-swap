@@ -3,6 +3,8 @@ const { test, expect } = require('@playwright/test');
 test('admin dashboard login hides login card and shows graphs', async ({ page }) => {
   await page.goto('/admin.html');
 
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
   const loginBtn = page.locator('#login-btn');
   await loginBtn.click();
 
@@ -22,6 +24,8 @@ test('admin dashboard login hides login card and shows graphs', async ({ page })
 
 test('rotate buttons show confirmation dialog', async ({ page }) => {
   await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 

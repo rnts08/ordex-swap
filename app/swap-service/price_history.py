@@ -27,6 +27,7 @@ class PriceHistoryService:
         self._fetch_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._running = False
+        self._backfilled = False
 
         os.makedirs(self.data_dir, exist_ok=True)
         self._init_db()
@@ -92,6 +93,37 @@ class PriceHistoryService:
         except PriceOracleError as e:
             logger.error(f"Failed to fetch price: {e}")
             return None
+
+    def has_24h_coverage(self, hours: int = 24) -> bool:
+        cutoff = time.time() - (hours * 3600)
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    """
+                    SELECT COUNT(*), MIN(ts_epoch), MAX(ts_epoch)
+                    FROM price_history
+                    WHERE ts_epoch >= ?
+                    """,
+                    (cutoff,),
+                ).fetchone()
+            if not row or row[0] == 0:
+                return False
+            count, min_ts, max_ts = row
+            if count < hours:
+                return False
+            if min_ts is None or max_ts is None:
+                return False
+            return (max_ts - min_ts) >= ((hours - 1) * 3600)
+        except sqlite3.Error as e:
+            logger.error(f"Failed checking price history coverage: {e}")
+            return False
+
+    def ensure_backfill(self, hours: int = 24) -> None:
+        if self.has_24h_coverage(hours):
+            logger.info("Price history already has %sh coverage; skipping backfill", hours)
+            return
+        logger.info("Price history missing %sh coverage; starting backfill", hours)
+        self.backfill_from_tradebook(hours=hours)
 
     def get_latest(self) -> Optional[Dict[str, Any]]:
         try:
@@ -185,6 +217,14 @@ class PriceHistoryService:
                 }
                 for row in rows
             ]
+            if not self._backfilled:
+                has_ticker = any(
+                    h["source"] in ("nestex_ticker", "nestex_tradebook") for h in history
+                )
+                if not history or not has_ticker:
+                    self.backfill_from_tradebook(hours=24)
+                    self._backfilled = True
+                    return self.get_history(limit)
             return list(reversed(history))
         except sqlite3.Error as e:
             logger.error(f"Failed to read price history: {e}")
@@ -193,6 +233,109 @@ class PriceHistoryService:
     def get_latest_price(self) -> Optional[Dict[str, Any]]:
         latest = self.get_latest()
         return latest or self.fetch_and_record()
+
+    def backfill_from_tradebook(self, hours: int = 24, max_pages: int = 6) -> None:
+        if hours <= 0:
+            return
+        logger.info(
+            "Backfill requested from tradebook: hours=%s max_pages=%s",
+            hours,
+            max_pages,
+        )
+        now_ms = int(time.time() * 1000)
+        cutoff_ms = now_ms - (hours * 3600 * 1000)
+
+        def collect_trades(ticker_id: str) -> List[Dict[str, Any]]:
+            trades: List[Dict[str, Any]] = []
+            for page in range(1, max_pages + 1):
+                try:
+                    payload = self.oracle.get_tradebook(ticker_id, page=page)
+                    page_trades = payload.get("data", [])
+                except Exception as e:
+                    logger.warning(f"Failed tradebook fetch {ticker_id} page {page}: {e}")
+                    break
+                if not page_trades:
+                    break
+                trades.extend(page_trades)
+                oldest = min(
+                    (t.get("timestamp", now_ms) for t in page_trades), default=now_ms
+                )
+                if oldest < cutoff_ms:
+                    break
+            return trades
+
+        oxc_trades = collect_trades("OXC_USDT")
+        oxg_trades = collect_trades("OXG_USDT")
+
+        if not oxc_trades or not oxg_trades:
+            logger.warning("Insufficient tradebook data for backfill")
+            return
+
+        oxc_buckets = [[] for _ in range(hours)]
+        oxg_buckets = [[] for _ in range(hours)]
+
+        def bucket_trade(trade, buckets):
+            ts = int(trade.get("timestamp", 0))
+            if ts < cutoff_ms or ts > now_ms:
+                return
+            idx = int((ts - cutoff_ms) // 3600000)
+            if 0 <= idx < hours:
+                price = float(trade.get("price", 0) or 0)
+                if price > 0:
+                    buckets[idx].append(price)
+
+        for t in oxc_trades:
+            bucket_trade(t, oxc_buckets)
+        for t in oxg_trades:
+            bucket_trade(t, oxg_buckets)
+
+        entries = []
+        for i in range(hours):
+            if not oxc_buckets[i] or not oxg_buckets[i]:
+                continue
+            oxc_avg = sum(oxc_buckets[i]) / len(oxc_buckets[i])
+            oxg_avg = sum(oxg_buckets[i]) / len(oxg_buckets[i])
+            if oxg_avg <= 0:
+                continue
+            cross_rate = oxc_avg / oxg_avg
+            ts_epoch = (cutoff_ms // 1000) + (i * 3600)
+            timestamp = datetime.fromtimestamp(ts_epoch, tz=timezone.utc).isoformat()
+            entries.append(
+                (
+                    timestamp,
+                    ts_epoch,
+                    oxc_avg,
+                    oxg_avg,
+                    cross_rate,
+                    "nestex_tradebook",
+                )
+            )
+
+        if not entries:
+            logger.warning("No backfill entries generated from tradebook")
+            return
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    DELETE FROM price_history
+                    WHERE ts_epoch BETWEEN ? AND ?
+                    AND source IN ('fallback', 'nestex_cross_usdt')
+                    """,
+                    (cutoff_ms / 1000, now_ms / 1000),
+                )
+                conn.executemany(
+                    """
+                    INSERT INTO price_history (
+                        timestamp, ts_epoch, oxc_usdt, oxg_usdt, cross_rate, source
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    entries,
+                )
+            logger.info(f"Backfilled {len(entries)} price points from tradebook")
+        except sqlite3.Error as e:
+            logger.error(f"Failed to backfill price history: {e}")
 
     def get_price_stats(self, hours: int = 24) -> Dict[str, Any]:
         cutoff = time.time() - (hours * 3600)

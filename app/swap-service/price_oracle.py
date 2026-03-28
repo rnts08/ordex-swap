@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 import json
 import time
 import logging
@@ -9,10 +7,8 @@ from datetime import datetime, timezone
 import requests
 
 from config import (
-    NESTEX_BASE_URL,
-    NESTEX_API_KEY,
-    NESTEX_API_SECRET,
-    NESTEX_MIN_GAP_SECONDS,
+    NESTEX_PUBLIC_BASE_URL,
+    NESTEX_PUBLIC_MIN_GAP_SECONDS,
     NESTEX_PRICE_TTL_SECONDS,
     NESTEX_MAX_PRICE_AGE_SECONDS,
     OXC_USDT_FALLBACK_PRICE,
@@ -44,11 +40,9 @@ class PriceOracleStaleError(PriceOracleError):
 
 
 class PriceOracle:
-    def __init__(self, api_key: str = None, api_secret: str = None):
-        self.api_key = api_key or NESTEX_API_KEY
-        self.api_secret = api_secret or NESTEX_API_SECRET
+    def __init__(self):
         self._price_cache: Dict[str, Any] = {}
-        self._last_api_call = 0
+        self._last_public_call = 0
         self._session = requests.Session()
         self._session.headers.update({"Content-Type": "application/json"})
         self._db_path = DB_PATH
@@ -102,82 +96,42 @@ class PriceOracle:
         except sqlite3.Error as e:
             logger.warning(f"Failed writing price cache: {e}")
 
-    def _rate_limit(self):
-        elapsed = time.time() - self._last_api_call
-        if elapsed < NESTEX_MIN_GAP_SECONDS:
-            sleep_time = NESTEX_MIN_GAP_SECONDS - elapsed
-            logger.debug(f"Rate limiting: sleeping {sleep_time:.2f}s")
+    def _rate_limit_public(self):
+        elapsed = time.time() - self._last_public_call
+        if elapsed < NESTEX_PUBLIC_MIN_GAP_SECONDS:
+            sleep_time = NESTEX_PUBLIC_MIN_GAP_SECONDS - elapsed
+            logger.debug(f"Public rate limiting: sleeping {sleep_time:.2f}s")
             time.sleep(sleep_time)
-        self._last_api_call = time.time()
+        self._last_public_call = time.time()
 
-    def _generate_signature(self, data: Dict[str, Any]) -> str:
-        message = f"{self.api_key}{data.get('cur', '')}{data.get('side', '')}{data.get('qty', '')}{data.get('price', '')}"
-        signature = hmac.new(
-            self.api_secret.encode(), message.encode(), hashlib.sha256
-        ).hexdigest()
-        return signature
-
-    def _make_request(
-        self, endpoint: str, data: Dict[str, Any] = None
+    def _make_public_request(
+        self, endpoint: str, params: Dict[str, Any] = None
     ) -> Dict[str, Any]:
-        self._rate_limit()
-
-        payload = {
-            "apikey": self.api_key,
-            "apisecret": self.api_secret,
-        }
-        if data:
-            payload.update(data)
-
-        url = f"{NESTEX_BASE_URL}/{endpoint}"
-
+        self._rate_limit_public()
+        url = f"{NESTEX_PUBLIC_BASE_URL}/{endpoint}"
         try:
-            response = self._session.post(url, json=payload, timeout=30)
+            response = self._session.get(url, params=params, timeout=30)
             response.raise_for_status()
-            result = response.json()
-
-            if result.get("success") != "ok":
-                raise PriceOracleAPIError(f"API returned error: {result}")
-
-            return result
+            return response.json()
         except requests.RequestException as e:
-            raise PriceOracleAPIError(f"Request failed: {e}")
+            raise PriceOracleAPIError(f"Public API request failed: {e}")
 
-    def check_token(self) -> bool:
-        """Check if API credentials are valid."""
-        result = self._make_request("checktoken")
-        return result.get("status") == "token valid"
+    def get_public_tickers(self) -> list:
+        cached = self._price_cache.get("public_tickers")
+        if cached:
+            age = time.time() - cached.get("cached_at", 0)
+            if age < NESTEX_PRICE_TTL_SECONDS:
+                return cached["data"]
+        tickers = self._make_public_request("tickers")
+        self._price_cache["public_tickers"] = {
+            "data": tickers,
+            "cached_at": time.time(),
+        }
+        return tickers
 
-    def get_balances(self) -> Dict[str, float]:
-        """Get account balances."""
-        result = self._make_request("balances")
-        balances = result.get("balances", {})
-        return {k: float(v) for k, v in balances.items()}
-
-    def get_orders(self) -> list:
-        """Get unfulfilled orders."""
-        result = self._make_request("orders")
-        return result.get("orders", [])
-
-    def get_trades(self, cur: str = None) -> list:
-        """Get fulfilled trades, optionally filtered by currency."""
-        result = self._make_request("trades")
-        trades = result.get("trades", [])
-        if cur:
-            trades = [t for t in trades if t.get("cur") == cur]
-        return trades
-
-    def place_limit_order(self, cur: str, side: str, qty: float, price: float) -> int:
-        """Place a limit order. Returns order_id."""
-        data = {"cur": cur, "side": side.upper(), "qty": str(qty), "price": str(price)}
-        result = self._make_request("placelimitorder", data)
-        return result.get("order_id")
-
-    def cancel_order(self, order_id: int) -> bool:
-        """Cancel an order."""
-        data = {"order_id": str(order_id)}
-        result = self._make_request("cancelorder", data)
-        return result.get("success") == "ok"
+    def get_tradebook(self, ticker_id: str, page: int = 1) -> Dict[str, Any]:
+        params = {"page": page}
+        return self._make_public_request(f"tradebook/{ticker_id}", params=params)
 
     def get_price(self, from_coin: str, to_coin: str) -> Dict[str, Any]:
         """Get current exchange rate between two coins."""
@@ -203,47 +157,21 @@ class PriceOracle:
         return price_data
 
     def _fetch_price(self, from_coin: str, to_coin: str) -> Dict[str, Any]:
-        """Fetch price from NestEx API.
-
-        Uses the user's own trade history to calculate cross rates:
-        - OXC/OXG rate = OXC/USDT price / OXG/USDT price
-
-        Note: This private API only returns user's own trades, so we need to
-        have traded both coins against USDT to calculate cross rate.
-        """
-
-        # Get user's trades for both coins against USDT
-        oxc_trades = self.get_trades(cur="OXC")
-        oxg_trades = self.get_trades(cur="OXG")
+        """Fetch price from NestEx public tickers."""
 
         oxc_price = None
         oxg_price = None
+        try:
+            tickers = self.get_public_tickers()
+            if isinstance(tickers, list):
+                for t in tickers:
+                    if t.get("ticker_id") == "OXC_USDT":
+                        oxc_price = float(t.get("last_price", 0) or 0)
+                    elif t.get("ticker_id") == "OXG_USDT":
+                        oxg_price = float(t.get("last_price", 0) or 0)
+        except PriceOracleAPIError as e:
+            logger.warning(f"Failed to fetch public tickers: {e}")
 
-        # Calculate OXC/USDT price from recent trades
-        if oxc_trades:
-            oxc_trades = sorted(
-                oxc_trades, key=lambda x: x.get("trade_at", ""), reverse=True
-            )
-            prices = [
-                float(t.get("price", 0)) for t in oxc_trades[:5] if t.get("price")
-            ]
-            if prices:
-                oxc_price = sum(prices) / len(prices)
-                logger.info(f"OXC/USDT price from trades: {oxc_price}")
-
-        # Calculate OXG/USDT price from recent trades
-        if oxg_trades:
-            oxg_trades = sorted(
-                oxg_trades, key=lambda x: x.get("trade_at", ""), reverse=True
-            )
-            prices = [
-                float(t.get("price", 0)) for t in oxg_trades[:5] if t.get("price")
-            ]
-            if prices:
-                oxg_price = sum(prices) / len(prices)
-                logger.info(f"OXG/USDT price from trades: {oxg_price}")
-
-        # Calculate cross rate
         if oxc_price and oxg_price:
             cross_rate = oxc_price / oxg_price
             return {
@@ -253,14 +181,23 @@ class PriceOracle:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "oxc_usdt": oxc_price,
                 "oxg_usdt": oxg_price,
-                "source": "nestex_cross_usdt",
+                "source": "nestex_ticker",
             }
 
-        # Fallback if no trades
         if TESTING_MODE:
-            logger.warning(f"Insufficient trade history for cross rate, using fallback")
+            logger.warning("Insufficient ticker data for cross rate, using fallback")
 
         if from_coin == "OXC" and to_coin == "OXG":
+            if oxc_price and OXG_USDT_FALLBACK_PRICE:
+                return {
+                    "from_coin": from_coin,
+                    "to_coin": to_coin,
+                    "price": oxc_price / OXG_USDT_FALLBACK_PRICE,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "oxc_usdt": oxc_price,
+                    "oxg_usdt": OXG_USDT_FALLBACK_PRICE,
+                    "source": "fallback",
+                }
             return {
                 "from_coin": from_coin,
                 "to_coin": to_coin,
@@ -269,6 +206,17 @@ class PriceOracle:
                 "source": "fallback",
             }
         elif from_coin == "OXG" and to_coin == "OXC":
+            if oxg_price and OXC_USDT_FALLBACK_PRICE:
+                cross = OXC_USDT_FALLBACK_PRICE / oxg_price
+                return {
+                    "from_coin": from_coin,
+                    "to_coin": to_coin,
+                    "price": 1.0 / cross,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "oxc_usdt": OXC_USDT_FALLBACK_PRICE,
+                    "oxg_usdt": oxg_price,
+                    "source": "fallback",
+                }
             price = 1.0 / OXC_OXG_FALLBACK_PRICE if OXC_OXG_FALLBACK_PRICE else 1.0
             return {
                 "from_coin": from_coin,
@@ -289,18 +237,15 @@ class PriceOracle:
         raise PriceOracleError(f"No price data available for {from_coin}/{to_coin}")
 
     def _get_coin_usdt_price(self, coin: str) -> float:
-        """Get coin price in USDT."""
-        trades = self.get_trades(cur=coin)
-
-        if not trades:
+        """Get coin price in USDT from public tickers."""
+        try:
+            tickers = self.get_public_tickers()
+            if isinstance(tickers, list):
+                for t in tickers:
+                    if t.get("ticker_id") == f"{coin}_USDT":
+                        return float(t.get("last_price", 0) or 0)
+        except PriceOracleAPIError:
             return None
-
-        trades = sorted(trades, key=lambda x: x.get("trade_at", ""), reverse=True)
-        recent = trades[:10]
-        prices = [float(t.get("price", 0)) for t in recent if t.get("price")]
-
-        if prices:
-            return sum(prices) / len(prices)
         return None
 
     def validate_price(self, price_data: Dict[str, Any]) -> bool:

@@ -2,7 +2,7 @@
 
 ## Run the application in test mode
 
-1) Ensure test mode is enabled:
+1) Ensure test mode is enabled (pricing still uses live public tickers):
 
 ```bash
 sed -i 's/^TESTING_MODE=.*/TESTING_MODE=true/' app/.env
@@ -26,7 +26,29 @@ docker exec ordex-swap-ordex-swap-1 /app/first-run.sh
 curl -s http://localhost:8080/health
 ```
 
-## Run the full test suite
+## Running tests locally (outside Docker)
+
+### Python setup
+
+```bash
+cd app
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Run Python unit + e2e tests
+
+```bash
+# Standard tests
+source venv/bin/activate
+python -m pytest tests/ -v
+
+# With HTTP e2e tests
+E2E_HTTP=1 python -m pytest tests/ -v
+```
+
+## Run the full test suite (Docker)
 
 ### 1) Build with tests included
 

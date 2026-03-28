@@ -27,8 +27,6 @@ from config import (
     SWAP_MAX_AMOUNT,
     API_HOST,
     API_PORT,
-    NESTEX_API_KEY,
-    NESTEX_API_SECRET,
     OXC_RPC_URL,
     OXC_RPC_USER,
     OXC_RPC_PASSWORD,
@@ -74,16 +72,8 @@ def main():
     )
     daemon_manager.start_daemons(testing_mode=TESTING_MODE)
 
-    logger.info("Connecting to NestEx API...")
-    oracle = PriceOracle(NESTEX_API_KEY, NESTEX_API_SECRET)
-
-    try:
-        if oracle.check_token():
-            logger.info("NestEx API token validated")
-        else:
-            logger.warning("NestEx API token invalid - prices may be unavailable")
-    except Exception as e:
-        logger.warning(f"NestEx API connection failed: {e}")
+    logger.info("Initializing public price oracle...")
+    oracle = PriceOracle()
 
     logger.info(f"Connecting to OXC wallet at {OXC_RPC_URL}...")
     oxc_wallet = OXCWallet(

@@ -42,7 +42,7 @@ Copy the example env file and fill in real values:
 cp .env.example .env
 ```
 
-Do not commit `.env`; it contains secrets (NestEx API keys and RPC credentials).
+Do not commit `.env`; it contains secrets (RPC credentials).
 
 ### Running in Testing Mode (Development)
 
@@ -90,7 +90,7 @@ When `TESTING_MODE=true`, the service still runs the daemons for real RPC and ad
 
 | Component | Testing Mode | Production Mode |
 |-----------|--------------|-----------------|
-| Price fetching | Real NestEx API (cached) | Real NestEx API |
+| Price fetching | Real NestEx public tickers (cached) | Real NestEx public tickers |
 | Address generation | Real RPC to daemon | Real RPC to daemon |
 | Balance checking | Real RPC to daemon | Real RPC to daemon |
 | Coin sending | Mock txid (no on-chain) | Real wallet transaction |
@@ -175,8 +175,6 @@ curl -s http://localhost:8000/api/v1/swaps | jq .
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TESTING_MODE` | `false` | Enable testing/dev mode (set `false` to run daemons) |
-| `NESTEX_API_KEY` | (dev key) | NestEx API key |
-| `NESTEX_API_SECRET` | (dev secret) | NestEx API secret |
 | `OXC_RPC_URL` | `http://127.0.0.1:25173` | OXC daemon RPC |
 | `OXG_RPC_URL` | `http://127.0.0.1:25465` | OXG daemon RPC |
 | `OXC_RPC_USER` | `rpcuser` | RPC username |
@@ -202,13 +200,17 @@ Edit `swap-service/config.py` to adjust:
 
 ## Price Oracle
 
-The service uses NestEx API to get USDT trading pair prices and calculates the cross rate:
+The service uses NestEx public endpoints to get USDT trading pair prices and calculates the cross rate:
 
 ```
 OXC/OXG = OXC/USDT ÷ OXG/USDT
 ```
 
 Price history and cached rates are stored in SQLite (`DB_PATH`) so data persists across restarts and reduces API calls.
+
+Public endpoints used:
+- `https://trade.nestex.one/api/cg/tickers` (reads `OXC_USDT` and `OXG_USDT`)
+- `https://trade.nestex.one/api/cg/tradebook/{ticker_id}` (backfill 24h history)
 
 ### Price Endpoints
 
@@ -227,7 +229,7 @@ Price history stores:
 - `oxc_usdt` - OXC price in USDT
 - `oxg_usdt` - OXG price in USDT  
 - `cross_rate` - OXC/OXG calculated from USDT pairs
-- `source` - Always "nestex_cross_usdt"
+- `source` - "nestex_ticker" (or "nestex_tradebook" for backfill)
 - `timestamp` - UTC timestamp
 
 ## API Reference

@@ -21,16 +21,18 @@ test('user UI loads and enables swap with valid input', async ({ page }) => {
   await page.waitForFunction(() => {
     const chart = document.getElementById('price-chart');
     if (!chart) return false;
-    const bars = chart.querySelectorAll('.price-bar');
+    const svg = chart.querySelector('svg');
+    if (!svg) return false;
     const text = chart.textContent || '';
     if (text.includes('Loading chart') || text.includes('No history data') || text.includes('No price data')) {
       return false;
     }
-    return bars.length > 0;
+    const circles = svg.querySelectorAll('circle');
+    return circles.length > 0;
   }, null, { timeout: 15000 });
 
-  const barCount = await priceChart.locator('.price-bar').count();
-  expect(barCount).toBeGreaterThan(0);
+  const circleCount = await priceChart.locator('svg circle').count();
+  expect(circleCount).toBeGreaterThan(0);
 });
 
 test('user UI blocks invalid input and shows error on submit', async ({ page }) => {

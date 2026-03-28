@@ -12,6 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "swap-service"))
 load_dotenv()
 
 from wallet_rpc import OXCWallet, OXGWallet, WalletRPCError
+from price_oracle import PriceOracle
+from price_history import PriceHistoryService
 from config import OXC_RPC_URL, OXC_RPC_USER, OXC_RPC_PASSWORD, OXC_WALLET_NAME
 from config import OXG_RPC_URL, OXG_RPC_USER, OXG_RPC_PASSWORD, OXG_WALLET_NAME
 
@@ -61,6 +63,11 @@ def main() -> int:
     ensure_wallet(oxc_wallet, "OXC", OXC_WALLET_NAME)
     ensure_wallet(oxg_wallet, "OXG", OXG_WALLET_NAME)
     logger.info("Base wallets initialized.")
+
+    logger.info("Checking price history backfill...")
+    oracle = PriceOracle()
+    history = PriceHistoryService(oracle=oracle)
+    history.ensure_backfill(hours=24)
     return 0
 
 

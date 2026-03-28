@@ -27,7 +27,7 @@ class TestPriceOraclePersistentCache(unittest.TestCase):
         self.price_oracle = importlib.import_module("price_oracle")
 
     def test_persistent_cache_round_trip(self):
-        oracle = self.price_oracle.PriceOracle(api_key="k", api_secret="s")
+        oracle = self.price_oracle.PriceOracle()
         now = datetime.now(timezone.utc).isoformat()
         expected = {
             "from_coin": "OXC",
@@ -43,7 +43,7 @@ class TestPriceOraclePersistentCache(unittest.TestCase):
         first = oracle.get_price("OXC", "OXG")
         self.assertEqual(first["price"], 1.23)
 
-        oracle2 = self.price_oracle.PriceOracle(api_key="k", api_secret="s")
+        oracle2 = self.price_oracle.PriceOracle()
         oracle2._fetch_price = lambda *_args, **_kwargs: (_ for _ in ()).throw(
             AssertionError("Should use persistent cache")
         )

@@ -220,6 +220,12 @@
       border-radius: 12px;
       padding: 12px;
     }
+
+    .stat-big {
+      font-size: 1.75rem;
+      font-weight: 800;
+      line-height: 1.1;
+    }
     
     .deposit-address {
       background: rgba(0, 0, 0, 0.3);
@@ -283,13 +289,14 @@
       <div class="col-6 col-md-3">
         <div class="stat-card">
           <div class="text-brand-muted small">24h Volume</div>
-          <div class="fs-6 fw-bold text-white" id="stat-volume">--</div>
+          <div class="fs-6 fw-bold text-white" id="stat-volume-oxc">--</div>
+          <div class="fs-6 fw-bold text-white" id="stat-volume-oxg">--</div>
         </div>
       </div>
       <div class="col-6 col-md-3">
         <div class="stat-card">
           <div class="text-brand-muted small">Total Swaps</div>
-          <div class="fs-6 fw-bold text-white" id="stat-swaps">--</div>
+          <div class="stat-big text-white" id="stat-swaps">--</div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -477,7 +484,8 @@
     const resetBtn = document.getElementById('reset-btn');
     
     // Stat elements
-    const statVolume = document.getElementById('stat-volume');
+    const statVolumeOxc = document.getElementById('stat-volume-oxc');
+    const statVolumeOxg = document.getElementById('stat-volume-oxg');
     const statSwaps = document.getElementById('stat-swaps');
     const statHigh = document.getElementById('stat-high');
     const statLow = document.getElementById('stat-low');
@@ -828,11 +836,25 @@
         const statsData = await statsRes.json();
         const historyData = await historyRes.json();
         
-        if (statsData.success) {
-          const stats = statsData.data;
-          statHigh.textContent = stats.max ? stats.max.toFixed(4) : '--';
-          statLow.textContent = stats.min ? stats.min.toFixed(4) : '--';
+      if (statsData.success) {
+        const stats = statsData.data;
+        if (stats.max) {
+          const high = stats.max.toFixed(4);
+          const highInv = (1 / stats.max).toFixed(4);
+          statHigh.textContent = `${high} OXG | ${highInv} OXC`;
+          statHigh.title = '24h high';
+        } else {
+          statHigh.textContent = '--';
         }
+        if (stats.min) {
+          const low = stats.min.toFixed(4);
+          const lowInv = (1 / stats.min).toFixed(4);
+          statLow.textContent = `${low} OXG | ${lowInv} OXC`;
+          statLow.title = '24h low';
+        } else {
+          statLow.textContent = '--';
+        }
+      }
         
       if (historyData.success && historyData.data.history.length > 0) {
         priceHistoryCache = historyData.data.history;
@@ -873,15 +895,32 @@
         }
       });
 
-      const filled = buckets.map((v, i) => (v == null ? null : v));
+      const filled = buckets.map(v => (v == null ? null : v));
+      let lastKnown = null;
+      for (let i = filled.length - 1; i >= 0; i--) {
+        if (filled[i] != null) {
+          lastKnown = filled[i];
+        } else if (lastKnown != null) {
+          filled[i] = lastKnown;
+        }
+      }
+      for (let i = 0; i < filled.length; i++) {
+        if (filled[i] == null && lastKnown != null) {
+          filled[i] = lastKnown;
+        } else if (filled[i] != null) {
+          lastKnown = filled[i];
+        }
+      }
+
       const available = filled.filter(v => v != null);
       if (available.length === 0) {
         priceChart.innerHTML = '<div class="text-center text-brand-muted w-100 small">No price data</div>';
         return;
       }
 
-      const min = Math.min(...available);
-      const max = Math.max(...available);
+      const min = 0;
+      const invAvailable = available.map(v => 1 / v);
+      const max = Math.max(2, ...available, ...invAvailable);
       const range = max - min || 1;
 
       const width = Math.max(priceChart.clientWidth || 0, 260);
@@ -897,10 +936,24 @@
         if (v == null) return null;
         const x = padLeft + (i / 23) * innerW;
         const y = padTop + (1 - (v - min) / range) * innerH;
-        return { x, y, v, hour: i };
+        const inv = 1 / v;
+        const yInv = padTop + (1 - (inv - min) / range) * innerH;
+        return { x, y, v, inv, yInv, hour: i };
       }).filter(Boolean);
 
       const linePath = pointsSvg.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+      const linePathInv = pointsSvg.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${p.x},${p.yInv}`).join(' ');
+      const areaPath = pointsSvg.length
+        ? `${linePath} L${pointsSvg[pointsSvg.length - 1].x},${height - padBottom} L${pointsSvg[0].x},${height - padBottom} Z`
+        : '';
+      const areaPathInv = pointsSvg.length
+        ? `${linePathInv} L${pointsSvg[pointsSvg.length - 1].x},${height - padBottom} L${pointsSvg[0].x},${height - padBottom} Z`
+        : '';
+      const delta = available[available.length - 1] - available[0];
+      const deltaText = `${delta >= 0 ? '+' : ''}${delta.toFixed(6)} OXG`;
+      const deltaColor = delta >= 0 ? '#10b981' : '#ef4444';
+      const deltaInv = (1 / available[available.length - 1]) - (1 / available[0]);
+      const deltaInvText = `${deltaInv >= 0 ? '+' : ''}${deltaInv.toFixed(6)} OXC`;
 
       const tickHours = [0, 6, 12, 18, 23];
       const tickLabels = tickHours.map(h => {
@@ -920,15 +973,27 @@
 
           ${tickLabels}
 
-          <text x="2" y="${padTop + 8}" fill="#888" font-size="8">OXC</text>
-          <text x="${width - 2}" y="${padTop + 8}" fill="#888" font-size="8" text-anchor="end">OXG</text>
-          <text x="2" y="${height - padBottom - 2}" fill="#666" font-size="8">${min.toFixed(4)}</text>
-          <text x="${width - 2}" y="${padTop + 8 + 10}" fill="#666" font-size="8" text-anchor="end">${max.toFixed(4)}</text>
+          <text x="2" y="${padTop + 8}" fill="#888" font-size="8">OXG</text>
+          <text x="24" y="${padTop + 8}" fill="#888" font-size="8">OXC</text>
+          <text x="2" y="${padTop + 18}" fill="#666" font-size="8">${max.toFixed(2)}</text>
+          <text x="24" y="${padTop + 18}" fill="#666" font-size="8">${max.toFixed(2)}</text>
+          <text x="2" y="${height - padBottom - 2}" fill="#666" font-size="8">0.00</text>
+          <text x="24" y="${height - padBottom - 2}" fill="#666" font-size="8">0.00</text>
 
+          <text x="${width - padRight}" y="${padTop + 8}" fill="${deltaColor}" font-size="8" text-anchor="end">${deltaText}</text>
+          <text x="${padLeft}" y="${padTop + 8}" fill="${deltaColor}" font-size="8">${deltaInvText}</text>
+
+          ${areaPath ? `<path d="${areaPath}" fill="rgba(220, 167, 71, 0.18)" stroke="none" />` : ''}
+          ${areaPathInv ? `<path d="${areaPathInv}" fill="rgba(79, 139, 214, 0.18)" stroke="none" />` : ''}
           ${linePath ? `<path d="${linePath}" fill="none" stroke="#dca747" stroke-width="2" />` : ''}
-          ${pointsSvg.map(p => `<circle cx="${p.x}" cy="${p.y}" r="2" fill="#dca747">
-            <title>${p.hour}h: ${p.v.toFixed(6)} OXG</title>
+          ${linePathInv ? `<path d="${linePathInv}" fill="none" stroke="#4f8bd6" stroke-width="2" />` : ''}
+          ${pointsSvg.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#dca747" stroke="#1f1f1f" stroke-width="1">
+            <title>${p.hour}h: ${p.v.toFixed(6)} OXG / ${p.inv.toFixed(6)} OXC</title>
           </circle>`).join('')}
+          ${pointsSvg.map(p => `<circle cx="${p.x}" cy="${p.yInv}" r="3" fill="#4f8bd6" stroke="#1f1f1f" stroke-width="1">
+            <title>${p.hour}h: ${p.inv.toFixed(6)} OXC / ${p.v.toFixed(6)} OXG</title>
+          </circle>`).join('')}
+          ${pointsSvg.map(p => `<circle cx="${p.x}" cy="${height - padBottom}" r="2" fill="#2a2a2a"></circle>`).join('')}
         </svg>
       `;
     }
@@ -949,8 +1014,10 @@
           const stats = data.data;
           statSwaps.textContent = stats.total_swaps || 0;
           
-          const vol = (stats.total_volume_oxc || 0).toFixed(2);
-          statVolume.textContent = vol + ' OXC';
+          const volOxc = (stats.total_volume_oxc || 0).toFixed(2);
+          const volOxg = (stats.total_volume_oxg || 0).toFixed(2);
+          statVolumeOxc.textContent = volOxc + ' OXC';
+          statVolumeOxg.textContent = volOxg + ' OXG';
         }
       } catch (err) {
         console.error('Failed to load swap stats:', err);

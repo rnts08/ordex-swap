@@ -1,9 +1,7 @@
 import os
 
-NESTEX_BASE_URL = "https://trade.nestex.one/api/v2"
-NESTEX_API_KEY = os.getenv("NESTEX_API_KEY", "")
-NESTEX_API_SECRET = os.getenv("NESTEX_API_SECRET", "")
-NESTEX_MIN_GAP_SECONDS = 5
+NESTEX_PUBLIC_BASE_URL = "https://trade.nestex.one/api/cg"
+NESTEX_PUBLIC_MIN_GAP_SECONDS = 6
 NESTEX_PRICE_TTL_SECONDS = 30
 NESTEX_MAX_PRICE_AGE_SECONDS = 60
 
