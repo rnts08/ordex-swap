@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Tool caches
+.ruff_cache/
+.ruff-cache/
+
+# Data stores
+/app/data/*.db
+/app/data/*.sqlite*
+/app/data/oxc/
+/app/data/oxg/
+/app/data/bin/
+
+# Env files
+.env
+/app/.env
+
+# Binaries (provided locally)
+/app/data/bin/ordexcoind
+/app/data/bin/ordexgoldd
+
+# editors and agents
+.opencode/
+.vscode/
+.idea/
+.agent/
+AGENTS.md

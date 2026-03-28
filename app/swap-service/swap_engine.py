@@ -1,0 +1,261 @@
+import uuid
+import logging
+from typing import Optional, Dict, Any
+from enum import Enum
+from datetime import datetime, timezone
+
+from price_oracle import PriceOracle, PriceOracleError, PriceOracleStaleError
+from wallet_rpc import OXCWallet, OXGWallet, WalletRPCError
+from swap_history import SwapHistoryService
+from config import (
+    SWAP_FEE_PERCENT,
+    SWAP_MIN_AMOUNT,
+    SWAP_MAX_AMOUNT,
+    SUPPORTED_COINS,
+    TESTING_MODE,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SwapStatus(Enum):
+    PENDING = "pending"
+    AWAITING_DEPOSIT = "awaiting_deposit"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
+class SwapError(Exception):
+    """Base exception for swap errors."""
+
+    pass
+
+
+class InvalidAmountError(SwapError):
+    """Amount is outside allowed range."""
+
+    pass
+
+
+class UnsupportedPairError(SwapError):
+    """Currency pair not supported."""
+
+    pass
+
+
+class SwapEngine:
+    def __init__(
+        self,
+        price_oracle: PriceOracle,
+        oxc_wallet: OXCWallet,
+        oxg_wallet: OXGWallet,
+        history_service: SwapHistoryService = None,
+        fee_percent: float = SWAP_FEE_PERCENT,
+        min_amount: float = SWAP_MIN_AMOUNT,
+        max_amount: float = SWAP_MAX_AMOUNT,
+    ):
+        self.oracle = price_oracle
+        self.oxc_wallet = oxc_wallet
+        self.oxg_wallet = oxg_wallet
+        self.history = history_service or SwapHistoryService()
+        self.fee_percent = fee_percent
+        self.min_amount = min_amount
+        self.max_amount = max_amount
+        self._pending_swaps: Dict[str, Dict[str, Any]] = {}
+
+    def validate_swap_request(
+        self, from_coin: str, to_coin: str, amount: float
+    ) -> None:
+        from_coin = from_coin.upper()
+        to_coin = to_coin.upper()
+
+        if from_coin not in SUPPORTED_COINS or to_coin not in SUPPORTED_COINS:
+            raise UnsupportedPairError(f"Unsupported pair: {from_coin}/{to_coin}")
+
+        if from_coin == to_coin:
+            raise UnsupportedPairError("Cannot swap same coin")
+
+        if amount < self.min_amount:
+            raise InvalidAmountError(f"Amount {amount} below minimum {self.min_amount}")
+
+        if amount > self.max_amount:
+            raise InvalidAmountError(f"Amount {amount} above maximum {self.max_amount}")
+
+    def get_deposit_address(self, coin: str) -> str:
+        coin = coin.upper()
+
+        if coin == "OXC":
+            return self.oxc_wallet.get_address()
+        elif coin == "OXG":
+            return self.oxg_wallet.get_address()
+        else:
+            raise UnsupportedPairError(f"Unknown coin: {coin}")
+
+    def create_swap_quote(
+        self, from_coin: str, to_coin: str, amount: float
+    ) -> Dict[str, Any]:
+        self.validate_swap_request(from_coin, to_coin, amount)
+
+        from_coin = from_coin.upper()
+        to_coin = to_coin.upper()
+
+        conversion = self.oracle.get_conversion_amount(
+            from_coin, to_coin, amount, self.fee_percent
+        )
+
+        return {
+            "quote_id": str(uuid.uuid4()),
+            "from_coin": from_coin,
+            "to_coin": to_coin,
+            "from_amount": amount,
+            "to_amount": conversion["to_amount"],
+            "fee_amount": conversion["fee_amount"],
+            "net_amount": conversion["net_amount"],
+            "rate": conversion["rate"],
+            "price_data": conversion["price_data"],
+            "expires_at": datetime.now(timezone.utc).isoformat(),
+            "fee_percent": self.fee_percent,
+        }
+
+    def create_swap(
+        self, from_coin: str, to_coin: str, amount: float, user_address: str
+    ) -> Dict[str, Any]:
+        self.validate_swap_request(from_coin, to_coin, amount)
+
+        from_coin = from_coin.upper()
+        to_coin = to_coin.upper()
+
+        conversion = self.oracle.get_conversion_amount(
+            from_coin, to_coin, amount, self.fee_percent
+        )
+
+        swap_id = str(uuid.uuid4())
+        deposit_address = self.get_deposit_address(from_coin)
+        now = datetime.now(timezone.utc)
+
+        swap = {
+            "swap_id": swap_id,
+            "from_coin": from_coin,
+            "to_coin": to_coin,
+            "from_amount": amount,
+            "to_amount": conversion["to_amount"],
+            "fee_amount": conversion["fee_amount"],
+            "net_amount": conversion["net_amount"],
+            "rate": conversion["rate"],
+            "user_address": user_address,
+            "deposit_address": deposit_address,
+            "status": SwapStatus.PENDING.value,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+            "deposit_txid": None,
+            "settle_txid": None,
+        }
+
+        self._pending_swaps[swap_id] = swap
+        self.history.add_swap(swap)
+
+        logger.info(
+            f"Created swap {swap_id}: {amount} {from_coin} -> {conversion['net_amount']} {to_coin}"
+        )
+
+        return swap
+
+    def get_swap(self, swap_id: str) -> Optional[Dict[str, Any]]:
+        # Check pending swaps first
+        if swap_id in self._pending_swaps:
+            return self._pending_swaps[swap_id]
+        # Check history
+        return self.history.get_swap(swap_id)
+
+    def confirm_deposit(self, swap_id: str, deposit_txid: str) -> Dict[str, Any]:
+        swap = self._pending_swaps.get(swap_id)
+        if not swap:
+            # Check history
+            swap = self.history.get_swap(swap_id)
+            if not swap:
+                raise SwapError(f"Swap not found: {swap_id}")
+            raise SwapError(f"Swap already completed: {swap_id}")
+
+        if swap["status"] not in [
+            SwapStatus.PENDING.value,
+            SwapStatus.AWAITING_DEPOSIT.value,
+        ]:
+            raise SwapError(f"Swap in invalid state: {swap['status']}")
+
+        swap["deposit_txid"] = deposit_txid
+        swap["status"] = SwapStatus.PROCESSING.value
+        swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        return self._settle_swap(swap_id)
+
+    def _settle_swap(self, swap_id: str) -> Dict[str, Any]:
+        swap = self._pending_swaps.get(swap_id)
+        if not swap:
+            raise SwapError(f"Swap not found: {swap_id}")
+
+        try:
+            from_coin = swap["from_coin"]
+            to_coin = swap["to_coin"]
+            user_address = swap["user_address"]
+            net_amount = swap["net_amount"]
+
+            if TESTING_MODE:
+                settle_txid = f"tx_test_mock_{swap_id[:8]}"
+                logger.info(f"Testing mode: simulating swap {swap_id} completion")
+            else:
+                if to_coin == "OXC":
+                    settle_txid = self.oxc_wallet.send(user_address, net_amount)
+                elif to_coin == "OXG":
+                    settle_txid = self.oxg_wallet.send(user_address, net_amount)
+                else:
+                    raise UnsupportedPairError(f"Unknown output coin: {to_coin}")
+
+            swap["settle_txid"] = settle_txid
+            swap["status"] = SwapStatus.COMPLETED.value
+            swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+            # Move to completed history
+            if swap_id in self._pending_swaps:
+                del self._pending_swaps[swap_id]
+            self.history.complete_swap(swap_id)
+
+            logger.info(f"Swap {swap_id} completed: {settle_txid}")
+
+            return swap
+
+        except WalletRPCError as e:
+            swap["status"] = SwapStatus.FAILED.value
+            swap["error"] = str(e)
+            swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+            logger.error(f"Swap {swap_id} failed: {e}")
+            raise SwapError(f"Settlement failed: {e}")
+
+    def cancel_swap(self, swap_id: str) -> Dict[str, Any]:
+        swap = self._pending_swaps.get(swap_id)
+        if not swap:
+            raise SwapError(f"Swap not found: {swap_id}")
+
+        if swap["status"] in [SwapStatus.COMPLETED.value, SwapStatus.FAILED.value]:
+            raise SwapError(f"Cannot cancel swap in state: {swap['status']}")
+
+        swap["status"] = SwapStatus.EXPIRED.value
+        swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        logger.info(f"Swap {swap_id} cancelled")
+
+        return swap
+
+    def list_swaps(self, status: str = None) -> list:
+        return self.history.get_all_swaps(status=status, limit=100)
+
+    def get_balance(self, coin: str) -> float:
+        coin = coin.upper()
+
+        if coin == "OXC":
+            return self.oxc_wallet.get_balance()
+        elif coin == "OXG":
+            return self.oxg_wallet.get_balance()
+        else:
+            raise UnsupportedPairError(f"Unknown coin: {coin}")

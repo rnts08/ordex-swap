@@ -1,0 +1,46 @@
+import os
+
+NESTEX_BASE_URL = "https://trade.nestex.one/api/v2"
+NESTEX_API_KEY = os.getenv("NESTEX_API_KEY", "")
+NESTEX_API_SECRET = os.getenv("NESTEX_API_SECRET", "")
+NESTEX_MIN_GAP_SECONDS = 5
+NESTEX_PRICE_TTL_SECONDS = 30
+NESTEX_MAX_PRICE_AGE_SECONDS = 60
+
+OXC_RPC_URL = os.getenv("OXC_RPC_URL", "http://127.0.0.1:25173")
+OXC_RPC_USER = os.getenv("OXC_RPC_USER", "")
+OXC_RPC_PASSWORD = os.getenv("OXC_RPC_PASSWORD", "")
+
+OXG_RPC_URL = os.getenv("OXG_RPC_URL", "http://127.0.0.1:25465")
+OXG_RPC_USER = os.getenv("OXG_RPC_USER", "")
+OXG_RPC_PASSWORD = os.getenv("OXG_RPC_PASSWORD", "")
+
+SWAP_FEE_PERCENT = 1.0
+SWAP_MIN_AMOUNT = 0.0001
+SWAP_MAX_AMOUNT = 10000.0
+SWAP_SLIPPAGE_TOLERANCE_PERCENT = 2.0
+
+OXC_USDT_FALLBACK_PRICE = float(os.getenv("OXC_USDT_FALLBACK_PRICE", "0.001"))
+OXG_USDT_FALLBACK_PRICE = float(os.getenv("OXG_USDT_FALLBACK_PRICE", "0.044"))
+
+OXC_OXG_FALLBACK_PRICE = float(os.getenv("OXC_OXG_FALLBACK_PRICE", "0.02268"))
+
+API_HOST = os.getenv("API_HOST", "127.0.0.1")
+API_PORT = int(os.getenv("API_PORT", "8000"))
+
+TESTING_MODE = os.getenv("TESTING_MODE", "false").lower() == "true"
+
+ORDEXCOIND_PATH = os.getenv("ORDEXCOIND_PATH", "./ordexcoind")
+ORDEXGOLDD_PATH = os.getenv("ORDEXGOLDD_PATH", "./ordexgoldd")
+
+ORDEXCOIND_DATADIR = os.getenv("ORDEXCOIND_DATADIR", "./data/oxc")
+ORDEXGOLDD_DATADIR = os.getenv("ORDEXGOLDD_DATADIR", "./data/oxg")
+
+DATA_DIR = os.getenv("DATA_DIR", "./data")
+DB_PATH = os.getenv("DB_PATH", os.path.join(DATA_DIR, "ordex.db"))
+PRICE_HISTORY_FILE = os.getenv("PRICE_HISTORY_FILE", "price_history.json")
+SWAP_HISTORY_FILE = os.getenv("SWAP_HISTORY_FILE", "swap_history.json")
+
+PRICE_HISTORY_MAX_ENTRIES = 1000
+
+SUPPORTED_COINS = ["OXC", "OXG"]

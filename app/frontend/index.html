@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrdexSwap - OXC/OXG Exchange</title>
+  <link rel="icon" href="ordexnetwork.png" type="image/png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              black: '#030303',
+              card: '#0a0a0a',
+              border: '#1f1f1f',
+              accent: '#dca747',
+              'accent-muted': '#b38f3a',
+              muted: '#888888'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    
+    body {
+      background-color: #030303;
+      color: #ffffff;
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    .chat-pattern-bg {
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M54.627 0l.83.83-1.66 1.66.83.83-2.49 2.49-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83L4.98 54.627l-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83L0 56.287v3.713h3.713l1.66-1.66.83.83 1.66-1.66.83.83 2.49-2.49.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83L56.287 0h-1.66z' fill='%231f1f1f' fill-opacity='0.4' fill-rule='evenodd'/%3E%3C/svg%3E");
+    }
+    
+    .radial-glow {
+      background: radial-gradient(circle at 50% 30%, rgba(220, 167, 71, 0.12) 0%, rgba(3, 3, 3, 0) 70%);
+    }
+    
+    .bento-card {
+      background: rgba(10, 10, 10, 0.8);
+      backdrop-filter: blur(24px) saturate(150%);
+      -webkit-backdrop-filter: blur(24px) saturate(150%);
+      border: 1px solid rgba(220, 167, 71, 0.2);
+      border-radius: 24px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(220, 167, 71, 0.05);
+      transition: all 0.3s ease;
+    }
+    
+    .bento-card:hover {
+      box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(220, 167, 71, 0.15);
+      border-color: rgba(220, 167, 71, 0.4);
+      transform: translateY(-2px);
+    }
+    
+    .text-gradient {
+      background: linear-gradient(135deg, #FFFFFF 30%, #dca747 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .btn-swap {
+      background: rgba(220, 167, 71, 0.15);
+      border: 1px solid rgba(220, 167, 71, 0.4);
+      color: #dca747;
+      border-radius: 9999px;
+      transition: all 0.4s ease;
+    }
+    
+    .btn-swap:hover {
+      background: rgba(220, 167, 71, 0.25);
+      border-color: rgba(220, 167, 71, 0.8);
+      box-shadow: 0 0 24px rgba(220, 167, 71, 0.25);
+      color: #fff;
+    }
+    
+    .btn-swap:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .form-control-dark {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border-radius: 12px;
+    }
+    
+    .form-control-dark:focus {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(220, 167, 71, 0.5);
+      color: #fff;
+      box-shadow: 0 0 0 3px rgba(220, 167, 71, 0.1);
+    }
+    
+    .form-control-dark::placeholder {
+      color: #666;
+    }
+    
+    .coin-badge {
+      background: rgba(220, 167, 71, 0.1);
+      border: 1px solid rgba(220, 167, 71, 0.3);
+      color: #dca747;
+    }
+    
+    .network-badge {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #888;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 40px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #030303;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f1f1f;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #dca747;
+    }
+    
+    .swap-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(220, 167, 71, 0.1);
+      border: 1px solid rgba(220, 167, 71, 0.3);
+      border-radius: 50%;
+      color: #dca747;
+      font-size: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .swap-icon:hover {
+      background: rgba(220, 167, 71, 0.2);
+      transform: rotate(180deg);
+    }
+    
+    .status-pending { color: #f59e0b; }
+    .status-completed { color: #10b981; }
+    .status-failed { color: #ef4444; }
+    .status-processing { color: #3b82f6; }
+    .status-expired { color: #6b7280; }
+    
+    .loader {
+      border: 3px solid rgba(220, 167, 71, 0.2);
+      border-top: 3px solid #dca747;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .price-chart {
+      height: 120px;
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+    }
+    
+    .price-bar {
+      flex: 1;
+      background: rgba(220, 167, 71, 0.3);
+      border-radius: 2px 2px 0 0;
+      min-height: 4px;
+      transition: height 0.3s ease;
+    }
+    
+    .price-bar:hover {
+      background: rgba(220, 167, 71, 0.6);
+    }
+    
+    .stat-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    
+    .deposit-address {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px dashed rgba(220, 167, 71, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body class="selection:bg-brand-accent selection:text-black">
+  <div class="fixed inset-0 chat-pattern-bg opacity-15 pointer-events-none z-[-2]"></div>
+  <div class="radial-glow fixed inset-0 z-[-1] pointer-events-none"></div>
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 w-full z-[100] border-b border-white/[0.04] backdrop-blur-2xl bg-brand-black/80">
+    <div class="container py-3 d-flex align-items-center justify-content-between">
+      <a href="#" class="d-flex align-items-center gap-3 text-decoration-none">
+        <img src="ordexnetwork.png" alt="OrdexNetwork" class="w-9 h-9" style="filter: drop-shadow(0 0 12px rgba(220,167,71,0.5));">
+        <span class="fw-bold text-white" style="font-size: 1.25rem; letter-spacing: -0.02em;">ORDEXSWAP</span>
+      </a>
+      <div class="d-flex align-items-center gap-3">
+        <span class="network-badge" id="mode-indicator">Connecting...</span>
+        <span class="network-badge" id="price-display">OXC/OXG: --</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container pt-5 mt-4 pb-5">
+    <!-- Coin Prices Row -->
+    <div class="row g-3 mb-4">
+      <div class="col-6">
+        <div class="bento-card p-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+              <span class="coin-badge px-2 py-1 rounded">OXC</span>
+              <span class="text-brand-muted small">Price</span>
+            </div>
+            <div class="fs-6 fw-bold text-white" id="oxc-price">--</div>
+          </div>
+          <div class="text-brand-muted small mt-1" id="oxc-price-usdt">USDT: --</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="bento-card p-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+              <span class="coin-badge px-2 py-1 rounded">OXG</span>
+              <span class="text-brand-muted small">Price</span>
+            </div>
+            <div class="fs-6 fw-bold text-white" id="oxg-price">--</div>
+          </div>
+          <div class="text-brand-muted small mt-1" id="oxg-price-usdt">USDT: --</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="text-brand-muted small">24h Volume</div>
+          <div class="fs-6 fw-bold text-white" id="stat-volume">--</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="text-brand-muted small">Total Swaps</div>
+          <div class="fs-6 fw-bold text-white" id="stat-swaps">--</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="text-brand-muted small">24h High</div>
+          <div class="fs-6 fw-bold text-white" id="stat-high">--</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="text-brand-muted small">24h Low</div>
+          <div class="fs-6 fw-bold text-white" id="stat-low">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row justify-content-center">
+      <div class="col-lg-6 col-md-8">
+        
+        <!-- Price Display Card -->
+        <div class="bento-card p-4 mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <span class="text-brand-muted small">Current Rate</span>
+              <div class="fs-4 fw-bold text-gradient" id="current-rate">Loading...</div>
+            </div>
+            <div class="text-end">
+              <span class="text-brand-muted small">Fee</span>
+              <div class="fs-5 fw-bold text-white">1.0%</div>
+            </div>
+          </div>
+          <!-- Price History Chart -->
+          <div class="mt-3">
+            <span class="text-brand-muted small">24h Price History</span>
+            <div class="price-chart mt-2" id="price-chart">
+              <div class="text-center text-brand-muted w-100 small">Loading chart...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Swap Form Card -->
+        <div class="bento-card p-4">
+          <h2 class="fs-4 fw-bold text-white mb-4">Swap Coins</h2>
+          
+          <form id="swap-form">
+            <!-- From Coin -->
+            <div class="mb-3">
+              <label class="form-label text-brand-muted small">From</label>
+              <div class="d-flex gap-2">
+                <select class="form-select form-control-dark" id="from-coin" style="flex: 1;">
+                  <option value="OXC" selected>OXC (OrdexCoin)</option>
+                  <option value="OXG">OXG (OrdexGold)</option>
+                </select>
+                <input type="number" class="form-control form-control-dark text-end" 
+                       id="from-amount" placeholder="0.00" step="0.00000001" min="0.0001" style="width: 140px;">
+              </div>
+            </div>
+            
+            <!-- Swap Button -->
+            <div class="d-flex justify-content-center my-3">
+              <div class="swap-icon" id="swap-direction" title="Swap direction">
+                <i class="fas fa-arrow-down"></i>
+              </div>
+            </div>
+            
+            <!-- To Coin -->
+            <div class="mb-3">
+              <label class="form-label text-brand-muted small">To</label>
+              <div class="d-flex gap-2">
+                <select class="form-select form-control-dark" id="to-coin" style="flex: 1;">
+                  <option value="OXG" selected>OXG (OrdexGold)</option>
+                  <option value="OXC">OXC (OrdexCoin)</option>
+                </select>
+                <input type="text" class="form-control form-control-dark text-end" 
+                       id="to-amount" placeholder="0.00" readonly style="width: 140px; background: rgba(255,255,255,0.05);">
+              </div>
+            </div>
+            
+            <!-- Quote Details -->
+            <div class="bg-black/30 rounded-3 p-3 mb-4">
+              <div class="d-flex justify-content-between mb-2">
+                <span class="text-brand-muted small">Rate</span>
+                <span class="text-white small" id="quote-rate">--</span>
+              </div>
+              <div class="d-flex justify-content-between mb-2">
+                <span class="text-brand-muted small">Fee (1%)</span>
+                <span class="text-white small" id="quote-fee">--</span>
+              </div>
+              <div class="d-flex justify-content-between">
+                <span class="text-brand-muted small">You Receive</span>
+                <span class="text-brand-accent fw-bold" id="quote-receive">--</span>
+              </div>
+            </div>
+            
+            <!-- User Address -->
+            <div class="mb-4">
+              <label class="form-label text-brand-muted small">Your Receiving Address</label>
+              <input type="text" class="form-control form-control-dark" 
+                     id="user-address" placeholder="Enter your wallet address">
+              <div class="text-danger small mt-1 d-none" id="address-error">
+                Please enter a valid address.
+              </div>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-swap w-100 py-3 fw-bold text-uppercase" id="swap-btn" disabled>
+              <span id="btn-text">Get Quote</span>
+              <div class="loader d-none" id="btn-loader"></div>
+            </button>
+          </form>
+          
+          <!-- Error/Success Messages -->
+          <div class="mt-3" id="message-area"></div>
+        </div>
+
+        <!-- Recent Swaps -->
+        <div class="bento-card p-4 mt-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="fs-5 fw-bold text-white mb-0">Recent Swaps</h3>
+            <button class="btn btn-sm btn-link text-brand-accent" id="refresh-swaps">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+          <div id="recent-swaps">
+            <p class="text-brand-muted small">No recent swaps</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-top border-white/[0.04] py-4 mt-5">
+    <div class="container d-flex flex-wrap justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-2 opacity-50">
+        <img src="ordexnetwork.png" alt="OrdexNetwork" class="w-5 h-5" style="filter: grayscale(100%);">
+        <span class="text-white" style="font-size: 10px; letter-spacing: 0.1em;">© 2026 ORDEX PROTOCOL</span>
+      </div>
+      <div class="d-flex gap-3">
+        <a href="#" class="text-brand-muted small text-decoration-none"><i class="fab fa-discord"></i></a>
+        <a href="#" class="text-brand-muted small text-decoration-none"><i class="fab fa-telegram"></i></a>
+        <a href="#" class="text-brand-muted small text-decoration-none"><i class="fab fa-github"></i></a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // API runs on same origin (proxied by nginx)
+    const API_BASE = '';
+    
+    let currentQuote = null;
+    let currentRate = null;
+    let testingMode = false;
+    
+    // DOM Elements
+    const fromCoin = document.getElementById('from-coin');
+    const toCoin = document.getElementById('to-coin');
+    const fromAmount = document.getElementById('from-amount');
+    const toAmount = document.getElementById('to-amount');
+    const swapDirection = document.getElementById('swap-direction');
+    const swapBtn = document.getElementById('swap-btn');
+    const btnText = document.getElementById('btn-text');
+    const btnLoader = document.getElementById('btn-loader');
+    const messageArea = document.getElementById('message-area');
+    const userAddress = document.getElementById('user-address');
+    const addressError = document.getElementById('address-error');
+    const quoteRate = document.getElementById('quote-rate');
+    const quoteFee = document.getElementById('quote-fee');
+    const quoteReceive = document.getElementById('quote-receive');
+    const currentRateEl = document.getElementById('current-rate');
+    const priceDisplayEl = document.getElementById('price-display');
+    const modeIndicator = document.getElementById('mode-indicator');
+    const recentSwapsEl = document.getElementById('recent-swaps');
+    const priceChart = document.getElementById('price-chart');
+    const refreshSwapsBtn = document.getElementById('refresh-swaps');
+    
+    // Stat elements
+    const statVolume = document.getElementById('stat-volume');
+    const statSwaps = document.getElementById('stat-swaps');
+    const statHigh = document.getElementById('stat-high');
+    const statLow = document.getElementById('stat-low');
+    
+    // Initialize
+    async function init() {
+      await checkStatus();
+      fetchCoinPrices();
+      fetchPrice();
+      fetchPriceStats();
+      loadRecentSwaps();
+      setInterval(fetchCoinPrices, 30000);
+      setInterval(fetchPrice, 30000);
+      setInterval(fetchPriceStats, 60000);
+    }
+    
+    // Check API status
+    async function checkStatus() {
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/status`);
+        const data = await response.json();
+        if (data.success) {
+          testingMode = data.data.testing_mode;
+          modeIndicator.textContent = testingMode ? 'Testing Mode' : 'Live';
+          modeIndicator.className = testingMode ? 'network-badge text-warning' : 'network-badge text-success';
+        }
+      } catch (err) {
+        modeIndicator.textContent = 'Offline';
+        modeIndicator.className = 'network-badge text-danger';
+      }
+    }
+    
+    // Swap direction toggle
+    swapDirection.addEventListener('click', () => {
+      const temp = fromCoin.value;
+      fromCoin.value = toCoin.value;
+      toCoin.value = temp;
+      updateQuote();
+    });
+    
+    // Update quote on input change
+    fromAmount.addEventListener('input', updateQuote);
+    fromCoin.addEventListener('change', () => {
+      toCoin.value = fromCoin.value === 'OXC' ? 'OXG' : 'OXC';
+      updateQuote();
+    });
+    
+    refreshSwapsBtn.addEventListener('click', () => {
+      loadRecentSwaps();
+      refreshSwapsBtn.querySelector('i').classList.add('fa-spin');
+      setTimeout(() => {
+        refreshSwapsBtn.querySelector('i').classList.remove('fa-spin');
+      }, 500);
+    });
+    
+    function showMessage(message, type = 'error') {
+      const bg = type === 'error' ? 'bg-danger' : 'bg-success';
+      const icon = type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle';
+      messageArea.innerHTML = `
+        <div class="alert ${bg} bg-opacity-25 border-0 d-flex align-items-center gap-2" role="alert">
+          <i class="fas ${icon}"></i>
+          <span class="small">${message}</span>
+        </div>
+      `;
+    }
+    
+    function setLoading(loading) {
+      if (loading) {
+        btnText.classList.add('d-none');
+        btnLoader.classList.remove('d-none');
+        swapBtn.disabled = true;
+      } else {
+        btnText.classList.remove('d-none');
+        btnLoader.classList.add('d-none');
+      }
+    }
+
+    function isValidAddress(address) {
+      if (!address) return false;
+      // Allow test addresses (e.g., oxc_test_1_swap-deposit) and basic wallet formats
+      return /^[A-Za-z0-9_-]{8,120}$/.test(address);
+    }
+
+    function validateAddressInput() {
+      const value = userAddress.value.trim();
+      if (!value) {
+        addressError.classList.add('d-none');
+        userAddress.classList.remove('is-invalid');
+        return false;
+      }
+
+      if (!isValidAddress(value)) {
+        addressError.textContent = 'Address must be 8-120 chars and contain only letters, numbers, "_" or "-".';
+        addressError.classList.remove('d-none');
+        userAddress.classList.add('is-invalid');
+        return false;
+      }
+
+      addressError.classList.add('d-none');
+      userAddress.classList.remove('is-invalid');
+      return true;
+    }
+    
+    async function updateQuote() {
+      const amount = parseFloat(fromAmount.value);
+      if (!amount || amount <= 0) {
+        toAmount.value = '';
+        quoteRate.textContent = '--';
+        quoteFee.textContent = '--';
+        quoteReceive.textContent = '--';
+        swapBtn.disabled = true;
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/quote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: fromCoin.value,
+            to: toCoin.value,
+            amount: amount
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          currentQuote = data.data;
+          toAmount.value = data.data.net_amount.toFixed(8);
+          quoteRate.textContent = `1 ${data.data.from_coin} = ${data.data.rate.toFixed(8)} ${data.data.to_coin}`;
+          quoteFee.textContent = `${data.data.fee_amount.toFixed(8)} ${data.data.to_coin}`;
+          quoteReceive.textContent = `${data.data.net_amount.toFixed(8)} ${data.data.to_coin}`;
+          currentRate = data.data.rate;
+          swapBtn.disabled = false;
+          
+          if (validateAddressInput()) {
+            btnText.textContent = 'Create Swap';
+          } else {
+            btnText.textContent = 'Enter Address to Swap';
+            swapBtn.disabled = true;
+          }
+        } else {
+          showMessage(data.error || 'Failed to get quote');
+          swapBtn.disabled = true;
+        }
+      } catch (err) {
+        showMessage('Could not connect to API');
+        console.error(err);
+        swapBtn.disabled = true;
+      }
+    }
+    
+    // Check address and enable swap
+    userAddress.addEventListener('input', () => {
+      const validAddress = validateAddressInput();
+      if (currentQuote && validAddress) {
+        swapBtn.disabled = false;
+        btnText.textContent = 'Create Swap';
+      } else if (currentQuote) {
+        swapBtn.disabled = true;
+        btnText.textContent = 'Enter Address to Swap';
+      }
+    });
+    
+    // Submit swap
+    document.getElementById('swap-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      if (!currentQuote || !validateAddressInput()) {
+        if (!validateAddressInput()) {
+          showMessage('Please enter a valid receiving address.');
+        }
+        return;
+      }
+      
+      setLoading(true);
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/swap`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: fromCoin.value,
+            to: toCoin.value,
+            amount: parseFloat(fromAmount.value),
+            user_address: userAddress.value.trim()
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showMessage(`
+            <div class="mb-2">Swap created! Send <strong>${fromAmount.value} ${fromCoin.value}</strong> to:</div>
+            <div class="deposit-address mb-2">${data.data.deposit_address}</div>
+            <div class="small text-brand-muted">Then confirm below after sending.</div>
+          `, 'success');
+          
+          // Auto-confirm in testing mode
+          if (testingMode) {
+            setTimeout(async () => {
+              await confirmDeposit(data.data.swap_id);
+            }, 2000);
+          }
+          
+          loadRecentSwaps();
+        } else {
+          showMessage(data.error || 'Failed to create swap');
+        }
+      } catch (err) {
+        showMessage('Could not connect to API');
+        console.error(err);
+      }
+      
+      setLoading(false);
+    });
+    
+    async function confirmDeposit(swapId) {
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/swap/${swapId}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deposit_txid: 'web_ui_confirm' })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showMessage(`Swap completed! Sent ${data.data.net_amount} ${data.data.to_coin} to your address.`, 'success');
+          loadRecentSwaps();
+        }
+      } catch (err) {
+        console.error('Confirm failed:', err);
+      }
+    }
+    
+    // Fetch current price
+    async function fetchPrice() {
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/quote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: 'OXC', to: 'OXG', amount: 1 })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          currentRateEl.textContent = `1 OXC = ${data.data.rate.toFixed(6)} OXG`;
+          priceDisplayEl.textContent = `OXC/OXG: ${data.data.rate.toFixed(4)}`;
+          currentRate = data.data.rate;
+        }
+      } catch (err) {
+        currentRateEl.textContent = 'Price unavailable';
+      }
+    }
+    
+    // Fetch coin prices (USDT rates + cross rate)
+    async function fetchCoinPrices() {
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/prices/current`);
+        const data = await response.json();
+        
+        if (data.success) {
+          const p = data.data;
+          // Cross rate: OXC/OXG
+          document.getElementById('oxc-price').textContent = `1 OXC = ${parseFloat(p.cross_rate).toFixed(6)} OXG`;
+          document.getElementById('oxc-price-usdt').textContent = `USDT: $${parseFloat(p.oxc_usdt).toFixed(6)}`;
+          
+          // OXG to OXC is inverse of cross rate
+          const oxgToOxc = 1 / parseFloat(p.cross_rate);
+          document.getElementById('oxg-price').textContent = `1 OXG = ${oxgToOxc.toFixed(6)} OXC`;
+          document.getElementById('oxg-price-usdt').textContent = `USDT: $${parseFloat(p.oxg_usdt).toFixed(6)}`;
+        }
+      } catch (err) {
+        console.error('Failed to fetch coin prices:', err);
+      }
+    }
+    
+    // Fetch price stats and history
+    async function fetchPriceStats() {
+      try {
+        const [statsRes, historyRes] = await Promise.all([
+          fetch(`${API_BASE}/api/v1/prices/stats?hours=24`),
+          fetch(`${API_BASE}/api/v1/prices/history?limit=24`)
+        ]);
+        
+        const statsData = await statsRes.json();
+        const historyData = await historyRes.json();
+        
+        if (statsData.success) {
+          const stats = statsData.data;
+          statHigh.textContent = stats.max ? stats.max.toFixed(4) : '--';
+          statLow.textContent = stats.min ? stats.min.toFixed(4) : '--';
+        }
+        
+        if (historyData.success && historyData.data.history.length > 0) {
+          renderPriceChart(historyData.data.history);
+        }
+      } catch (err) {
+        console.error('Failed to load price stats:', err);
+      }
+    }
+    
+    function renderPriceChart(history) {
+      if (!history || history.length === 0) {
+        priceChart.innerHTML = '<div class="text-center text-brand-muted w-100 small">No history data</div>';
+        return;
+      }
+      
+      const prices = history.map(h => h.price).filter(p => p > 0);
+      if (prices.length === 0) {
+        priceChart.innerHTML = '<div class="text-center text-brand-muted w-100 small">No price data</div>';
+        return;
+      }
+      
+      const min = Math.min(...prices);
+      const max = Math.max(...prices);
+      const range = max - min || 1;
+      
+      priceChart.innerHTML = history.map((h, i) => {
+        const height = ((h.price - min) / range) * 100 + 10;
+        const time = new Date(h.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        return `<div class="price-bar" style="height: ${height}%" title="${time}: ${h.price?.toFixed(4)} OXG"></div>`;
+      }).join('');
+    }
+    
+    // Load swap stats
+    async function loadSwapStats() {
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/swaps/stats`);
+        const data = await response.json();
+        
+        if (data.success) {
+          const stats = data.data;
+          statSwaps.textContent = stats.total_swaps || 0;
+          
+          const vol = (stats.total_volume_oxc || 0).toFixed(2);
+          statVolume.textContent = vol + ' OXC';
+        }
+      } catch (err) {
+        console.error('Failed to load swap stats:', err);
+      }
+    }
+    
+    // Load recent swaps
+    async function loadRecentSwaps() {
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/swaps?limit=10`);
+        const data = await response.json();
+        
+        if (data.success && data.data.swaps.length > 0) {
+          const swaps = data.data.swaps;
+          recentSwapsEl.innerHTML = swaps.map(s => `
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-white/5">
+              <div class="d-flex align-items-center gap-2">
+                <span class="text-white small">${parseFloat(s.from_amount).toFixed(4)} ${s.from_coin}</span>
+                <i class="fas fa-arrow-right text-brand-muted" style="font-size: 10px;"></i>
+                <span class="text-brand-accent small">${parseFloat(s.net_amount).toFixed(4)} ${s.to_coin}</span>
+              </div>
+              <span class="badge status-${s.status} bg-opacity-25">${s.status}</span>
+            </div>
+          `).join('');
+          
+          // Also update stats
+          loadSwapStats();
+        } else {
+          recentSwapsEl.innerHTML = '<p class="text-brand-muted small">No recent swaps</p>';
+          statSwaps.textContent = '0';
+          statVolume.textContent = '0 OXC';
+        }
+      } catch (err) {
+        console.error('Failed to load swaps');
+      }
+    }
+    
+    // Start
+    init();
+  </script>
+</body>
+</html>

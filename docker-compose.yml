@@ -1,0 +1,14 @@
+services:
+  ordex-swap:
+    build:
+      context: ./app
+      dockerfile: ../Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./app/.env
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      - ./app/data:/app/data
+    restart: unless-stopped

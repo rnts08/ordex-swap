@@ -1,0 +1,240 @@
+import sys
+import os
+import unittest
+import tempfile
+import importlib
+from unittest.mock import Mock
+from datetime import datetime, timezone
+
+# Add swap-service to path BEFORE any imports
+_swap_service_path = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "swap-service"
+)
+if _swap_service_path not in sys.path:
+    sys.path.insert(0, _swap_service_path)
+
+
+class TestSwapEngine(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        os.environ["DATA_DIR"] = self._tmpdir.name
+        os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+
+        for mod in ("config", "swap_engine", "swap_history"):
+            if mod in sys.modules:
+                del sys.modules[mod]
+
+        config = importlib.import_module("config")
+        self.config = config
+        swap_engine = importlib.import_module("swap_engine")
+        swap_history = importlib.import_module("swap_history")
+
+        self.SwapEngine = swap_engine.SwapEngine
+        self.SwapError = swap_engine.SwapError
+        self.InvalidAmountError = swap_engine.InvalidAmountError
+        self.UnsupportedPairError = swap_engine.UnsupportedPairError
+        self.SwapHistoryService = swap_history.SwapHistoryService
+
+        self.oracle = Mock()
+        self.oxc_wallet = Mock()
+        self.oxg_wallet = Mock()
+
+        self.test_history = self.SwapHistoryService()
+
+        now = datetime.now(timezone.utc)
+        self.oracle.get_conversion_amount.return_value = {
+            "to_amount": 99.0,
+            "fee_amount": 1.0,
+            "net_amount": 98.0,
+            "rate": 100.0,
+            "price_data": {"price": 100.0, "timestamp": now.isoformat()},
+        }
+
+        self.oxc_wallet.get_address.return_value = "oxc_deposit_addr"
+        self.oxg_wallet.get_address.return_value = "oxg_deposit_addr"
+
+        self.engine = self.SwapEngine(
+            price_oracle=self.oracle,
+            oxc_wallet=self.oxc_wallet,
+            oxg_wallet=self.oxg_wallet,
+            history_service=self.test_history,
+            fee_percent=1.0,
+            min_amount=0.0001,
+            max_amount=10000.0,
+        )
+
+    def test_validate_swap_request_valid(self):
+        self.engine.validate_swap_request("OXC", "OXG", 10.0)
+
+    def test_validate_swap_unsupported_pair(self):
+        with self.assertRaises(self.UnsupportedPairError):
+            self.engine.validate_swap_request("OXC", "BTC", 10.0)
+
+    def test_validate_swap_same_coin(self):
+        with self.assertRaises(self.UnsupportedPairError):
+            self.engine.validate_swap_request("OXC", "OXC", 10.0)
+
+    def test_validate_swap_below_min(self):
+        with self.assertRaises(self.InvalidAmountError):
+            self.engine.validate_swap_request("OXC", "OXG", 0.00001)
+
+    def test_validate_swap_above_max(self):
+        with self.assertRaises(self.InvalidAmountError):
+            self.engine.validate_swap_request("OXC", "OXG", 20000.0)
+
+    def test_get_deposit_address_oxc(self):
+        addr = self.engine.get_deposit_address("OXC")
+        self.assertEqual(addr, "oxc_deposit_addr")
+
+    def test_get_deposit_address_oxg(self):
+        addr = self.engine.get_deposit_address("OXG")
+        self.assertEqual(addr, "oxg_deposit_addr")
+
+    def test_get_deposit_address_unknown(self):
+        with self.assertRaises(self.UnsupportedPairError):
+            self.engine.get_deposit_address("BTC")
+
+    def test_create_swap_quote(self):
+        quote = self.engine.create_swap_quote("OXC", "OXG", 10.0)
+
+        self.assertIn("quote_id", quote)
+        self.assertEqual(quote["from_coin"], "OXC")
+        self.assertEqual(quote["to_coin"], "OXG")
+        self.assertEqual(quote["from_amount"], 10.0)
+        self.assertEqual(quote["fee_percent"], 1.0)
+
+    def test_create_swap(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+
+        self.assertIn("swap_id", swap)
+        self.assertEqual(swap["from_coin"], "OXC")
+        self.assertEqual(swap["to_coin"], "OXG")
+        self.assertEqual(swap["user_address"], "user_address")
+        self.assertEqual(swap["status"], "pending")
+
+    def test_get_swap(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        retrieved = self.engine.get_swap(swap_id)
+        self.assertEqual(retrieved["swap_id"], swap_id)
+
+    def test_get_swap_not_found(self):
+        result = self.engine.get_swap("non-existent")
+        self.assertIsNone(result)
+
+    def test_confirm_deposit(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        self.oxg_wallet.send.return_value = "txid_abc123"
+
+        confirmed = self.engine.confirm_deposit(swap_id, "deposit_txid")
+
+        self.assertEqual(confirmed["status"], "completed")
+        if self.config.TESTING_MODE:
+            self.oxg_wallet.send.assert_not_called()
+            self.assertTrue(str(confirmed["settle_txid"]).startswith("tx_test_mock_"))
+        else:
+            self.oxg_wallet.send.assert_called_once()
+
+    def test_confirm_deposit_invalid_state(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        self.engine.confirm_deposit(swap_id, "deposit_txid")
+
+        with self.assertRaises(self.SwapError):
+            self.engine.confirm_deposit(swap_id, "another_txid")
+
+    def test_cancel_swap(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        cancelled = self.engine.cancel_swap(swap_id)
+
+        self.assertEqual(cancelled["status"], "expired")
+
+    def test_cancel_completed_swap_fails(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        self.oxg_wallet.send.return_value = "txid_abc123"
+        self.engine.confirm_deposit(swap_id, "deposit_txid")
+
+        with self.assertRaises(self.SwapError):
+            self.engine.cancel_swap(swap_id)
+
+    def test_list_swaps(self):
+        self.engine.create_swap("OXC", "OXG", 10.0, "user1")
+        self.engine.create_swap("OXG", "OXC", 20.0, "user2")
+
+        swaps = self.engine.list_swaps()
+        self.assertEqual(len(swaps), 2)
+
+    def test_list_swaps_filtered(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user1")
+        swap_id = swap["swap_id"]
+
+        self.oxg_wallet.send.return_value = "txid_abc123"
+        self.engine.confirm_deposit(swap_id, "deposit_txid")
+
+        self.engine.create_swap("OXG", "OXC", 20.0, "user2")
+
+        completed = self.engine.list_swaps("completed")
+        self.assertEqual(len(completed), 1)
+
+    def test_get_balance(self):
+        self.oxc_wallet.get_balance.return_value = 100.5
+        self.oxg_wallet.get_balance.return_value = 50.25
+
+        oxc_bal = self.engine.get_balance("OXC")
+        oxg_bal = self.engine.get_balance("OXG")
+
+        self.assertEqual(oxc_bal, 100.5)
+        self.assertEqual(oxg_bal, 50.25)
+
+
+class TestSwapEngineFeeCalculation(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        os.environ["DATA_DIR"] = self._tmpdir.name
+        os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+
+        for mod in ("config", "swap_engine", "swap_history"):
+            if mod in sys.modules:
+                del sys.modules[mod]
+
+        self.oracle = Mock()
+        self.oxc_wallet = Mock()
+        self.oxg_wallet = Mock()
+
+    def test_fee_calculation_1_percent(self):
+        now = datetime.now(timezone.utc)
+        self.oracle.get_conversion_amount.return_value = {
+            "to_amount": 100.0,
+            "fee_amount": 1.0,
+            "net_amount": 99.0,
+            "rate": 10.0,
+            "price_data": {"price": 10.0, "timestamp": now.isoformat()},
+        }
+        self.oxc_wallet.get_address.return_value = "oxc_deposit_addr"
+
+        swap_engine = importlib.import_module("swap_engine")
+        engine = swap_engine.SwapEngine(
+            price_oracle=self.oracle,
+            oxc_wallet=self.oxc_wallet,
+            oxg_wallet=self.oxg_wallet,
+            fee_percent=1.0,
+        )
+
+        swap = engine.create_swap("OXC", "OXG", 10.0, "user_addr")
+
+        self.assertEqual(swap["fee_amount"], 1.0)
+        self.assertEqual(swap["net_amount"], 99.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

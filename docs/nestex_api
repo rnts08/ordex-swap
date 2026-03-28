@@ -1,0 +1,149 @@
+Private API Document
+Introduction
+This document outlines only the Private API endpoints. These API require you to have an API key
+and Secret from the “Developers” section of your NestEx account.
+We try to and will continue to maintain these endpoints in terms of uptime, availability and data
+accuracy. In the event of any problems with these API endpoints please connect with us on
+support@nestex.one
+At this time, all endpoints are considered EXPERIMENTAL. Please use it with SMALL AMOUNTS
+and AT YOUR OWN RISK.
+Base URL for these API is https://trade.nestex.one/api/v2/[API ENDPOINT]
+For more information, please refer to the following section:
+Section A: Informational API
+A.0: Check Token (basic validity test)
+A.1: Balances
+A.2: Orders (Unfulfilled)
+A.3: Trades
+Section B: Transactional API
+B.1: Place Limit Order
+B.2: Cancel Order
+All data is in JSON format. You are required to adhere to a MINIMUM TIME GAP of 5 seconds
+between API hits for ALL THE API noted here.
+Again I reiterate, although all endpoints are tested, they are considered EXPERIMENTAL until
+further notice. Trades made cannot be reversed, so errors of any kind can have a price. Please
+use it with SMALL AMOUNTS and AT YOUR OWN RISK.
+For ALL APIs noted in this document, you must provide a minimum input of the form:
+Note: IN THE POST REQUEST, NOT THE HEADERS.{
+"apikey": "{api key taken from the developers section}",
+"apisecret": "{api secret taken from the developers section}"
+}A. Informational API
+Endpoints Overview
+No.Endpoint
+Description
+A.0./checktokenChecks if the api key + secret used is valid or not.
+A.1./balancesList of balances and locked amounts of all coins where the
+balance is non-zero
+A.2./ordersGives you a list of your unfulfilled orders (i.e. ‘open’ and ‘partial’
+orders only)
+Miscellaneous response parameters:
+1. TTL = Time taken to execute the request in milliseconds. If this is very long (more than
+400) it may help to check your network; if the issue persists get in touch with us via the
+support tickets.
+2. “success”: “ok” = This is an indicative response that the request was received and
+processed. This does not guarantee perfect or instant fulfillment of any orders placed; it
+simply assures that orders have been placed in the book. Likewise for cancellations.
+Endpoint 0 - /checktoken
+URL - https://trade.nestex.one/api/v2/checktoken
+This endpoint simply tests if your api key and secret are correct. If there is a problem it will
+indicate that in the Status.
+Output format
+{
+"status": "token valid",
+"success": "ok"
+}Endpoint 1 - /balances (Available and Locked balances of non-zero coins)
+URL - https://trade.nestex.one/api/v2/balances
+Output format
+{
+"balances": {
+"AEGS": 343.02230000000,
+... other coins
+},
+"locked": {
+"AEGS": 3.5000000000,
+... other coins
+},
+"success": "ok"
+}
+Endpoint 2 - /orders (List of all unfulfilled orders)
+URL - https://trade.nestex.one/api/v2/orders
+Output format
+{
+"orders": [
+{
+"order_id": 1234,
+"cur": "COINTICKER",
+"order_type": "SELL",
+"ismarket": false,
+"quantity": 0.000000040000000000,
+"orig_quantity": 0.037037040000000000,
+"price": 0.00123,
+"status": "PARTIAL",
+"created_at": "2025-05-28T08:31:55.347",
+"updated_at": "2025-06-28T08:28:39.233"
+},
+... more orders
+],
+"success": "ok"
+}Endpoint 3 - /trades (Fulfilled orders)
+URL - https://trade.nestex.one/api/v2/trades
+Output format
+{
+"trades": [
+{
+"trade_id": 12345,
+"cur": ”COINTICKER”,
+"order_type": "BUY",
+"price": 8273.223,
+"order_id": 3276321,
+"quantity": 0.000001000000000000,
+"trade_at": "2025-03-08T13:18:20.183"
+},
+... more trades
+],
+"success": "ok"
+}A. Transactional API
+Endpoints Overview
+No.Endpoint
+B.1./placelimitorder
+Description
+Places a LIMIT type order.
+NOTE: Must ensure it’s within approx 5% of LTP else it may
+not get matched!
+B.2.
+/cancelorder
+Cancels an existing order.
+Endpoint 1 - /placelimitorder
+URL - https://trade.nestex.one/api/v2/placelimitorder
+This will create a LIMIT order. The parameters are identical to those used in the frontend
+Note: Calling this API multiple times can result in MULTIPLE ORDERS! Please use the A.2
+Orders list API to check if you’re unsure of the order status at any time. Do NOT repeat hits
+blindly, and validate all input values to ensure there are no GIGO situations.
+Input format
+{
+{
+"apikey": "-- api key --",
+"apisecret": "-- api secret --",
+"cur": "LTC",
+"side": "BUY",
+"qty": "0.01",
+"price": "50"
+}
+Output format
+"order_id": 102274836,
+"ttl": 8,
+"success": "ok"
+}Endpoint 2 - /cancelorder
+URL - https://trade.nestex.one/api/v2/cancelorder
+Note: Calling this API multiple times does not cause any side effects; but it is best to avoid
+repeating requests unless you had a network error or suchlike.
+Input format
+{
+{
+"apikey": "-- api key --",
+"apisecret": "-- api secret --",
+"order_id": "102274836"
+}
+Output format
+"ttl": 2,
+"success": "ok"
+}
