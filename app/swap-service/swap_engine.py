@@ -76,6 +76,20 @@ class SwapEngine:
         self._settlement_thread = None
         self._settlement_stop = None
 
+        self._load_pending_swaps_from_db()
+
+    def _load_pending_swaps_from_db(self) -> None:
+        try:
+            pending = self.history.get_pending_swaps()
+            for swap in pending:
+                self._pending_swaps[swap["swap_id"]] = swap
+            if self._pending_swaps:
+                logger.info(
+                    f"Loaded {len(self._pending_swaps)} pending swaps from database"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to load pending swaps from database: {e}")
+
     def _is_liquidity_error(self, error: Exception) -> bool:
         message = str(error).lower()
         keywords = [
@@ -389,6 +403,8 @@ class SwapEngine:
                 SwapStatus.AWAITING_DEPOSIT.value,
                 SwapStatus.DELAYED.value,
             ]:
+                if "expires_at" not in swap:
+                    continue
                 expires_at = datetime.fromisoformat(
                     swap["expires_at"].replace("Z", "+00:00")
                 )

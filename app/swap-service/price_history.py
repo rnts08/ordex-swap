@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class PriceHistoryService:
-    def __init__(
-        self, oracle: PriceOracle, data_dir: str = None
-    ):
+    def __init__(self, oracle: PriceOracle, data_dir: str = None):
         self.oracle = oracle
         self.data_dir = data_dir or DATA_DIR
         self.db_path = DB_PATH
@@ -120,7 +118,9 @@ class PriceHistoryService:
 
     def ensure_backfill(self, hours: int = 24) -> None:
         if self.has_24h_coverage(hours):
-            logger.info("Price history already has %sh coverage; skipping backfill", hours)
+            logger.info(
+                "Price history already has %sh coverage; skipping backfill", hours
+            )
             return
         logger.info("Price history missing %sh coverage; starting backfill", hours)
         self.backfill_from_tradebook(hours=hours)
@@ -200,9 +200,14 @@ class PriceHistoryService:
             with sqlite3.connect(self.db_path) as conn:
                 rows = conn.execute(
                     """
-                    SELECT timestamp, oxc_usdt, oxg_usdt, cross_rate, source
+                    SELECT 
+                        datetime((strftime('%s', timestamp) / 3600) * 3600, 'unixepoch') as hour_bucket,
+                        AVG(oxc_usdt) as oxc_usdt,
+                        AVG(oxg_usdt) as oxg_usdt,
+                        AVG(cross_rate) as cross_rate
                     FROM price_history
-                    ORDER BY ts_epoch DESC
+                    GROUP BY hour_bucket
+                    ORDER BY hour_bucket DESC
                     LIMIT ?
                     """,
                     (limit,),
@@ -213,13 +218,14 @@ class PriceHistoryService:
                     "oxc_usdt": row[1],
                     "oxg_usdt": row[2],
                     "cross_rate": row[3],
-                    "source": row[4],
+                    "source": "hourly_avg",
                 }
                 for row in rows
             ]
             if not self._backfilled:
                 has_ticker = any(
-                    h["source"] in ("nestex_ticker", "nestex_tradebook") for h in history
+                    h["source"] in ("nestex_ticker", "nestex_tradebook", "hourly_avg")
+                    for h in history
                 )
                 if not history or not has_ticker:
                     self.backfill_from_tradebook(hours=24)
@@ -252,7 +258,9 @@ class PriceHistoryService:
                     payload = self.oracle.get_tradebook(ticker_id, page=page)
                     page_trades = payload.get("data", [])
                 except Exception as e:
-                    logger.warning(f"Failed tradebook fetch {ticker_id} page {page}: {e}")
+                    logger.warning(
+                        f"Failed tradebook fetch {ticker_id} page {page}: {e}"
+                    )
                     break
                 if not page_trades:
                     break

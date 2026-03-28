@@ -33,6 +33,13 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
     
+    .logo-text {
+      background: linear-gradient(135deg, #FFFFFF 30%, #dca747 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
     body {
       background-color: #030303;
       color: #ffffff;
@@ -235,6 +242,32 @@
       font-family: monospace;
       word-break: break-all;
     }
+    
+    .btn-web3 {
+      position: relative;
+      background: rgba(220, 167, 71, 0.15);
+      border: 1px solid rgba(220, 167, 71, 0.4);
+      color: #dca747;
+      border-radius: 9999px;
+      overflow: hidden;
+      transition: all 0.4s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1.5rem;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .btn-web3:hover {
+      background: rgba(220, 167, 71, 0.25);
+      border-color: rgba(220, 167, 71, 0.8);
+      box-shadow: 0 0 24px rgba(220, 167, 71, 0.25);
+      color: #fff;
+    }
   </style>
 </head>
 <body class="selection:bg-brand-accent selection:text-black">
@@ -245,17 +278,21 @@
   <nav class="fixed top-0 w-full z-[100] border-b border-white/[0.04] backdrop-blur-2xl bg-brand-black/80">
     <div class="container py-3 d-flex align-items-center justify-content-between">
       <a href="#" class="d-flex align-items-center gap-3 text-decoration-none">
-        <img src="ordexnetwork.png" alt="OrdexNetwork" class="w-9 h-9" style="filter: drop-shadow(0 0 12px rgba(220,167,71,0.5));">
-        <span class="fw-bold text-white" style="font-size: 1.25rem; letter-spacing: -0.02em;">ORDEXSWAP</span>
+        <img src="ordexnetwork.png" alt="OrdexNetwork" class="w-12 h-12" style="filter: drop-shadow(0 0 12px rgba(220,167,71,0.5));">
+        <span class="fw-bold logo-text" style="font-size: 1.5rem; letter-spacing: -0.04em;">ORDEX<span class="text-warning" style="-webkit-text-fill-color: #dca747;">SWAP</span></span>
       </a>
       <div class="d-flex align-items-center gap-3">
-        <span class="network-badge" id="mode-indicator">Connecting...</span>
         <span class="network-badge" id="price-display">OXC/OXG: --</span>
+        <span class="network-badge" id="mode-indicator">Connecting...</span>
+        <a href="https://explorer.ordexnetwork.org" target="_blank" class="btn-web3">
+          <i class="fas fa-cubes"></i>
+          Explorer
+        </a>
       </div>
     </div>
   </nav>
 
-  <main class="container pt-5 mt-4 pb-5">
+  <main class="container pt-5 mt-5 pb-5">
     <!-- Coin Prices Row -->
     <div class="row g-3 mb-4">
       <div class="col-6">
@@ -446,10 +483,13 @@
         <img src="ordexnetwork.png" alt="OrdexNetwork" class="w-5 h-5" style="filter: grayscale(100%);">
         <span class="text-white" style="font-size: 10px; letter-spacing: 0.1em;">© 2026 ORDEX PROTOCOL</span>
       </div>
-      <div class="d-flex gap-3">
-        <a href="#" class="text-brand-muted small text-decoration-none"><i class="fab fa-discord"></i></a>
-        <a href="#" class="text-brand-muted small text-decoration-none"><i class="fab fa-telegram"></i></a>
-        <a href="#" class="text-brand-muted small text-decoration-none"><i class="fab fa-github"></i></a>
+      <div class="d-flex gap-4 align-items-center">
+        <a href="https://ordexnetwork.org" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent">About</a>
+        <a href="https://explorer.ordexnetwork.org" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent">Explorer</a>
+        <a href="mailto:contact@ordexnetwork.org" class="text-brand-muted small text-decoration-none hover:text-brand-accent">Contact</a>
+        <a href="https://discord.gg/65y82n436J" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent"><i class="fab fa-discord"></i></a>
+        <a href="https://t.me/ordexnetwork" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent"><i class="fab fa-telegram"></i></a>
+        <a href="https://github.com/OrdexCoin" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent"><i class="fab fa-github"></i></a>
       </div>
     </div>
   </footer>
@@ -463,6 +503,10 @@
     let currentRate = null;
     let testingMode = false;
     let priceHistoryCache = null;
+    let countdownInterval = null;
+    let currentSwapId = null;
+    let priceData = null;
+    let priceDisplayIndex = 0;
     
     // DOM Elements
     const fromCoin = document.getElementById('from-coin');
@@ -494,6 +538,53 @@
     const statHigh = document.getElementById('stat-high');
     const statLow = document.getElementById('stat-low');
     
+    function startSwapCountdown(swapId) {
+      currentSwapId = swapId;
+      let secondsRemaining = 15 * 60 - 1; // 14:59
+      
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+      
+      countdownInterval = setInterval(async () => {
+        const minutes = Math.floor(secondsRemaining / 60);
+        const seconds = secondsRemaining % 60;
+        const timerEl = document.getElementById('countdown-timer');
+        
+        if (timerEl) {
+          timerEl.textContent = `Expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        if (secondsRemaining <= 0) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+          
+          if (currentSwapId) {
+            try {
+              await fetch(`${API_BASE}/api/v1/swap/${currentSwapId}/cancel`, {
+                method: 'POST'
+              });
+            } catch (e) {
+              console.error('Failed to cancel swap:', e);
+            }
+          }
+          
+          resetForm();
+          window.location.reload();
+        }
+        
+        secondsRemaining--;
+      }, 1000);
+    }
+    
+    function stopSwapCountdown() {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+      currentSwapId = null;
+    }
+    
     // Initialize
     async function init() {
       resetForm();
@@ -505,6 +596,7 @@
       setInterval(fetchCoinPrices, 30000);
       setInterval(fetchPrice, 30000);
       setInterval(fetchPriceStats, 60000);
+      setInterval(updatePriceDisplay, 5000);
     }
     
     // Check API status
@@ -625,6 +717,7 @@
       btnText.textContent = 'Get Quote';
       swapBtn.disabled = true;
       showLiquidityWarning(null);
+      stopSwapCountdown();
     }
     
     async function updateQuote() {
@@ -728,13 +821,28 @@
         const data = await response.json();
         
         if (data.success) {
+          const swapId = data.data.swap_id;
           showMessage(`
             <div class="mb-2">Swap created! Send <strong>${fromAmount.value} ${fromCoin.value}</strong> to:</div>
             <div class="deposit-address mb-2">${data.data.deposit_address}</div>
-            <div class="small text-brand-muted">Then confirm below after sending.</div>
+            <div class="small text-brand-muted mb-2">Then confirm below after sending.</div>
+            <div class="small text-warning" id="countdown-timer">Expires in 14:59</div>
           `, 'success');
-
-          resetForm();
+          
+          // Start countdown AFTER message is in DOM
+          setTimeout(() => startSwapCountdown(swapId), 100);
+          
+          // Clear form inputs but DON'T stop countdown
+          currentQuote = null;
+          fromAmount.value = '';
+          toAmount.value = '';
+          userAddress.value = '';
+          quoteRate.textContent = '--';
+          quoteFee.textContent = '--';
+          quoteReceive.textContent = '--';
+          btnText.textContent = 'Get Quote';
+          swapBtn.disabled = true;
+          showLiquidityWarning(null);
           
           // Auto-confirm in testing mode
           if (testingMode) {
@@ -799,7 +907,6 @@
         const data = await response.json();
         if (data.success) {
           currentRateEl.textContent = `1 OXC = ${data.data.rate.toFixed(6)} OXG`;
-          priceDisplayEl.textContent = `OXC/OXG: ${data.data.rate.toFixed(4)}`;
           currentRate = data.data.rate;
         }
       } catch (err) {
@@ -815,18 +922,50 @@
         
         if (data.success) {
           const p = data.data;
-          // Cross rate: OXC/OXG
-          document.getElementById('oxc-price').textContent = `1 OXC = ${parseFloat(p.cross_rate).toFixed(6)} OXG`;
-          document.getElementById('oxc-price-usdt').textContent = `USDT: $${parseFloat(p.oxc_usdt).toFixed(6)}`;
+          priceData = {
+            oxc_usdt: parseFloat(p.oxc_usdt),
+            oxg_usdt: parseFloat(p.oxg_usdt),
+            cross_rate: parseFloat(p.cross_rate)
+          };
+          document.getElementById('oxc-price').textContent = `1 OXC = ${priceData.cross_rate.toFixed(6)} OXG`;
+          document.getElementById('oxc-price-usdt').textContent = `USDT: $${priceData.oxc_usdt.toFixed(6)}`;
           
-          // OXG to OXC is inverse of cross rate
-          const oxgToOxc = 1 / parseFloat(p.cross_rate);
+          const oxgToOxc = 1 / priceData.cross_rate;
           document.getElementById('oxg-price').textContent = `1 OXG = ${oxgToOxc.toFixed(6)} OXC`;
-          document.getElementById('oxg-price-usdt').textContent = `USDT: $${parseFloat(p.oxg_usdt).toFixed(6)}`;
+          document.getElementById('oxg-price-usdt').textContent = `USDT: $${priceData.oxg_usdt.toFixed(6)}`;
+          
+          updatePriceDisplay();
         }
       } catch (err) {
         console.error('Failed to fetch coin prices:', err);
       }
+    }
+    
+    function updatePriceDisplay() {
+      if (!priceData) return;
+      
+      const labels = ['OXC/OXG', 'OXC/USDT', 'OXG/OXC', 'OXG/USDT'];
+      const label = labels[priceDisplayIndex];
+      let value;
+      
+      switch (priceDisplayIndex) {
+        case 0: // OXC/OXG
+          value = priceData.cross_rate.toFixed(4);
+          break;
+        case 1: // OXC/USDT
+          value = priceData.oxc_usdt.toFixed(4);
+          break;
+        case 2: // OXG/OXC
+          value = (1 / priceData.cross_rate).toFixed(4);
+          break;
+        case 3: // OXG/USDT
+          value = priceData.oxg_usdt.toFixed(4);
+          break;
+      }
+      
+      priceDisplayEl.textContent = `${label}: ${value}`;
+      
+      priceDisplayIndex = (priceDisplayIndex + 1) % 4;
     }
     
     // Fetch price stats and history
@@ -924,7 +1063,8 @@
 
       const min = 0;
       const invAvailable = available.map(v => 1 / v);
-      const max = Math.max(2, ...available, ...invAvailable);
+      const actualMax = Math.max(...available, ...invAvailable);
+      const max = actualMax * 1.4; // Scale to 140% of actual max, not forcing 2
       const range = max - min || 1;
 
       const width = Math.max(priceChart.clientWidth || 0, 260);
@@ -971,6 +1111,7 @@
 
       priceChart.innerHTML = `
         <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}">
+          <rect x="${padLeft}" y="${padTop}" width="${innerW}" height="${innerH}" fill="#0a0a0a" />
           <line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${height - padBottom}" stroke="#1f1f1f" />
           <line x1="${width - padRight}" y1="${padTop}" x2="${width - padRight}" y2="${height - padBottom}" stroke="#1f1f1f" />
           <line x1="${padLeft}" y1="${height - padBottom}" x2="${width - padRight}" y2="${height - padBottom}" stroke="#1f1f1f" />
