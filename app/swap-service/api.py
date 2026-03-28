@@ -385,6 +385,19 @@ def get_price_stats():
     return json_error("Price history not available", 500)
 
 
+@app.route("/api/v1/admin/background-status", methods=["GET"])
+@require_admin_auth
+def admin_background_status():
+    if not price_history or not swap_engine:
+        return json_error("Services not available", 500)
+    return json_success(
+        {
+            "price_fetch": price_history.get_background_status(),
+            "queue_settlement": swap_engine.get_settlement_status(),
+        }
+    )
+
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     logger.exception(f"Unhandled exception: {e}")

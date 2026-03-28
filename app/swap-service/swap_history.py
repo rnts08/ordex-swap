@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class SwapHistoryService:
-    def __init__(self, data_dir: str = None, history_file: str = None):
+    def __init__(self, data_dir: str = None):
         self.data_dir = data_dir or DATA_DIR
         self.db_path = DB_PATH
 

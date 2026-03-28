@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class PriceHistoryService:
     def __init__(
-        self, oracle: PriceOracle, data_dir: str = None, history_file: str = None
+        self, oracle: PriceOracle, data_dir: str = None
     ):
         self.oracle = oracle
         self.data_dir = data_dir or DATA_DIR
@@ -124,6 +124,8 @@ class PriceHistoryService:
 
         interval = interval_seconds or NESTEX_PRICE_TTL_SECONDS
         self._running = True
+        self._interval_seconds = interval
+        self._last_fetch_at = None
         self._stop_event.clear()
 
         # Seed one entry so graphs have data quickly.
@@ -133,6 +135,7 @@ class PriceHistoryService:
             logger.info(f"Starting background price fetch (every {interval}s)")
             while not self._stop_event.is_set():
                 self.fetch_and_record()
+                self._last_fetch_at = datetime.now(timezone.utc).isoformat()
                 self._stop_event.wait(interval)
             logger.info("Background price fetch stopped")
 
@@ -150,6 +153,13 @@ class PriceHistoryService:
             self._fetch_thread.join(timeout=5)
         self._running = False
         logger.info("Background price fetch stopped")
+
+    def get_background_status(self) -> Dict[str, Any]:
+        return {
+            "running": self._running,
+            "last_fetch_at": self._last_fetch_at,
+            "interval_seconds": getattr(self, "_interval_seconds", None),
+        }
 
     def get_history(self, limit: int = 100) -> List[Dict[str, Any]]:
         if limit <= 0:

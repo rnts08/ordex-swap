@@ -28,6 +28,7 @@
         <a class="text-decoration-none text-light small" href="#wallets">Wallets</a>
         <a class="text-decoration-none text-light small" href="#queue">Queue</a>
         <a class="text-decoration-none text-light small" href="#swaps">Swaps</a>
+        <a class="text-decoration-none text-light small" href="#background">Background</a>
         <a class="text-decoration-none text-light small" href="#password">Password</a>
         <button class="btn btn-sm btn-outline-light" id="logout-btn" type="button">Logout</button>
       </div>
@@ -161,6 +162,14 @@
         </div>
       </div>
 
+      <div class="card p-3 mb-4" id="background">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0 fw-bold text-white">Background Status</h2>
+          <button class="btn btn-outline-light btn-sm" id="refresh-background">Refresh</button>
+        </div>
+        <div class="small mt-2 muted" id="background-status">Loading...</div>
+      </div>
+
       <div class="card p-3 mb-4" id="password">
         <div class="d-flex justify-content-between align-items-center">
           <h2 class="h5 mb-0 fw-bold text-white">Change Password</h2>
@@ -207,6 +216,8 @@
     const pwNew = document.getElementById('pw-new');
     const pwMessage = document.getElementById('pw-message');
     const logoutBtn = document.getElementById('logout-btn');
+    const backgroundStatus = document.getElementById('background-status');
+    const refreshBackgroundBtn = document.getElementById('refresh-background');
     let currentAdmin = null;
 
     function buildAuth() {
@@ -269,6 +280,7 @@
       `).join('') || '<tr><td colspan="5" class="muted">No delayed swaps</td></tr>';
 
       loadSwaps();
+      loadBackgroundStatus();
     }
 
     async function loadSwaps() {
@@ -284,6 +296,19 @@
           <td>${s.status}</td>
         </tr>
       `).join('') || '<tr><td colspan="5" class="muted">No swaps</td></tr>';
+    }
+
+    async function loadBackgroundStatus() {
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/background-status`);
+      if (!resp.ok) {
+        backgroundStatus.textContent = 'Unavailable';
+        return;
+      }
+      const data = await resp.json();
+      const status = data.data;
+      const price = status.price_fetch || {};
+      const queue = status.queue_settlement || {};
+      backgroundStatus.textContent = `Price fetch: ${price.running ? 'running' : 'stopped'} | last: ${price.last_fetch_at || 'n/a'} | interval: ${price.interval_seconds || 'n/a'}s | Queue: ${queue.running ? 'running' : 'stopped'} | last: ${queue.last_run_at || 'n/a'} | interval: ${queue.interval_seconds || 'n/a'}s`;
     }
 
     async function rotateWallet(coin, purpose) {
@@ -321,6 +346,7 @@
     document.getElementById('refresh-wallets').addEventListener('click', loadDashboard);
     document.getElementById('refresh-swaps').addEventListener('click', loadSwaps);
     document.getElementById('process-queue').addEventListener('click', processQueue);
+    refreshBackgroundBtn.addEventListener('click', loadBackgroundStatus);
     document.getElementById('change-password').addEventListener('click', async () => {
       pwMessage.textContent = '';
       const username = (pwUser.value || currentAdmin || '').trim();

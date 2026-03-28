@@ -44,9 +44,6 @@ ORDEXGOLDD_DATADIR = os.getenv("ORDEXGOLDD_DATADIR", "./data/oxg")
 
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 DB_PATH = os.getenv("DB_PATH", os.path.join(DATA_DIR, "ordex.db"))
-PRICE_HISTORY_FILE = os.getenv("PRICE_HISTORY_FILE", "price_history.json")
-SWAP_HISTORY_FILE = os.getenv("SWAP_HISTORY_FILE", "swap_history.json")
-
 PRICE_HISTORY_MAX_ENTRIES = 1000
 
 SUPPORTED_COINS = ["OXC", "OXG"]

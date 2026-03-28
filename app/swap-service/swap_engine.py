@@ -383,10 +383,13 @@ class SwapEngine:
         import threading
 
         self._settlement_stop = threading.Event()
+        self._settlement_interval = interval_seconds
+        self._last_settlement_run = None
 
         def loop():
             while not self._settlement_stop.is_set():
                 try:
+                    self._last_settlement_run = datetime.now(timezone.utc).isoformat()
                     self.process_delayed_swaps()
                 except Exception as e:
                     logger.warning(f"Delayed swap processing error: {e}")
@@ -403,3 +406,10 @@ class SwapEngine:
         self._settlement_thread.join(timeout=5)
         self._settlement_thread = None
         self._settlement_stop = None
+
+    def get_settlement_status(self) -> Dict[str, Any]:
+        return {
+            "running": self._settlement_thread is not None,
+            "last_run_at": self._last_settlement_run,
+            "interval_seconds": getattr(self, "_settlement_interval", None),
+        }
