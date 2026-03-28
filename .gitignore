@@ -5,6 +5,9 @@ __pycache__/
 *.pyd
 .pytest_cache/
 
+# Node (tests)
+node_modules/
+
 # Virtual environments
 .venv/
 venv/
@@ -34,3 +37,4 @@ venv/
 .idea/
 .agent/
 AGENTS.md
+.opencode

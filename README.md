@@ -47,20 +47,42 @@ Do not commit `.env`; it contains secrets (NestEx API keys and RPC credentials).
 ### Running in Testing Mode (Development)
 
 ```bash
-# Start API only (no daemons, mock wallet operations)
-TESTING_MODE=true python main.py
+# Enable testing mode
+sed -i 's/^TESTING_MODE=.*/TESTING_MODE=true/' app/.env
+
+# Build and start the stack
+docker-compose up -d --build
+
+# Initialize/load wallets (idempotent)
+docker exec ordex-swap-ordex-swap-1 /app/first-run.sh
 ```
 
 ### Running in Production Mode
 
 ```bash
-# Requires ordexcoind and ordexgoldd binaries in app/data/bin/ (place them manually)
-python main.py
+# Disable testing mode
+sed -i 's/^TESTING_MODE=.*/TESTING_MODE=false/' app/.env
+
+# Build and start the stack
+docker-compose up -d --build
+
+# Initialize/load wallets (idempotent)
+docker exec ordex-swap-ordex-swap-1 /app/first-run.sh
 ```
 
 ### Binaries
 
 This repo does not include daemon binaries. Obtain `ordexcoind` and `ordexgoldd` from your internal distribution/source, then place them in `app/data/bin/` and ensure they are executable.
+
+### Production Notes
+
+- Ensure RPC credentials and wallet names are set in `app/.env` (`OXC_RPC_USER`, `OXC_RPC_PASSWORD`, `OXG_RPC_USER`, `OXG_RPC_PASSWORD`, `OXC_WALLET_NAME`, `OXG_WALLET_NAME`).
+- Run `first-run.sh` after deployment to load/create the configured wallets.
+- The UI is served on `http://localhost:8080/` and the admin UI is at `http://localhost:8080/admin.html`.
+
+## Testing
+
+See `TESTING.md` for how to run the full test suite (unit, e2e, and UI tests).
 
 ## Testing Mode
 

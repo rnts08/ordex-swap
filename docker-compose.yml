@@ -3,6 +3,8 @@ services:
     build:
       context: ./app
       dockerfile: ../Dockerfile
+      args:
+        BUILD_TEST: ${BUILD_TEST:-false}
     ports:
       - "8080:8080"
     env_file:

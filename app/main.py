@@ -142,11 +142,8 @@ def main():
                 )
                 time.sleep(delay)
 
-    if not TESTING_MODE:
-        verify_wallet(oxc_wallet, "OXC", OXC_WALLET_NAME)
-        verify_wallet(oxg_wallet, "OXG", OXG_WALLET_NAME)
-    else:
-        logger.info("Testing mode: skipping wallet verification")
+    verify_wallet(oxc_wallet, "OXC", OXC_WALLET_NAME)
+    verify_wallet(oxg_wallet, "OXG", OXG_WALLET_NAME)
 
     logger.info("Initializing swap history service...")
     swap_history = SwapHistoryService(data_dir=DATA_DIR)

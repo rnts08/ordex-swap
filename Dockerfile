@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+ARG BUILD_TEST=false
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl nginx && rm -rf /var/lib/apt/lists/*
@@ -17,8 +19,9 @@ COPY main.py .
 # Copy first-run scripts
 COPY first_startup.py first-run.sh ./
 
-# Copy tests
+# Copy tests (optionally removed for production images)
 COPY tests/ ./tests/
+RUN if [ "$BUILD_TEST" != "true" ]; then rm -rf /app/tests; fi
 
 # Copy daemon binaries for production mode
 COPY data/bin/ordexcoind data/bin/ordexgoldd /app/data/bin/
