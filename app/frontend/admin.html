@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OrdexSwap Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #0b0b0b; color: #f5f5f5; }
+    .card { background: #131313; border-color: #1f1f1f; }
+    .muted { color: #9b9b9b; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .bar-track { background: #1a1a1a; border-radius: 6px; height: 10px; overflow: hidden; }
+    .bar-fill { height: 10px; background: #f4b400; }
+    .bar-label { font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <h1 class="h3 mb-4">OrdexSwap Admin</h1>
+
+    <div class="card p-3 mb-4" id="login-card">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Username</label>
+          <input class="form-control" id="admin-user" value="swap" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Password</label>
+          <input class="form-control" id="admin-pass" type="password" value="changeme26" />
+        </div>
+        <div class="col-md-4">
+          <button class="btn btn-warning w-100" id="login-btn">Load Dashboard</button>
+        </div>
+      </div>
+      <div class="small text-warning mt-2">
+        Default credentials are prefilled for initial setup. Change them after first login.
+      </div>
+    </div>
+
+    <div id="dashboard" class="d-none">
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="card p-3">
+            <div class="muted small">Total Fees Collected</div>
+            <div class="h5" id="fees-total">--</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-3">
+            <div class="muted small">Total Swaps</div>
+            <div class="h5" id="total-swaps">--</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-3">
+            <div class="muted small">Delayed Queue</div>
+            <div class="h5" id="delayed-count">--</div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card p-3">
+            <div class="muted small">Total In / Out</div>
+            <div class="small" id="total-in-out">--</div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card p-3">
+            <div class="muted small">Latest Price</div>
+            <div class="small" id="latest-price">--</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="card p-3">
+            <div class="muted small mb-2">In / Out Graph</div>
+            <div id="inout-graph"></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card p-3">
+            <div class="muted small mb-2">Swap Status Counts</div>
+            <div id="status-graph"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0">Change Password</h2>
+        </div>
+        <div class="row g-2 mt-2">
+          <div class="col-md-4">
+            <label class="form-label">Username</label>
+            <input class="form-control" id="pw-user" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Current Password</label>
+            <input class="form-control" id="pw-current" type="password" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">New Password</label>
+            <input class="form-control" id="pw-new" type="password" />
+          </div>
+        </div>
+        <button class="btn btn-outline-warning mt-3" id="change-password">Update Password</button>
+        <div class="small mt-2 muted" id="pw-message"></div>
+      </div>
+
+      <div class="card p-3 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0">Wallets</h2>
+          <button class="btn btn-outline-light btn-sm" id="refresh-wallets">Refresh</button>
+        </div>
+        <div class="table-responsive mt-3">
+          <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Coin</th>
+                <th>Liquidity Address</th>
+                <th>Fees Address</th>
+                <th>Balance</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="wallets-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0">Delayed Queue</h2>
+          <button class="btn btn-outline-warning btn-sm" id="process-queue">Process Queue</button>
+        </div>
+        <div class="table-responsive mt-3">
+          <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Swap ID</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Net Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="queue-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0">Recent Swaps</h2>
+          <button class="btn btn-outline-light btn-sm" id="refresh-swaps">Refresh</button>
+        </div>
+        <div class="table-responsive mt-3">
+          <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Swap ID</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Fee</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="swaps-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    let authHeader = null;
+
+    const loginBtn = document.getElementById('login-btn');
+    const dashboard = document.getElementById('dashboard');
+    const loginCard = document.getElementById('login-card');
+    const walletsTable = document.getElementById('wallets-table');
+    const queueTable = document.getElementById('queue-table');
+    const swapsTable = document.getElementById('swaps-table');
+    const feesTotal = document.getElementById('fees-total');
+    const totalSwaps = document.getElementById('total-swaps');
+    const delayedCount = document.getElementById('delayed-count');
+    const totalInOut = document.getElementById('total-in-out');
+    const latestPrice = document.getElementById('latest-price');
+    const inoutGraph = document.getElementById('inout-graph');
+    const statusGraph = document.getElementById('status-graph');
+    const pwUser = document.getElementById('pw-user');
+    const pwCurrent = document.getElementById('pw-current');
+    const pwNew = document.getElementById('pw-new');
+    const pwMessage = document.getElementById('pw-message');
+    let currentAdmin = null;
+
+    function buildAuth() {
+      const user = document.getElementById('admin-user').value.trim();
+      const pass = document.getElementById('admin-pass').value;
+      authHeader = 'Basic ' + btoa(`${user}:${pass}`);
+    }
+
+    async function fetchWithAuth(url, options = {}) {
+      const headers = options.headers || {};
+      headers['Authorization'] = authHeader;
+      return fetch(url, { ...options, headers });
+    }
+
+    async function loadDashboard() {
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/dashboard`);
+      if (!resp.ok) {
+        alert('Admin auth failed or service unavailable.');
+        return;
+      }
+      const data = await resp.json();
+      const d = data.data;
+      dashboard.classList.remove('d-none');
+      loginCard.classList.add('d-none');
+
+      feesTotal.textContent = (d.financial.total_fees_collected || 0).toFixed(8);
+      totalSwaps.textContent = d.stats.total_swaps || 0;
+      delayedCount.textContent = d.delayed_queue.length;
+      totalInOut.textContent = `IN OXC: ${d.financial.total_in.OXC.toFixed(8)} | IN OXG: ${d.financial.total_in.OXG.toFixed(8)} | OUT OXC: ${d.financial.total_out.OXC.toFixed(8)} | OUT OXG: ${d.financial.total_out.OXG.toFixed(8)}`;
+      if (d.latest_price) {
+        latestPrice.textContent = `OXC/USDT: ${d.latest_price.oxc_usdt} | OXG/USDT: ${d.latest_price.oxg_usdt} | Cross: ${d.latest_price.cross_rate ?? d.latest_price.price}`;
+      } else {
+        latestPrice.textContent = 'Unavailable';
+      }
+
+      renderInOutGraph(d.financial);
+      renderStatusGraph(d.status_counts || {});
+
+      walletsTable.innerHTML = Object.entries(d.wallets).map(([coin, info]) => `
+        <tr>
+          <td>${coin}</td>
+          <td class="mono">${info.liquidity || '--'}</td>
+          <td class="mono">${info.fees || '--'}</td>
+          <td>${info.balance?.toFixed(8) ?? '--'}</td>
+          <td>
+            <button class="btn btn-outline-light btn-sm" onclick="rotateWallet('${coin}','liquidity')">Rotate Liquidity</button>
+            <button class="btn btn-outline-light btn-sm" onclick="rotateWallet('${coin}','fees')">Rotate Fees</button>
+          </td>
+        </tr>
+      `).join('');
+
+      queueTable.innerHTML = d.delayed_queue.map(s => `
+        <tr>
+          <td class="mono">${s.swap_id}</td>
+          <td>${s.from_amount} ${s.from_coin}</td>
+          <td>${s.net_amount} ${s.to_coin}</td>
+          <td>${s.net_amount}</td>
+          <td>${s.status}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="5" class="muted">No delayed swaps</td></tr>';
+
+      loadSwaps();
+    }
+
+    async function loadSwaps() {
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps?limit=20`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      swapsTable.innerHTML = data.data.swaps.map(s => `
+        <tr>
+          <td class="mono">${s.swap_id}</td>
+          <td>${s.from_amount} ${s.from_coin}</td>
+          <td>${s.net_amount} ${s.to_coin}</td>
+          <td>${s.fee_amount}</td>
+          <td>${s.status}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="5" class="muted">No swaps</td></tr>';
+    }
+
+    async function rotateWallet(coin, purpose) {
+      const explain = purpose === 'liquidity'
+        ? 'This will create a new liquidity address for this coin. Use the new address for future deposits.'
+        : 'This will create a new fees address for this coin. Use the new address for fee collection.';
+      if (!confirm(`Rotate ${purpose} address for ${coin}?\n\n${explain}`)) {
+        return;
+      }
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/wallets/rotate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+        body: JSON.stringify({ coin, purpose })
+      });
+      if (resp.ok) {
+        loadDashboard();
+      }
+    }
+
+    async function processQueue() {
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/queues/process`, {
+        method: 'POST'
+      });
+      if (resp.ok) {
+        loadDashboard();
+      }
+    }
+
+    loginBtn.addEventListener('click', () => {
+      buildAuth();
+      currentAdmin = document.getElementById('admin-user').value.trim();
+      pwUser.value = currentAdmin;
+      loadDashboard();
+    });
+    document.getElementById('refresh-wallets').addEventListener('click', loadDashboard);
+    document.getElementById('refresh-swaps').addEventListener('click', loadSwaps);
+    document.getElementById('process-queue').addEventListener('click', processQueue);
+    document.getElementById('change-password').addEventListener('click', async () => {
+      pwMessage.textContent = '';
+      const payload = {
+        username: pwUser.value.trim(),
+        current_password: pwCurrent.value,
+        new_password: pwNew.value,
+      };
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/users/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+        body: JSON.stringify(payload),
+      });
+      if (resp.ok) {
+        pwMessage.textContent = 'Password updated.';
+        pwCurrent.value = '';
+        pwNew.value = '';
+      } else {
+        pwMessage.textContent = 'Password update failed.';
+      }
+    });
+
+    function renderInOutGraph(financial) {
+      if (!financial) {
+        inoutGraph.innerHTML = '<div class="muted small">No data</div>';
+        return;
+      }
+      const values = [
+        { label: 'IN OXC', value: financial.total_in.OXC || 0 },
+        { label: 'IN OXG', value: financial.total_in.OXG || 0 },
+        { label: 'OUT OXC', value: financial.total_out.OXC || 0 },
+        { label: 'OUT OXG', value: financial.total_out.OXG || 0 },
+      ];
+      const max = Math.max(...values.map(v => v.value), 1);
+      inoutGraph.innerHTML = values.map(v => `
+        <div class="mb-2">
+          <div class="d-flex justify-content-between bar-label"><span>${v.label}</span><span>${v.value.toFixed(4)}</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width: ${(v.value / max) * 100}%"></div></div>
+        </div>
+      `).join('');
+    }
+
+    function renderStatusGraph(statusCounts) {
+      const statuses = [
+        { key: 'completed', label: 'Successful' },
+        { key: 'expired', label: 'Cancelled' },
+        { key: 'delayed', label: 'Queued' },
+      ];
+      const values = statuses.map(s => ({
+        label: s.label,
+        value: statusCounts[s.key] || 0,
+      }));
+      const max = Math.max(...values.map(v => v.value), 1);
+      statusGraph.innerHTML = values.map(v => `
+        <div class="mb-2">
+          <div class="d-flex justify-content-between bar-label"><span>${v.label}</span><span>${v.value}</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width: ${(v.value / max) * 100}%"></div></div>
+        </div>
+      `).join('');
+    }
+  </script>
+</body>
+</html>

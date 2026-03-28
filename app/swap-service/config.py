@@ -10,10 +10,12 @@ NESTEX_MAX_PRICE_AGE_SECONDS = 60
 OXC_RPC_URL = os.getenv("OXC_RPC_URL", "http://127.0.0.1:25173")
 OXC_RPC_USER = os.getenv("OXC_RPC_USER", "")
 OXC_RPC_PASSWORD = os.getenv("OXC_RPC_PASSWORD", "")
+OXC_WALLET_NAME = os.getenv("OXC_WALLET_NAME", "oxc_wallet")
 
 OXG_RPC_URL = os.getenv("OXG_RPC_URL", "http://127.0.0.1:25465")
 OXG_RPC_USER = os.getenv("OXG_RPC_USER", "")
 OXG_RPC_PASSWORD = os.getenv("OXG_RPC_PASSWORD", "")
+OXG_WALLET_NAME = os.getenv("OXG_WALLET_NAME", "oxg_wallet")
 
 SWAP_FEE_PERCENT = 1.0
 SWAP_MIN_AMOUNT = 0.0001

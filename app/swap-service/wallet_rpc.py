@@ -86,7 +86,14 @@ class WalletRPC:
 
     def get_balance(self, minconf: int = 0, include_watchonly: bool = False) -> float:
         params = [minconf, include_watchonly]
-        return float(self._call("getbalance", params))
+        try:
+            return float(self._call("getbalance", params))
+        except WalletRPCError as e:
+            message = str(e)
+            if "Position 1 (dummy)" in message or "JSON value is not a string" in message:
+                legacy_params = ["*", minconf, include_watchonly]
+                return float(self._call("getbalance", legacy_params))
+            raise
 
     def list_unspent(
         self, minconf: int = 0, maxconf: int = 9999999
@@ -142,6 +149,9 @@ class OXCWallet:
     def get_address(self) -> str:
         return self.rpc.get_new_address("swap-deposit")
 
+    def get_labeled_address(self, label: str) -> str:
+        return self.rpc.get_new_address(label)
+
     def get_balance(self) -> float:
         return self.rpc.get_balance()
 
@@ -164,6 +174,9 @@ class OXGWallet:
 
     def get_address(self) -> str:
         return self.rpc.get_new_address("swap-deposit")
+
+    def get_labeled_address(self, label: str) -> str:
+        return self.rpc.get_new_address(label)
 
     def get_balance(self) -> float:
         return self.rpc.get_balance()

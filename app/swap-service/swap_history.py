@@ -260,6 +260,46 @@ class SwapHistoryService:
                 "total_volume_oxg": 0,
             }
 
+    def get_financial_stats(self) -> Dict[str, Any]:
+        stats = {
+            "total_fees_collected": 0.0,
+            "total_in": {"OXC": 0.0, "OXG": 0.0},
+            "total_out": {"OXC": 0.0, "OXG": 0.0},
+        }
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                rows = conn.execute(
+                    "SELECT data_json FROM swaps WHERE status = ?",
+                    ("completed",),
+                ).fetchall()
+            for row in rows:
+                swap = json.loads(row[0])
+                from_coin = swap.get("from_coin")
+                to_coin = swap.get("to_coin")
+                if from_coin in stats["total_in"]:
+                    stats["total_in"][from_coin] += float(swap.get("from_amount", 0) or 0)
+                if to_coin in stats["total_out"]:
+                    stats["total_out"][to_coin] += float(swap.get("net_amount", 0) or 0)
+                stats["total_fees_collected"] += float(swap.get("fee_amount", 0) or 0)
+            return stats
+        except (sqlite3.Error, json.JSONDecodeError) as e:
+            logger.error(f"Failed to compute financial stats: {e}")
+            return stats
+
+    def get_status_counts(self) -> Dict[str, int]:
+        counts: Dict[str, int] = {}
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                rows = conn.execute(
+                    "SELECT status, COUNT(*) FROM swaps GROUP BY status"
+                ).fetchall()
+            for status, count in rows:
+                counts[status] = count
+            return counts
+        except sqlite3.Error as e:
+            logger.error(f"Failed to compute status counts: {e}")
+            return counts
+
     def search_swaps(self, query: str, field: str = "swap_id") -> List[Dict[str, Any]]:
         query = query.lower()
         results = []

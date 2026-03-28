@@ -18,6 +18,7 @@ from wallet_rpc import OXCWallet, OXGWallet
 from swap_engine import SwapEngine
 from swap_history import SwapHistoryService
 from price_history import PriceHistoryService
+from admin_service import AdminService
 from api import init_app, run_server
 from daemon_manager import DaemonManager
 from config import (
@@ -31,15 +32,18 @@ from config import (
     OXC_RPC_URL,
     OXC_RPC_USER,
     OXC_RPC_PASSWORD,
+    OXC_WALLET_NAME,
     OXG_RPC_URL,
     OXG_RPC_USER,
     OXG_RPC_PASSWORD,
+    OXG_WALLET_NAME,
     TESTING_MODE,
     ORDEXCOIND_PATH,
     ORDEXGOLDD_PATH,
     ORDEXCOIND_DATADIR,
     ORDEXGOLDD_DATADIR,
     DATA_DIR,
+    DB_PATH,
 )
 
 logging.basicConfig(
@@ -91,8 +95,13 @@ def main():
         OXG_RPC_URL, OXG_RPC_USER, OXG_RPC_PASSWORD, testing_mode=TESTING_MODE
     )
 
-    def verify_wallet(wallet, label: str, retries: int = 30, delay: float = 2.0) -> None:
-        wallet_name = f"{label.lower()}_wallet"
+    def verify_wallet(
+        wallet,
+        label: str,
+        wallet_name: str,
+        retries: int = 30,
+        delay: float = 2.0,
+    ) -> None:
         attempted_create = False
         for attempt in range(1, retries + 1):
             try:
@@ -106,14 +115,25 @@ def main():
                 ):
                     attempted_create = True
                     try:
-                        logger.warning(f"{label} wallet missing; creating {wallet_name}")
-                        wallet.rpc.create_wallet(wallet_name)
+                        logger.warning(
+                            f"{label} wallet not loaded; trying loadwallet {wallet_name}"
+                        )
+                        wallet.rpc.load_wallet(wallet_name)
                         time.sleep(delay)
                         continue
                     except Exception as create_err:
-                        logger.warning(
-                            f"{label} wallet create failed: {create_err}"
-                        )
+                        logger.warning(f"{label} wallet load failed: {create_err}")
+                        try:
+                            logger.warning(
+                                f"{label} wallet missing; creating {wallet_name}"
+                            )
+                            wallet.rpc.create_wallet(wallet_name)
+                            time.sleep(delay)
+                            continue
+                        except Exception as create_err:
+                            logger.warning(
+                                f"{label} wallet create failed: {create_err}"
+                            )
                 if attempt == retries:
                     logger.error(f"{label} wallet check failed after {retries} attempts: {e}")
                     sys.exit(1)
@@ -122,14 +142,20 @@ def main():
                 )
                 time.sleep(delay)
 
-    verify_wallet(oxc_wallet, "OXC")
-    verify_wallet(oxg_wallet, "OXG")
+    if not TESTING_MODE:
+        verify_wallet(oxc_wallet, "OXC", OXC_WALLET_NAME)
+        verify_wallet(oxg_wallet, "OXG", OXG_WALLET_NAME)
+    else:
+        logger.info("Testing mode: skipping wallet verification")
 
     logger.info("Initializing swap history service...")
     swap_history = SwapHistoryService(data_dir=DATA_DIR)
 
     logger.info("Initializing price history service...")
     price_history = PriceHistoryService(oracle=oracle, data_dir=DATA_DIR)
+
+    logger.info("Initializing admin service...")
+    admin_service = AdminService(db_path=DB_PATH)
 
     logger.info("Starting background price fetch...")
     price_history.start_background_fetch()
@@ -147,7 +173,7 @@ def main():
     engine.start_background_settlement()
 
     logger.info("Starting API server...")
-    init_app(engine, oracle, price_history, swap_history)
+    init_app(engine, oracle, price_history, swap_history, admin_service)
 
     logger.info("=" * 50)
     logger.info(f"Ordex Swap Service started on {API_HOST}:{API_PORT}")

@@ -20,6 +20,8 @@ class TestSwapEngine(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         os.environ["DATA_DIR"] = self._tmpdir.name
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+        os.environ["TESTING_MODE"] = "false"
+        os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
 
         for mod in ("config", "swap_engine", "swap_history"):
             if mod in sys.modules:

@@ -14,6 +14,12 @@ COPY swap-service/ ./swap-service/
 # Copy main.py
 COPY main.py .
 
+# Copy first-run scripts
+COPY first_startup.py first-run.sh ./
+
+# Copy tests
+COPY tests/ ./tests/
+
 # Copy daemon binaries for production mode
 COPY data/bin/ordexcoind data/bin/ordexgoldd /app/data/bin/
 RUN chmod +x /app/data/bin/ordexcoind /app/data/bin/ordexgoldd

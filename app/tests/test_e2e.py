@@ -52,6 +52,9 @@ class FakeWallet:
     def get_address(self):
         return f"{self.coin.lower()}_addr"
 
+    def get_labeled_address(self, label):
+        return f"{self.coin.lower()}_{label}_addr"
+
     def send(self, _address, _amount):
         if self.send_error:
             raise self.send_error
@@ -87,6 +90,7 @@ class TestE2EApiFlow(unittest.TestCase):
         swap_engine = importlib.import_module("swap_engine")
         swap_history = importlib.import_module("swap_history")
         price_history = importlib.import_module("price_history")
+        admin_service = importlib.import_module("admin_service")
 
         self.db_path = os.environ["DB_PATH"]
         self.oracle = FakeOracle()
@@ -95,6 +99,7 @@ class TestE2EApiFlow(unittest.TestCase):
 
         self.history_service = swap_history.SwapHistoryService()
         self.price_history = price_history.PriceHistoryService(self.oracle)
+        self.admin_service = admin_service.AdminService(db_path=self.db_path)
 
         self.engine = swap_engine.SwapEngine(
             price_oracle=self.oracle,
@@ -104,7 +109,13 @@ class TestE2EApiFlow(unittest.TestCase):
             fee_percent=1.0,
         )
 
-        api.init_app(self.engine, self.oracle, self.price_history, self.history_service)
+        api.init_app(
+            self.engine,
+            self.oracle,
+            self.price_history,
+            self.history_service,
+            self.admin_service,
+        )
         self.client = api.app.test_client()
 
     def _create_and_confirm_swap(self, from_coin, to_coin, amount):
@@ -215,6 +226,19 @@ class TestE2EApiFlow(unittest.TestCase):
         cancel = self.client.post(f"/api/v1/swap/{swap_id}/cancel")
         self.assertEqual(cancel.status_code, 200)
         self.assertEqual(cancel.get_json()["data"]["status"], "expired")
+
+    def test_admin_dashboard_basic_auth(self):
+        import base64
+
+        token = base64.b64encode(b"swap:changeme26").decode("utf-8")
+        resp = self.client.get(
+            "/api/v1/admin/dashboard",
+            headers={"Authorization": f"Basic {token}"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()["data"]
+        self.assertIn("wallets", data)
+        self.assertIn("stats", data)
 
 
 if __name__ == "__main__":

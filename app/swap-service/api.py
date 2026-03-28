@@ -1,4 +1,6 @@
 import logging
+import base64
+from functools import wraps
 from flask import Flask, request, jsonify
 
 from price_oracle import PriceOracle, PriceOracleError, PriceOracleStaleError
@@ -12,6 +14,7 @@ from swap_engine import (
 )
 from swap_history import SwapHistoryService
 from price_history import PriceHistoryService
+from admin_service import AdminService
 from config import (
     API_HOST,
     API_PORT,
@@ -27,6 +30,7 @@ swap_engine: SwapEngine = None
 price_oracle: PriceOracle = None
 price_history: PriceHistoryService = None
 swap_history: SwapHistoryService = None
+admin_service: AdminService = None
 
 
 def init_app(
@@ -34,12 +38,14 @@ def init_app(
     oracle: PriceOracle,
     price_hist: PriceHistoryService = None,
     swap_hist: SwapHistoryService = None,
+    admin_svc: AdminService = None,
 ):
-    global swap_engine, price_oracle, price_history, swap_history
+    global swap_engine, price_oracle, price_history, swap_history, admin_service
     swap_engine = engine
     price_oracle = oracle
     price_history = price_hist
     swap_history = swap_hist
+    admin_service = admin_svc
 
 
 def json_error(message: str, status_code: int, error_code: str = None):
@@ -52,6 +58,33 @@ def json_error(message: str, status_code: int, error_code: str = None):
 def json_success(data):
     response = {"success": True, "data": data}
     return jsonify(response)
+
+
+def _parse_basic_auth(header_value: str):
+    if not header_value or not header_value.startswith("Basic "):
+        return None, None
+    try:
+        encoded = header_value.split(" ", 1)[1]
+        decoded = base64.b64decode(encoded).decode("utf-8")
+        username, password = decoded.split(":", 1)
+        return username, password
+    except Exception:
+        return None, None
+
+
+def require_admin_auth(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not admin_service:
+            return json_error("Admin service not available", 500)
+        username, password = _parse_basic_auth(request.headers.get("Authorization"))
+        if not username or not admin_service.verify_credentials(username, password):
+            response = json_error("Unauthorized", 401)
+            response[0].headers["WWW-Authenticate"] = 'Basic realm="OrdexSwap Admin"'
+            return response
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 @app.route("/health", methods=["GET"])
@@ -195,6 +228,119 @@ def get_swap_stats():
     if swap_history:
         return json_success(swap_history.get_stats())
     return json_error("History service not available", 500)
+
+
+@app.route("/api/v1/admin/status", methods=["GET"])
+@require_admin_auth
+def admin_status():
+    return json_success({"status": "ok"})
+
+
+@app.route("/api/v1/admin/dashboard", methods=["GET"])
+@require_admin_auth
+def admin_dashboard():
+    if not swap_history or not price_history:
+        return json_error("Services not available", 500)
+
+    financial = swap_history.get_financial_stats()
+    stats = swap_history.get_stats()
+    status_counts = swap_history.get_status_counts()
+    delayed = swap_history.get_swaps_by_statuses(["delayed"])
+
+    wallets = {}
+    if swap_engine:
+        for coin, wallet in (("OXC", swap_engine.oxc_wallet), ("OXG", swap_engine.oxg_wallet)):
+            wallets.setdefault(coin, {})
+            wallets[coin]["liquidity"] = admin_service.get_or_create_wallet_address(
+                coin, "liquidity", lambda w=wallet, c=coin: w.get_labeled_address(f"liquidity-{c.lower()}")
+            )
+            wallets[coin]["fees"] = admin_service.get_or_create_wallet_address(
+                coin, "fees", lambda w=wallet, c=coin: w.get_labeled_address(f"fees-{c.lower()}")
+            )
+            wallets[coin]["balance"] = wallet.get_balance()
+
+    latest_price = price_history.get_latest() if price_history else None
+
+    return json_success(
+        {
+            "wallets": wallets,
+            "stats": stats,
+            "status_counts": status_counts,
+            "financial": financial,
+            "delayed_queue": delayed,
+            "latest_price": latest_price,
+        }
+    )
+
+
+@app.route("/api/v1/admin/swaps", methods=["GET"])
+@require_admin_auth
+def admin_swaps():
+    status = request.args.get("status")
+    limit = int(request.args.get("limit", 100))
+    swaps = swap_engine.list_swaps(status)
+    return json_success({"swaps": swaps[:limit], "count": len(swaps)})
+
+
+@app.route("/api/v1/admin/queues/process", methods=["POST"])
+@require_admin_auth
+def admin_process_queue():
+    if not swap_engine:
+        return json_error("Swap engine not available", 500)
+    processed = swap_engine.process_delayed_swaps()
+    return json_success({"processed": processed})
+
+
+@app.route("/api/v1/admin/wallets/rotate", methods=["POST"])
+@require_admin_auth
+def admin_rotate_wallet():
+    data = request.get_json() or {}
+    coin = (data.get("coin") or "").upper()
+    purpose = (data.get("purpose") or "").lower()
+    if coin not in SUPPORTED_COINS or purpose not in {"liquidity", "fees"}:
+        return json_error("Invalid coin or purpose", 400, "INVALID_PARAMS")
+    wallet = swap_engine.oxc_wallet if coin == "OXC" else swap_engine.oxg_wallet
+    address = admin_service.rotate_wallet_address(
+        coin,
+        purpose,
+        lambda w=wallet, c=coin, p=purpose: w.get_labeled_address(f"{p}-{c.lower()}"),
+    )
+    if not address:
+        return json_error("Failed to rotate wallet", 500)
+    return json_success({"coin": coin, "purpose": purpose, "address": address})
+
+
+@app.route("/api/v1/admin/users", methods=["GET"])
+@require_admin_auth
+def admin_list_users():
+    return json_success({"users": admin_service.list_admins()})
+
+
+@app.route("/api/v1/admin/users", methods=["POST"])
+@require_admin_auth
+def admin_create_user():
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if not username or not password:
+        return json_error("Missing username or password", 400, "MISSING_PARAMS")
+    if not admin_service.create_admin(username, password):
+        return json_error("Failed to create admin (username may exist)", 400)
+    return json_success({"username": username})
+
+
+@app.route("/api/v1/admin/users/change-password", methods=["POST"])
+@require_admin_auth
+def admin_change_password():
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    current_password = data.get("current_password") or ""
+    new_password = data.get("new_password") or ""
+    if not username or not current_password or not new_password:
+        return json_error("Missing username or password fields", 400, "MISSING_PARAMS")
+    if not admin_service.update_password(username, current_password, new_password):
+        return json_error("Password update failed", 400, "UPDATE_FAILED")
+    return json_success({"username": username})
 
 
 @app.route("/api/v1/prices/history", methods=["GET"])
