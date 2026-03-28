@@ -126,6 +126,9 @@ class PriceHistoryService:
         self._running = True
         self._stop_event.clear()
 
+        # Seed one entry so graphs have data quickly.
+        self.fetch_and_record()
+
         def fetch_loop():
             logger.info(f"Starting background price fetch (every {interval}s)")
             while not self._stop_event.is_set():

@@ -89,6 +89,20 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+
+    .btn-swap-left {
+      border-top-left-radius: 9999px;
+      border-bottom-left-radius: 9999px;
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
+    .btn-swap-right {
+      border-top-right-radius: 9999px;
+      border-bottom-right-radius: 9999px;
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
     
     .form-control-dark {
       background: rgba(255, 255, 255, 0.03);
@@ -309,7 +323,7 @@
           </div>
           <!-- Price History Chart -->
           <div class="mt-3">
-            <span class="text-brand-muted small">24h Price History</span>
+            <span class="text-brand-muted small">24h Cross Rate (OXC/OXG)</span>
             <div class="price-chart mt-2" id="price-chart">
               <div class="text-center text-brand-muted w-100 small">Loading chart...</div>
             </div>
@@ -381,10 +395,15 @@
             </div>
             
             <!-- Submit Button -->
-            <button type="submit" class="btn btn-swap w-100 py-3 fw-bold text-uppercase" id="swap-btn" disabled>
-              <span id="btn-text">Get Quote</span>
-              <div class="loader d-none" id="btn-loader"></div>
-            </button>
+            <div class="d-flex w-100">
+              <button type="button" class="btn btn-swap btn-swap-left px-3" id="reset-btn" title="Reset">
+                <span class="fw-bold">×</span>
+              </button>
+              <button type="submit" class="btn btn-swap btn-swap-right w-100 py-3 fw-bold text-uppercase" id="swap-btn" disabled>
+                <span id="btn-text">Get Quote</span>
+                <div class="loader d-none" id="btn-loader"></div>
+              </button>
+            </div>
           </form>
           
           <!-- Error/Success Messages -->
@@ -431,6 +450,7 @@
     let currentQuote = null;
     let currentRate = null;
     let testingMode = false;
+    let priceHistoryCache = null;
     
     // DOM Elements
     const fromCoin = document.getElementById('from-coin');
@@ -454,6 +474,7 @@
     const recentSwapsEl = document.getElementById('recent-swaps');
     const priceChart = document.getElementById('price-chart');
     const refreshSwapsBtn = document.getElementById('refresh-swaps');
+    const resetBtn = document.getElementById('reset-btn');
     
     // Stat elements
     const statVolume = document.getElementById('stat-volume');
@@ -463,6 +484,7 @@
     
     // Initialize
     async function init() {
+      resetForm();
       await checkStatus();
       fetchCoinPrices();
       fetchPrice();
@@ -510,6 +532,11 @@
       setTimeout(() => {
         refreshSwapsBtn.querySelector('i').classList.remove('fa-spin');
       }, 500);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      resetForm();
+      messageArea.innerHTML = '';
     });
     
     function showMessage(message, type = 'error') {
@@ -573,6 +600,19 @@
       addressError.classList.add('d-none');
       userAddress.classList.remove('is-invalid');
       return true;
+    }
+
+    function resetForm() {
+      currentQuote = null;
+      fromAmount.value = '';
+      toAmount.value = '';
+      userAddress.value = '';
+      quoteRate.textContent = '--';
+      quoteFee.textContent = '--';
+      quoteReceive.textContent = '--';
+      btnText.textContent = 'Get Quote';
+      swapBtn.disabled = true;
+      showLiquidityWarning(null);
     }
     
     async function updateQuote() {
@@ -681,6 +721,8 @@
             <div class="deposit-address mb-2">${data.data.deposit_address}</div>
             <div class="small text-brand-muted">Then confirm below after sending.</div>
           `, 'success');
+
+          resetForm();
           
           // Auto-confirm in testing mode
           if (testingMode) {
@@ -724,6 +766,7 @@
           } else {
             showMessage(`Swap completed! Sent ${data.data.net_amount} ${data.data.to_coin} to your address.`, 'success');
             showLiquidityWarning(null);
+            resetForm();
           }
           loadRecentSwaps();
         }
@@ -791,9 +834,10 @@
           statLow.textContent = stats.min ? stats.min.toFixed(4) : '--';
         }
         
-        if (historyData.success && historyData.data.history.length > 0) {
-          renderPriceChart(historyData.data.history);
-        }
+      if (historyData.success && historyData.data.history.length > 0) {
+        priceHistoryCache = historyData.data.history;
+        renderPriceChart(priceHistoryCache);
+      }
       } catch (err) {
         console.error('Failed to load price stats:', err);
       }
@@ -805,22 +849,95 @@
         return;
       }
       
-      const prices = history.map(h => h.price).filter(p => p > 0);
-      if (prices.length === 0) {
+      const points = history
+        .map(h => ({
+          ts: new Date(h.timestamp),
+          value: h.cross_rate ?? h.price
+        }))
+        .filter(p => p.value > 0 && !Number.isNaN(p.value));
+
+      if (points.length === 0) {
         priceChart.innerHTML = '<div class="text-center text-brand-muted w-100 small">No price data</div>';
         return;
       }
-      
-      const min = Math.min(...prices);
-      const max = Math.max(...prices);
+
+      const referenceNow = points.reduce((acc, p) => (p.ts > acc ? p.ts : acc), points[0].ts);
+      const hours = Array.from({ length: 24 }, (_, i) => i);
+      const buckets = new Array(24).fill(null);
+
+      points.forEach(p => {
+        const diffHours = Math.floor((referenceNow - p.ts) / 3600000);
+        if (diffHours >= 0 && diffHours < 24) {
+          const idx = 23 - diffHours; // 0 oldest, 23 newest
+          buckets[idx] = p.value;
+        }
+      });
+
+      const filled = buckets.map((v, i) => (v == null ? null : v));
+      const available = filled.filter(v => v != null);
+      if (available.length === 0) {
+        priceChart.innerHTML = '<div class="text-center text-brand-muted w-100 small">No price data</div>';
+        return;
+      }
+
+      const min = Math.min(...available);
+      const max = Math.max(...available);
       const range = max - min || 1;
-      
-      priceChart.innerHTML = history.map((h, i) => {
-        const height = ((h.price - min) / range) * 100 + 10;
-        const time = new Date(h.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        return `<div class="price-bar" style="height: ${height}%" title="${time}: ${h.price?.toFixed(4)} OXG"></div>`;
+
+      const width = Math.max(priceChart.clientWidth || 0, 260);
+      const height = 120;
+      const padLeft = 36;
+      const padRight = 36;
+      const padTop = 10;
+      const padBottom = 24;
+      const innerW = width - padLeft - padRight;
+      const innerH = height - padTop - padBottom;
+
+      const pointsSvg = filled.map((v, i) => {
+        if (v == null) return null;
+        const x = padLeft + (i / 23) * innerW;
+        const y = padTop + (1 - (v - min) / range) * innerH;
+        return { x, y, v, hour: i };
+      }).filter(Boolean);
+
+      const linePath = pointsSvg.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+
+      const tickHours = [0, 6, 12, 18, 23];
+      const tickLabels = tickHours.map(h => {
+        const x = padLeft + (h / 23) * innerW;
+        const y = height - padBottom;
+        return `
+          <line x1="${x}" y1="${y}" x2="${x}" y2="${y + 4}" stroke="#2a2a2a" />
+          <text x="${x}" y="${y + 12}" fill="#666" font-size="7" text-anchor="middle">${h}h</text>
+        `;
       }).join('');
+
+      priceChart.innerHTML = `
+        <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}">
+          <line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${height - padBottom}" stroke="#1f1f1f" />
+          <line x1="${width - padRight}" y1="${padTop}" x2="${width - padRight}" y2="${height - padBottom}" stroke="#1f1f1f" />
+          <line x1="${padLeft}" y1="${height - padBottom}" x2="${width - padRight}" y2="${height - padBottom}" stroke="#1f1f1f" />
+
+          ${tickLabels}
+
+          <text x="2" y="${padTop + 8}" fill="#888" font-size="8">OXC</text>
+          <text x="${width - 2}" y="${padTop + 8}" fill="#888" font-size="8" text-anchor="end">OXG</text>
+          <text x="2" y="${height - padBottom - 2}" fill="#666" font-size="8">${min.toFixed(4)}</text>
+          <text x="${width - 2}" y="${padTop + 8 + 10}" fill="#666" font-size="8" text-anchor="end">${max.toFixed(4)}</text>
+
+          ${linePath ? `<path d="${linePath}" fill="none" stroke="#dca747" stroke-width="2" />` : ''}
+          ${pointsSvg.map(p => `<circle cx="${p.x}" cy="${p.y}" r="2" fill="#dca747">
+            <title>${p.hour}h: ${p.v.toFixed(6)} OXG</title>
+          </circle>`).join('')}
+        </svg>
+      `;
     }
+
+    window.addEventListener('resize', () => {
+      if (priceHistoryCache && priceHistoryCache.length > 0) {
+        renderPriceChart(priceHistoryCache);
+      }
+    });
     
     // Load swap stats
     async function loadSwapStats() {

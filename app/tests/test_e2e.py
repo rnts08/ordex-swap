@@ -240,6 +240,50 @@ class TestE2EApiFlow(unittest.TestCase):
         self.assertIn("wallets", data)
         self.assertIn("stats", data)
 
+    def test_invalid_quote_and_swap_inputs(self):
+        bad_quote = self.client.post(
+            "/api/v1/quote",
+            json={"from": "OXC", "to": "OXG"},
+        )
+        self.assertEqual(bad_quote.status_code, 400)
+
+        bad_amount = self.client.post(
+            "/api/v1/quote",
+            json={"from": "OXC", "to": "OXG", "amount": "not_a_number"},
+        )
+        self.assertEqual(bad_amount.status_code, 400)
+
+        bad_swap = self.client.post(
+            "/api/v1/swap",
+            json={"from": "OXC", "to": "OXG", "amount": 10},
+        )
+        self.assertEqual(bad_swap.status_code, 400)
+
+        bad_coin = self.client.post(
+            "/api/v1/swap",
+            json={
+                "from": "OXC",
+                "to": "BAD",
+                "amount": 10,
+                "user_address": "user_addr_123",
+            },
+        )
+        self.assertEqual(bad_coin.status_code, 400)
+
+    def test_fuzz_swap_inputs(self):
+        candidates = [
+            {"from": "OXC", "to": "OXG", "amount": -1, "user_address": "user_addr_123"},
+            {"from": "OXC", "to": "OXG", "amount": 0, "user_address": "user_addr_123"},
+            {"from": "OXC", "to": "OXG", "amount": 999999999, "user_address": "user_addr_123"},
+            {"from": "OXC", "to": "OXG", "amount": "nan", "user_address": "user_addr_123"},
+            {"from": "OXC", "to": "OXG", "amount": 10, "user_address": ""},
+            {"from": "OXC", "to": "OXG", "amount": 10, "user_address": "bad!"},
+        ]
+
+        for payload in candidates:
+            resp = self.client.post("/api/v1/swap", json=payload)
+            self.assertNotEqual(resp.status_code, 200, payload)
+
 
 if __name__ == "__main__":
     unittest.main()

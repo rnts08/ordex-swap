@@ -34,6 +34,12 @@ curl -s http://localhost:8080/health
 BUILD_TEST=true docker-compose up -d --build
 ```
 
+### 1.1) Initialize/load wallets (idempotent)
+
+```bash
+docker exec ordex-swap-ordex-swap-1 /app/first-run.sh
+```
+
 ### 2) Run Python unit + e2e tests (inside container)
 
 ```bash
