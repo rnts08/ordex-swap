@@ -8,6 +8,7 @@ from swap_engine import (
     SwapError,
     InvalidAmountError,
     UnsupportedPairError,
+    LiquidityHoldError,
 )
 from swap_history import SwapHistoryService
 from price_history import PriceHistoryService
@@ -115,6 +116,8 @@ def create_swap():
     try:
         swap = swap_engine.create_swap(from_coin, to_coin, amount, user_address)
         return json_success(swap)
+    except LiquidityHoldError as e:
+        return json_error(str(e), 503, "LIQUIDITY_DELAY")
     except (InvalidAmountError, UnsupportedPairError) as e:
         return json_error(str(e), 400, "VALIDATION_ERROR")
     except PriceOracleError as e:

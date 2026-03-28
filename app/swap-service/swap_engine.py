@@ -13,6 +13,7 @@ from config import (
     SWAP_MAX_AMOUNT,
     SUPPORTED_COINS,
     TESTING_MODE,
+    SWAP_CONFIRMATIONS_REQUIRED,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class SwapStatus(Enum):
     AWAITING_DEPOSIT = "awaiting_deposit"
     PROCESSING = "processing"
     COMPLETED = "completed"
+    DELAYED = "delayed"
     FAILED = "failed"
     EXPIRED = "expired"
 
@@ -35,6 +37,12 @@ class SwapError(Exception):
 
 class InvalidAmountError(SwapError):
     """Amount is outside allowed range."""
+
+    pass
+
+
+class LiquidityHoldError(SwapError):
+    """Swap blocked by a pending delayed swap due to low liquidity."""
 
     pass
 
@@ -64,6 +72,44 @@ class SwapEngine:
         self.min_amount = min_amount
         self.max_amount = max_amount
         self._pending_swaps: Dict[str, Dict[str, Any]] = {}
+        self._settlement_thread = None
+        self._settlement_stop = None
+
+    def _is_liquidity_error(self, error: Exception) -> bool:
+        message = str(error).lower()
+        keywords = [
+            "insufficient funds",
+            "insufficient balance",
+            "balance too low",
+            "not enough funds",
+            "not enough balance",
+            "insufficient",
+        ]
+        return any(keyword in message for keyword in keywords)
+
+    def _get_delayed_swaps(self) -> Dict[str, Dict[str, Any]]:
+        delayed = {
+            swap_id: swap
+            for swap_id, swap in self._pending_swaps.items()
+            if swap.get("status") == SwapStatus.DELAYED.value
+        }
+
+        for swap in self.history.get_swaps_by_statuses([SwapStatus.DELAYED.value]):
+            swap_id = swap.get("swap_id")
+            if swap_id and swap_id not in delayed:
+                delayed[swap_id] = swap
+        return delayed
+
+    def _get_liquidity_hold(self, to_coin: str) -> Optional[float]:
+        delayed_swaps = self._get_delayed_swaps().values()
+        holds = [
+            float(swap.get("net_amount", 0))
+            for swap in delayed_swaps
+            if swap.get("to_coin") == to_coin
+        ]
+        if not holds:
+            return None
+        return min(holds)
 
     def validate_swap_request(
         self, from_coin: str, to_coin: str, amount: float
@@ -104,6 +150,11 @@ class SwapEngine:
         conversion = self.oracle.get_conversion_amount(
             from_coin, to_coin, amount, self.fee_percent
         )
+        liquidity_hold = self._get_liquidity_hold(to_coin)
+        liquidity_blocked = (
+            liquidity_hold is not None
+            and float(conversion["net_amount"]) > liquidity_hold
+        )
 
         return {
             "quote_id": str(uuid.uuid4()),
@@ -117,6 +168,14 @@ class SwapEngine:
             "price_data": conversion["price_data"],
             "expires_at": datetime.now(timezone.utc).isoformat(),
             "fee_percent": self.fee_percent,
+            "liquidity_hold_amount": liquidity_hold,
+            "liquidity_blocked": liquidity_blocked,
+            "liquidity_notice": (
+                "Temporary liquidity delay on this output coin. "
+                "Swaps above the queued amount are paused."
+                if liquidity_blocked
+                else None
+            ),
         }
 
     def create_swap(
@@ -130,6 +189,11 @@ class SwapEngine:
         conversion = self.oracle.get_conversion_amount(
             from_coin, to_coin, amount, self.fee_percent
         )
+        liquidity_hold = self._get_liquidity_hold(to_coin)
+        if liquidity_hold is not None and float(conversion["net_amount"]) > liquidity_hold:
+            raise LiquidityHoldError(
+                "Liquidity delay: swaps above the queued amount are temporarily paused."
+            )
 
         swap_id = str(uuid.uuid4())
         deposit_address = self.get_deposit_address(from_coin)
@@ -184,6 +248,35 @@ class SwapEngine:
         ]:
             raise SwapError(f"Swap in invalid state: {swap['status']}")
 
+        if SWAP_CONFIRMATIONS_REQUIRED > 0:
+            try:
+                from_coin = swap["from_coin"]
+                if from_coin == "OXC":
+                    tx = self.oxc_wallet.get_transaction(deposit_txid)
+                elif from_coin == "OXG":
+                    tx = self.oxg_wallet.get_transaction(deposit_txid)
+                else:
+                    raise UnsupportedPairError(f"Unknown input coin: {from_coin}")
+
+                confirmations = 0
+                if isinstance(tx, dict):
+                    confirmations = int(tx.get("confirmations") or 0)
+
+                if confirmations < SWAP_CONFIRMATIONS_REQUIRED:
+                    swap["deposit_txid"] = deposit_txid
+                    swap["status"] = SwapStatus.AWAITING_DEPOSIT.value
+                    swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    self.history.update_swap(swap_id, swap)
+                    logger.info(
+                        "Swap %s awaiting confirmations: %s/%s",
+                        swap_id,
+                        confirmations,
+                        SWAP_CONFIRMATIONS_REQUIRED,
+                    )
+                    return swap
+            except WalletRPCError as e:
+                raise SwapError(f"Unable to verify deposit confirmations: {e}")
+
         swap["deposit_txid"] = deposit_txid
         swap["status"] = SwapStatus.PROCESSING.value
         swap["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -193,7 +286,10 @@ class SwapEngine:
     def _settle_swap(self, swap_id: str) -> Dict[str, Any]:
         swap = self._pending_swaps.get(swap_id)
         if not swap:
-            raise SwapError(f"Swap not found: {swap_id}")
+            swap = self.history.get_swap(swap_id)
+            if not swap:
+                raise SwapError(f"Swap not found: {swap_id}")
+            self._pending_swaps[swap_id] = swap
 
         try:
             from_coin = swap["from_coin"]
@@ -226,6 +322,16 @@ class SwapEngine:
             return swap
 
         except WalletRPCError as e:
+            if self._is_liquidity_error(e):
+                swap["status"] = SwapStatus.DELAYED.value
+                swap["delay_code"] = "liquidity_low"
+                swap["delay_reason"] = "Insufficient liquidity to complete swap."
+                swap["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
+                swap["updated_at"] = swap["last_attempt_at"]
+                self.history.update_swap(swap_id, swap)
+                logger.warning(f"Swap {swap_id} delayed due to low liquidity: {e}")
+                return swap
+
             swap["status"] = SwapStatus.FAILED.value
             swap["error"] = str(e)
             swap["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -259,3 +365,41 @@ class SwapEngine:
             return self.oxg_wallet.get_balance()
         else:
             raise UnsupportedPairError(f"Unknown coin: {coin}")
+
+    def process_delayed_swaps(self) -> int:
+        processed = 0
+        for swap_id, swap in self._get_delayed_swaps().items():
+            try:
+                result = self._settle_swap(swap_id)
+                if result.get("status") == SwapStatus.COMPLETED.value:
+                    processed += 1
+            except SwapError:
+                continue
+        return processed
+
+    def start_background_settlement(self, interval_seconds: int = 30) -> None:
+        if self._settlement_thread:
+            return
+        import threading
+
+        self._settlement_stop = threading.Event()
+
+        def loop():
+            while not self._settlement_stop.is_set():
+                try:
+                    self.process_delayed_swaps()
+                except Exception as e:
+                    logger.warning(f"Delayed swap processing error: {e}")
+                self._settlement_stop.wait(interval_seconds)
+
+        self._settlement_thread = threading.Thread(target=loop, daemon=True)
+        self._settlement_thread.start()
+
+    def stop_background_settlement(self) -> None:
+        if not self._settlement_thread:
+            return
+        if self._settlement_stop:
+            self._settlement_stop.set()
+        self._settlement_thread.join(timeout=5)
+        self._settlement_thread = None
+        self._settlement_stop = None

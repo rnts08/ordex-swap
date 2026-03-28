@@ -144,6 +144,7 @@ def main():
         min_amount=SWAP_MIN_AMOUNT,
         max_amount=SWAP_MAX_AMOUNT,
     )
+    engine.start_background_settlement()
 
     logger.info("Starting API server...")
     init_app(engine, oracle, price_history, swap_history)
@@ -159,6 +160,8 @@ def main():
 
         logger.info("Stopping price history...")
         price_history.stop_background_fetch()
+        logger.info("Stopping delayed swap processing...")
+        engine.stop_background_settlement()
 
         if daemon_manager:
             daemon_manager.stop_daemons()

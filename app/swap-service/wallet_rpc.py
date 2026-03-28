@@ -145,6 +145,9 @@ class OXCWallet:
     def get_balance(self) -> float:
         return self.rpc.get_balance()
 
+    def get_transaction(self, txid: str) -> Dict[str, Any]:
+        return self.rpc.get_transaction(txid)
+
     def send(self, address: str, amount: float) -> str:
         return self.rpc.send_to_address(address, amount, "swap-output")
 
@@ -164,6 +167,9 @@ class OXGWallet:
 
     def get_balance(self) -> float:
         return self.rpc.get_balance()
+
+    def get_transaction(self, txid: str) -> Dict[str, Any]:
+        return self.rpc.get_transaction(txid)
 
     def send(self, address: str, amount: float) -> str:
         return self.rpc.send_to_address(address, amount, "swap-output")

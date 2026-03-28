@@ -164,6 +164,7 @@
     .status-completed { color: #10b981; }
     .status-failed { color: #ef4444; }
     .status-processing { color: #3b82f6; }
+    .status-delayed { color: #f59e0b; }
     .status-expired { color: #6b7280; }
     
     .loader {
@@ -387,6 +388,7 @@
           </form>
           
           <!-- Error/Success Messages -->
+          <div class="mt-3 d-none" id="liquidity-warning"></div>
           <div class="mt-3" id="message-area"></div>
         </div>
 
@@ -440,6 +442,7 @@
     const btnText = document.getElementById('btn-text');
     const btnLoader = document.getElementById('btn-loader');
     const messageArea = document.getElementById('message-area');
+    const liquidityWarning = document.getElementById('liquidity-warning');
     const userAddress = document.getElementById('user-address');
     const addressError = document.getElementById('address-error');
     const quoteRate = document.getElementById('quote-rate');
@@ -519,6 +522,21 @@
         </div>
       `;
     }
+
+    function showLiquidityWarning(message) {
+      if (!message) {
+        liquidityWarning.classList.add('d-none');
+        liquidityWarning.innerHTML = '';
+        return;
+      }
+      liquidityWarning.classList.remove('d-none');
+      liquidityWarning.innerHTML = `
+        <div class="alert bg-warning bg-opacity-25 border-0 d-flex align-items-center gap-2" role="alert">
+          <i class="fas fa-clock"></i>
+          <span class="small">${message}</span>
+        </div>
+      `;
+    }
     
     function setLoading(loading) {
       if (loading) {
@@ -564,6 +582,7 @@
         quoteRate.textContent = '--';
         quoteFee.textContent = '--';
         quoteReceive.textContent = '--';
+        showLiquidityWarning(null);
         swapBtn.disabled = true;
         return;
       }
@@ -588,19 +607,24 @@
           quoteFee.textContent = `${data.data.fee_amount.toFixed(8)} ${data.data.to_coin}`;
           quoteReceive.textContent = `${data.data.net_amount.toFixed(8)} ${data.data.to_coin}`;
           currentRate = data.data.rate;
-          swapBtn.disabled = false;
+          showLiquidityWarning(data.data.liquidity_blocked ? data.data.liquidity_notice : null);
+          swapBtn.disabled = !!data.data.liquidity_blocked;
           
-          if (validateAddressInput()) {
+          if (data.data.liquidity_blocked) {
+            btnText.textContent = 'Swap Temporarily Paused';
+          } else if (validateAddressInput()) {
             btnText.textContent = 'Create Swap';
           } else {
             btnText.textContent = 'Enter Address to Swap';
             swapBtn.disabled = true;
           }
         } else {
+          showLiquidityWarning(null);
           showMessage(data.error || 'Failed to get quote');
           swapBtn.disabled = true;
         }
       } catch (err) {
+        showLiquidityWarning(null);
         showMessage('Could not connect to API');
         console.error(err);
         swapBtn.disabled = true;
@@ -611,8 +635,13 @@
     userAddress.addEventListener('input', () => {
       const validAddress = validateAddressInput();
       if (currentQuote && validAddress) {
-        swapBtn.disabled = false;
-        btnText.textContent = 'Create Swap';
+        if (currentQuote.liquidity_blocked) {
+          swapBtn.disabled = true;
+          btnText.textContent = 'Swap Temporarily Paused';
+        } else {
+          swapBtn.disabled = false;
+          btnText.textContent = 'Create Swap';
+        }
       } else if (currentQuote) {
         swapBtn.disabled = true;
         btnText.textContent = 'Enter Address to Swap';
@@ -662,7 +691,14 @@
           
           loadRecentSwaps();
         } else {
-          showMessage(data.error || 'Failed to create swap');
+          if (data.error_code === 'LIQUIDITY_DELAY') {
+            showLiquidityWarning(data.error);
+            showMessage('Swap temporarily paused due to low liquidity.', 'error');
+            swapBtn.disabled = true;
+            btnText.textContent = 'Swap Temporarily Paused';
+          } else {
+            showMessage(data.error || 'Failed to create swap');
+          }
         }
       } catch (err) {
         showMessage('Could not connect to API');
@@ -682,7 +718,13 @@
         
         const data = await response.json();
         if (data.success) {
-          showMessage(`Swap completed! Sent ${data.data.net_amount} ${data.data.to_coin} to your address.`, 'success');
+          if (data.data.status === 'delayed') {
+            showLiquidityWarning('Sorry for the delay. Liquidity is temporarily low; your swap is queued and will complete automatically.');
+            showMessage('Swap queued due to low liquidity. We will complete it automatically.', 'error');
+          } else {
+            showMessage(`Swap completed! Sent ${data.data.net_amount} ${data.data.to_coin} to your address.`, 'success');
+            showLiquidityWarning(null);
+          }
           loadRecentSwaps();
         }
       } catch (err) {

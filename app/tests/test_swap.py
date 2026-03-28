@@ -29,12 +29,15 @@ class TestSwapEngine(unittest.TestCase):
         self.config = config
         swap_engine = importlib.import_module("swap_engine")
         swap_history = importlib.import_module("swap_history")
+        wallet_rpc = importlib.import_module("wallet_rpc")
 
         self.SwapEngine = swap_engine.SwapEngine
         self.SwapError = swap_engine.SwapError
         self.InvalidAmountError = swap_engine.InvalidAmountError
         self.UnsupportedPairError = swap_engine.UnsupportedPairError
+        self.LiquidityHoldError = swap_engine.LiquidityHoldError
         self.SwapHistoryService = swap_history.SwapHistoryService
+        self.WalletRPCError = wallet_rpc.WalletRPCError
 
         self.oracle = Mock()
         self.oxc_wallet = Mock()
@@ -53,6 +56,12 @@ class TestSwapEngine(unittest.TestCase):
 
         self.oxc_wallet.get_address.return_value = "oxc_deposit_addr"
         self.oxg_wallet.get_address.return_value = "oxg_deposit_addr"
+        self.oxc_wallet.get_transaction.return_value = {
+            "confirmations": self.config.SWAP_CONFIRMATIONS_REQUIRED
+        }
+        self.oxg_wallet.get_transaction.return_value = {
+            "confirmations": self.config.SWAP_CONFIRMATIONS_REQUIRED
+        }
 
         self.engine = self.SwapEngine(
             price_oracle=self.oracle,
@@ -148,6 +157,67 @@ class TestSwapEngine(unittest.TestCase):
         with self.assertRaises(self.SwapError):
             self.engine.confirm_deposit(swap_id, "another_txid")
 
+    def test_confirm_deposit_delayed_on_low_liquidity(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        self.oxg_wallet.send.side_effect = self.WalletRPCError(
+            "insufficient funds"
+        )
+
+        delayed = self.engine.confirm_deposit(swap_id, "deposit_txid")
+
+        self.assertEqual(delayed["status"], "delayed")
+        self.assertEqual(delayed["delay_code"], "liquidity_low")
+
+    def test_delayed_swap_is_queued_and_completes_later(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        self.oxg_wallet.send.side_effect = self.WalletRPCError(
+            "balance too low"
+        )
+        delayed = self.engine.confirm_deposit(swap_id, "deposit_txid")
+        self.assertEqual(delayed["status"], "delayed")
+
+        self.oxg_wallet.send.side_effect = None
+        self.oxg_wallet.send.return_value = "txid_ok"
+
+        processed = self.engine.process_delayed_swaps()
+        self.assertEqual(processed, 1)
+        completed = self.engine.get_swap(swap_id)
+        self.assertEqual(completed["status"], "completed")
+
+    def test_liquidity_hold_blocks_higher_amount_swaps(self):
+        def conversion(from_coin, to_coin, amount, fee_percent):
+            to_amount = amount * 2.0
+            fee_amount = to_amount * (fee_percent / 100)
+            net_amount = to_amount - fee_amount
+            now = datetime.now(timezone.utc)
+            return {
+                "to_amount": to_amount,
+                "fee_amount": fee_amount,
+                "net_amount": net_amount,
+                "rate": 2.0,
+                "price_data": {"price": 2.0, "timestamp": now.isoformat()},
+            }
+
+        self.oracle.get_conversion_amount.side_effect = conversion
+
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+        self.oxg_wallet.send.side_effect = self.WalletRPCError(
+            "insufficient balance"
+        )
+        delayed = self.engine.confirm_deposit(swap_id, "deposit_txid")
+        self.assertEqual(delayed["status"], "delayed")
+
+        blocked_quote = self.engine.create_swap_quote("OXC", "OXG", 12.0)
+        self.assertTrue(blocked_quote["liquidity_blocked"])
+
+        with self.assertRaises(self.LiquidityHoldError):
+            self.engine.create_swap("OXC", "OXG", 12.0, "user_address")
+
     def test_cancel_swap(self):
         swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
         swap_id = swap["swap_id"]
@@ -155,6 +225,15 @@ class TestSwapEngine(unittest.TestCase):
         cancelled = self.engine.cancel_swap(swap_id)
 
         self.assertEqual(cancelled["status"], "expired")
+
+    def test_cancel_swap_without_deposit(self):
+        swap = self.engine.create_swap("OXG", "OXC", 5.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        cancelled = self.engine.cancel_swap(swap_id)
+
+        self.assertEqual(cancelled["status"], "expired")
+        self.assertIsNone(cancelled.get("deposit_txid"))
 
     def test_cancel_completed_swap_fails(self):
         swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")

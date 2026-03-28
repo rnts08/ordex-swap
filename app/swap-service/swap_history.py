@@ -153,8 +153,12 @@ class SwapHistoryService:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 rows = conn.execute(
-                    "SELECT data_json FROM swaps WHERE status = ? ORDER BY created_at DESC",
-                    ("pending",),
+                    """
+                    SELECT data_json FROM swaps
+                    WHERE status IN (?, ?, ?, ?)
+                    ORDER BY created_at DESC
+                    """,
+                    ("pending", "awaiting_deposit", "processing", "delayed"),
                 ).fetchall()
             return [json.loads(r[0]) for r in rows]
         except (sqlite3.Error, json.JSONDecodeError) as e:
@@ -187,9 +191,26 @@ class SwapHistoryService:
             return self.get_pending_swaps()
         if status == "completed":
             return self.get_completed_swaps(limit)
+        if status == "delayed":
+            return self.get_swaps_by_statuses(["delayed"])
         pending = self.get_pending_swaps()
         completed = self.get_completed_swaps(max(limit - len(pending), 0))
         return pending + completed
+
+    def get_swaps_by_statuses(self, statuses: List[str]) -> List[Dict[str, Any]]:
+        if not statuses:
+            return []
+        placeholders = ", ".join("?" for _ in statuses)
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                rows = conn.execute(
+                    f"SELECT data_json FROM swaps WHERE status IN ({placeholders})",
+                    statuses,
+                ).fetchall()
+            return [json.loads(r[0]) for r in rows]
+        except (sqlite3.Error, json.JSONDecodeError) as e:
+            logger.error(f"Failed to fetch swaps by status: {e}")
+            return []
 
     def get_stats(self) -> Dict[str, Any]:
         today_start = datetime.now(timezone.utc).replace(

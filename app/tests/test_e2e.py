@@ -45,17 +45,23 @@ class FakeOracle:
 
 
 class FakeWallet:
-    def __init__(self, coin):
+    def __init__(self, coin, send_error: Exception = None):
         self.coin = coin
+        self.send_error = send_error
 
     def get_address(self):
         return f"{self.coin.lower()}_addr"
 
     def send(self, _address, _amount):
+        if self.send_error:
+            raise self.send_error
         return f"tx_{self.coin.lower()}"
 
     def get_balance(self):
         return 100.0
+
+    def get_transaction(self, _txid):
+        return {"confirmations": 0}
 
 
 class TestE2EApiFlow(unittest.TestCase):
@@ -64,7 +70,8 @@ class TestE2EApiFlow(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         os.environ["DATA_DIR"] = self._tmpdir.name
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
-        os.environ["TESTING_MODE"] = "true"
+        os.environ["TESTING_MODE"] = "false"
+        os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
 
         for mod in (
             "config",
@@ -89,7 +96,7 @@ class TestE2EApiFlow(unittest.TestCase):
         self.history_service = swap_history.SwapHistoryService()
         self.price_history = price_history.PriceHistoryService(self.oracle)
 
-        engine = swap_engine.SwapEngine(
+        self.engine = swap_engine.SwapEngine(
             price_oracle=self.oracle,
             oxc_wallet=self.oxc_wallet,
             oxg_wallet=self.oxg_wallet,
@@ -97,7 +104,7 @@ class TestE2EApiFlow(unittest.TestCase):
             fee_percent=1.0,
         )
 
-        api.init_app(engine, self.oracle, self.price_history, self.history_service)
+        api.init_app(self.engine, self.oracle, self.price_history, self.history_service)
         self.client = api.app.test_client()
 
     def _create_and_confirm_swap(self, from_coin, to_coin, amount):
@@ -143,6 +150,71 @@ class TestE2EApiFlow(unittest.TestCase):
             ).fetchone()[0]
         self.assertEqual(count, 2)
         self.assertEqual(completed, 2)
+
+    def test_delayed_swap_and_queue_processing(self):
+        from wallet_rpc import WalletRPCError
+
+        self.oxg_wallet.send_error = WalletRPCError("insufficient funds")
+        resp = self.client.post(
+            "/api/v1/swap",
+            json={
+                "from": "OXC",
+                "to": "OXG",
+                "amount": 10,
+                "user_address": "user_addr_123",
+            },
+        )
+        swap_id = resp.get_json()["data"]["swap_id"]
+
+        confirm = self.client.post(
+            f"/api/v1/swap/{swap_id}/confirm",
+            json={"deposit_txid": "test_txid"},
+        )
+        self.assertEqual(confirm.status_code, 200)
+        data = confirm.get_json()["data"]
+        self.assertEqual(data["status"], "delayed")
+
+        blocked_quote = self.client.post(
+            "/api/v1/quote",
+            json={"from": "OXC", "to": "OXG", "amount": 12},
+        ).get_json()["data"]
+        self.assertTrue(blocked_quote["liquidity_blocked"])
+
+        blocked_swap = self.client.post(
+            "/api/v1/swap",
+            json={
+                "from": "OXC",
+                "to": "OXG",
+                "amount": 12,
+                "user_address": "user_addr_123",
+            },
+        )
+        self.assertEqual(blocked_swap.status_code, 503)
+        self.assertEqual(blocked_swap.get_json().get("error_code"), "LIQUIDITY_DELAY")
+
+        self.oxg_wallet.send_error = None
+        processed = self.engine.process_delayed_swaps()
+        self.assertEqual(processed, 1)
+
+        swap = self.client.get(f"/api/v1/swap/{swap_id}").get_json()["data"]
+        self.assertEqual(swap["status"], "completed")
+
+    def test_cancel_swap_without_deposit(self):
+        resp = self.client.post(
+            "/api/v1/swap",
+            json={
+                "from": "OXG",
+                "to": "OXC",
+                "amount": 5,
+                "user_address": "user_addr_123",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        swap_id = resp.get_json()["data"]["swap_id"]
+
+        cancel = self.client.post(f"/api/v1/swap/{swap_id}/cancel")
+        self.assertEqual(cancel.status_code, 200)
+        self.assertEqual(cancel.get_json()["data"]["status"], "expired")
 
 
 if __name__ == "__main__":

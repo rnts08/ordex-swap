@@ -30,6 +30,10 @@ API_PORT = int(os.getenv("API_PORT", "8000"))
 
 TESTING_MODE = os.getenv("TESTING_MODE", "false").lower() == "true"
 
+SWAP_CONFIRMATIONS_REQUIRED = int(os.getenv("SWAP_CONFIRMATIONS_REQUIRED", "1"))
+if TESTING_MODE:
+    SWAP_CONFIRMATIONS_REQUIRED = 0
+
 ORDEXCOIND_PATH = os.getenv("ORDEXCOIND_PATH", "./ordexcoind")
 ORDEXGOLDD_PATH = os.getenv("ORDEXGOLDD_PATH", "./ordexgoldd")
 
