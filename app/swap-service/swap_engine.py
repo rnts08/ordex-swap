@@ -14,6 +14,7 @@ from config import (
     SUPPORTED_COINS,
     TESTING_MODE,
     SWAP_CONFIRMATIONS_REQUIRED,
+    SWAP_EXPIRE_MINUTES,
 )
 
 logger = logging.getLogger(__name__)
@@ -190,7 +191,10 @@ class SwapEngine:
             from_coin, to_coin, amount, self.fee_percent
         )
         liquidity_hold = self._get_liquidity_hold(to_coin)
-        if liquidity_hold is not None and float(conversion["net_amount"]) > liquidity_hold:
+        if (
+            liquidity_hold is not None
+            and float(conversion["net_amount"]) > liquidity_hold
+        ):
             raise LiquidityHoldError(
                 "Liquidity delay: swaps above the queued amount are temporarily paused."
             )
@@ -368,6 +372,9 @@ class SwapEngine:
 
     def process_delayed_swaps(self) -> int:
         processed = 0
+        expired = 0
+        now = datetime.now(timezone.utc)
+
         for swap_id, swap in self._get_delayed_swaps().items():
             try:
                 result = self._settle_swap(swap_id)
@@ -375,6 +382,26 @@ class SwapEngine:
                     processed += 1
             except SwapError:
                 continue
+
+        for swap_id, swap in dict(self._pending_swaps).items():
+            if swap["status"] in [
+                SwapStatus.PENDING.value,
+                SwapStatus.AWAITING_DEPOSIT.value,
+                SwapStatus.DELAYED.value,
+            ]:
+                expires_at = datetime.fromisoformat(
+                    swap["expires_at"].replace("Z", "+00:00")
+                )
+                if (now - expires_at).total_seconds() > SWAP_EXPIRE_MINUTES * 60:
+                    swap["status"] = SwapStatus.EXPIRED.value
+                    swap["updated_at"] = now.isoformat()
+                    self.history.update_swap(swap_id, swap)
+                    del self._pending_swaps[swap_id]
+                    logger.info(
+                        f"Swap {swap_id} expired after {SWAP_EXPIRE_MINUTES} minutes"
+                    )
+                    expired += 1
+
         return processed
 
     def start_background_settlement(self, interval_seconds: int = 30) -> None:
