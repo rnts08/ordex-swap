@@ -289,8 +289,7 @@
       <div class="col-6 col-md-3">
         <div class="stat-card">
           <div class="text-brand-muted small">24h Volume</div>
-          <div class="fs-6 fw-bold text-white" id="stat-volume-oxc">--</div>
-          <div class="fs-6 fw-bold text-white" id="stat-volume-oxg">--</div>
+          <div class="fs-6 fw-bold text-white" id="stat-volume">--</div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -490,8 +489,7 @@
     const resetBtn = document.getElementById('reset-btn');
     
     // Stat elements
-    const statVolumeOxc = document.getElementById('stat-volume-oxc');
-    const statVolumeOxg = document.getElementById('stat-volume-oxg');
+    const statVolume = document.getElementById('stat-volume');
     const statSwaps = document.getElementById('stat-swaps');
     const statHigh = document.getElementById('stat-high');
     const statLow = document.getElementById('stat-low');
@@ -1022,8 +1020,7 @@
           
           const volOxc = (stats.total_volume_oxc || 0).toFixed(2);
           const volOxg = (stats.total_volume_oxg || 0).toFixed(2);
-          statVolumeOxc.textContent = volOxc + ' OXC';
-          statVolumeOxg.textContent = volOxg + ' OXG';
+          statVolume.textContent = volOxc + ' OXC / ' + volOxg + ' OXG';
         }
       } catch (err) {
         console.error('Failed to load swap stats:', err);
@@ -1054,7 +1051,7 @@
         } else {
           recentSwapsEl.innerHTML = '<p class="text-brand-muted small">No recent swaps</p>';
           statSwaps.textContent = '0';
-          statVolume.textContent = '0 OXC';
+          statVolume.textContent = '0 OXC / 0 OXG';
         }
       } catch (err) {
         console.error('Failed to load swaps');
