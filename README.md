@@ -266,8 +266,8 @@ Support development of this project by donating:
     * OXC: oxc1q3psft0hvlslddyp8ktr3s737req7q8hrl0rkly
     * OXG: oxg1q34apjkn2yc6rsvuua98432ctqdrjh9hdkhpx0t
 
-All donations goes directly to the creator of this project for development and maintenance.
-
 Use Nestex to donate: https://nestex.one/pay/Black-Spirited-174344
 
 Buy the creator a beer: https://buymeacoffee.com/timhbergsta
+
+*** All donations goes directly to the creator of this project for development and maintenance. ***
