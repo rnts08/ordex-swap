@@ -32,6 +32,7 @@ from config import (
     SWAP_MIN_FEE_OXG,
     SWAP_MIN_AMOUNT,
     SWAP_MAX_AMOUNT,
+    SWAP_EXPIRE_MINUTES,
 )
 
 logger = StructuredLogger(__name__)
@@ -423,12 +424,27 @@ def admin_dashboard():
 @app.route("/api/v1/admin/swaps", methods=["GET"])
 @require_admin_auth
 def admin_swaps():
-    status = request.args.get("status")
-    limit = int(request.args.get("limit", 100))
-    # By default, admin sees all swaps including cancelled/timed_out/expired
-    include_inactive = status is None
     swaps = swap_engine.list_swaps(status, include_inactive=include_inactive)
     return json_success({"swaps": swaps[:limit], "count": len(swaps)})
+
+
+@app.route("/api/v1/admin/scan-transactions", methods=["GET"])
+@require_admin_auth
+def admin_scan_transactions():
+    if not swap_engine:
+        return json_error("Swap engine not available", 500)
+    
+    # Get admin wallets for mapping
+    admin_wallets = {}
+    if admin_service:
+        admin_wallets = admin_service.list_wallets()
+
+    try:
+        transactions = swap_engine.get_unaccounted_transactions(admin_wallets)
+        return json_success({"transactions": transactions, "count": len(transactions)})
+    except Exception as e:
+        logger.error(f"Failed to scan transactions: {e}")
+        return json_error(str(e), 500)
 
 
 @app.route("/api/v1/admin/swaps/<swap_id>/action", methods=["POST"])

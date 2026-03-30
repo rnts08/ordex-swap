@@ -1,6 +1,6 @@
 import uuid
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from enum import Enum
 from datetime import datetime, timezone
 
@@ -361,6 +361,88 @@ class SwapEngine:
         swap["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         return self._settle_swap(swap_id)
+
+    def safe_confirm_deposit(self, swap_id: str, deposit_txid: str) -> Optional[Dict[str, Any]]:
+        """A safe wrapper around confirm_deposit that handles SwapErrors gracefully for background processes"""
+        try:
+            return self.confirm_deposit(swap_id, deposit_txid)
+        except SwapError as e:
+            logger.debug(f"Confirmation ignored for {swap_id}: {e}")
+            return swap
+        except Exception as e:
+            logger.error(f"Error settling swap {swap_id}: {e}")
+            raise SwapError(f"Failed to settle swap: {e}")
+
+    def get_unaccounted_transactions(self, admin_wallets: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Scans all wallet UTXOs and identifies those not linked to a successful swap.
+        Categorizes them as LIQUIDITY_TOPUP, ORPHAN_DEPOSIT, or UNKNOWN.
+        """
+        unaccounted = []
+        
+        # Flatten admin addresses for quick lookup
+        admin_addrs = {} # {address: (coin, purpose)}
+        for coin, purposes in admin_wallets.items():
+            for purpose, details in purposes.items():
+                addr = details.get("address")
+                if addr:
+                    admin_addrs[addr] = (coin, purpose)
+
+        for coin in ["OXC", "OXG"]:
+            wallet = self.oxc_wallet if coin == "OXC" else self.oxg_wallet
+            try:
+                utxos = wallet.rpc.list_unspent(minconf=0)
+                for utxo in utxos:
+                    txid = utxo.get("txid")
+                    address = utxo.get("address")
+                    amount = float(utxo.get("amount", 0))
+                    
+                    # 1. Is it an admin address?
+                    if address in admin_addrs:
+                        c, purpose = admin_addrs[address]
+                        unaccounted.append({
+                            "txid": txid,
+                            "address": address,
+                            "amount": amount,
+                            "coin": coin,
+                            "category": "LIQUIDITY_TOPUP",
+                            "purpose": purpose,
+                            "status": "unacknowledged"
+                        })
+                        continue
+                    
+                    # 2. Is it associated with a swap?
+                    swap = self.history.get_swap_by_address(address)
+                    if swap:
+                        status = swap.get("status")
+                        # If swap is already completed/processing, it's accounted for.
+                        if status in [SwapStatus.COMPLETED.value, SwapStatus.PROCESSING.value]:
+                            continue
+                        
+                        unaccounted.append({
+                            "txid": txid,
+                            "address": address,
+                            "amount": amount,
+                            "coin": coin,
+                            "category": "ORPHAN_DEPOSIT",
+                            "swap_id": swap.get("swap_id"),
+                            "swap_status": status
+                        })
+                        continue
+                    
+                    # 3. Everything else is UNKNOWN
+                    unaccounted.append({
+                        "txid": txid,
+                        "address": address,
+                        "amount": amount,
+                        "coin": coin,
+                        "category": "UNKNOWN"
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Failed to scan unaccounted transactions for {coin}: {e}")
+        
+        return unaccounted
 
     def _settle_swap(self, swap_id: str) -> Dict[str, Any]:
         swap = self._pending_swaps.get(swap_id)

@@ -309,6 +309,70 @@ class TestSwapCleanupJob(unittest.TestCase):
             updated = self.history.get_swap(swap_id)
             self.assertEqual(updated["status"], "timed_out")
 
+    def test_scan_unspent_deposits_confirms_matching_swap(self):
+        """Test that scan_unspent_deposits triggers confirmation for matching UTXOs"""
+        # Create a swap
+        swap = self.engine.create_swap("OXC", "OXG", 1.0, "user_address")
+        swap_id = swap["swap_id"]
+        deposit_addr = swap["deposit_address"]
+
+        # Mock list_unspent to return a matching UTXO
+        self.oxc_wallet.rpc.list_unspent.return_value = [
+            {"address": deposit_addr, "txid": "matching_txid", "amount": 1.0}
+        ]
+        self.oxg_wallet.rpc.list_unspent.return_value = []
+
+        # Mock confirm_deposit to avoid actual wallet sends if not needed
+        with patch.object(self.engine, "confirm_deposit") as mock_confirm:
+            cleanup = self.SwapCleanupJob(self.engine)
+            cleanup.scan_unspent_deposits()
+
+            # Verify confirm_deposit was called with correct arguments
+            mock_confirm.assert_called_once_with(swap_id, "matching_txid")
+
+    def test_scan_unspent_deposits_ignores_low_amount(self):
+        """Test that scan_unspent_deposits ignores UTXOs with insufficient amount"""
+        # Create a swap
+        swap = self.engine.create_swap("OXC", "OXG", 1.0, "user_address")
+        swap_id = swap["swap_id"]
+        deposit_addr = swap["deposit_address"]
+
+        # Mock list_unspent with insufficient amount (0.5 < 1.0)
+        self.oxc_wallet.rpc.list_unspent.return_value = [
+            {"address": deposit_addr, "txid": "low_amount_txid", "amount": 0.5}
+        ]
+        self.oxg_wallet.rpc.list_unspent.return_value = []
+
+        with patch.object(self.engine, "confirm_deposit") as mock_confirm:
+            cleanup = self.SwapCleanupJob(self.engine)
+            cleanup.scan_unspent_deposits()
+
+            # Verify confirm_deposit was NOT called
+            mock_confirm.assert_not_called()
+
+    def test_scan_unspent_deposits_handles_timed_out_swaps(self):
+        """Test that background scanner catches deposits for timed_out swaps"""
+        swap = self.engine.create_swap("OXC", "OXG", 1.0, "user_address")
+        swap_id = swap["swap_id"]
+        deposit_addr = swap["deposit_address"]
+        
+        # Mark as timed_out
+        swap["status"] = "timed_out"
+        self.history.update_swap(swap_id, swap)
+
+        self.oxc_wallet.rpc.list_unspent.return_value = [
+            {"address": deposit_addr, "txid": "late_txid", "amount": 1.0}
+        ]
+        self.oxg_wallet.rpc.list_unspent.return_value = []
+
+        cleanup = self.SwapCleanupJob(self.engine)
+        cleanup.scan_unspent_deposits()
+
+        # Verify status changed to late_deposit (via engine confirm_deposit logic)
+        updated = self.history.get_swap(swap_id)
+        self.assertEqual(updated["status"], "late_deposit")
+        self.assertEqual(updated["deposit_txid"], "late_txid")
+
 
 class TestSwapHistoryIncludeInactive(unittest.TestCase):
     def setUp(self):

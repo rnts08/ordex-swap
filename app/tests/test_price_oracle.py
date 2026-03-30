@@ -80,7 +80,7 @@ class TestPriceOracleCrossRate(unittest.TestCase):
                 {"ticker_id": "OXC_USDT", "last_price": "0.06"},
                 {"ticker_id": "OXG_USDT", "last_price": "0.03"},
             ]
-            conversion = oracle.get_conversion_amount("OXC", "OXG", 10.0, 1.0)
+            conversion = oracle.get_conversion_amount("OXC", "OXG", 10.0, 1.0, min_fee_oxc=0, min_fee_oxg=0)
 
         expected_rate = 0.06 / 0.03
         expected_to_amount = 10.0 * expected_rate
@@ -102,7 +102,7 @@ class TestPriceOracleCrossRate(unittest.TestCase):
                 {"ticker_id": "OXC_USDT", "last_price": "0.06"},
                 {"ticker_id": "OXG_USDT", "last_price": "0.03"},
             ]
-            conversion = oracle.get_conversion_amount("OXG", "OXC", 10.0, 1.0)
+            conversion = oracle.get_conversion_amount("OXG", "OXC", 10.0, 1.0, min_fee_oxc=0, min_fee_oxg=0)
 
         expected_rate = 0.03 / 0.06
         expected_to_amount = 10.0 * expected_rate
@@ -153,6 +153,8 @@ class TestPriceOracleCrossRate(unittest.TestCase):
                 fee_percent=1.0,
                 min_amount=0.0001,
                 max_amount=10000.0,
+                min_fee_oxc=0.0,
+                min_fee_oxg=0.0,
             )
 
             quote = engine.create_swap_quote("OXG", "OXC", 10.0)

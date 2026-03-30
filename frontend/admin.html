@@ -36,6 +36,7 @@
         <a class="text-decoration-none text-light small" href="#withdraw">Withdraw</a>
         <a class="text-decoration-none text-light small" href="#queue">Queue</a>
         <a class="text-decoration-none text-light small" href="#swaps">Swaps</a>
+        <a class="text-decoration-none text-light small" href="#unaccounted">Scan</a>
         <a class="text-decoration-none text-light small" href="#background">Background</a>
         <a class="text-decoration-none text-light small" href="#password">Password</a>
         <a class="text-decoration-none text-light small" href="#swapcontrol">Swap Control</a>
@@ -230,6 +231,29 @@
         <div class="small mt-2 muted" id="background-status">Loading...</div>
       </div>
 
+      <div class="card p-3 mb-4" id="unaccounted">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0 fw-bold text-white">Scan for Late/Unaccounted Transactions</h2>
+          <button class="btn btn-warning btn-sm" id="scan-transactions-btn">Run Scan</button>
+        </div>
+        <p class="muted small mt-2">Searches for raw blockchain transactions not linked to a successful swap. Categorizes liquidity top-ups vs orphaned deposits.</p>
+        <div class="table-responsive mt-3 d-none" id="unaccounted-container">
+          <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Coin</th>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>TXID/Address</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="unaccounted-table"></tbody>
+          </table>
+        </div>
+        <div class="small mt-2 muted" id="scan-message"></div>
+      </div>
+
       <div class="card p-3 mb-4" id="password">
         <div class="d-flex justify-content-between align-items-center">
           <h2 class="h5 mb-0 fw-bold text-white">Change Password</h2>
@@ -399,6 +423,7 @@
       loadSwapsEnabled();
       loadFee();
       loadWalletActions();
+      document.getElementById('unaccounted-container').classList.add('d-none');
     }
 
     async function adminActionSwap(swapId, action) {
@@ -539,6 +564,52 @@
     document.getElementById('refresh-swaps').addEventListener('click', loadSwaps);
     document.getElementById('process-queue').addEventListener('click', processQueue);
     refreshBackgroundBtn.addEventListener('click', loadBackgroundStatus);
+
+    document.getElementById('scan-transactions-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('scan-transactions-btn');
+      const container = document.getElementById('unaccounted-container');
+      const table = document.getElementById('unaccounted-table');
+      const msg = document.getElementById('scan-message');
+      
+      btn.disabled = true;
+      msg.textContent = 'Scanning...';
+      container.classList.add('d-none');
+
+      try {
+        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/scan-transactions`);
+        if (!resp.ok) throw new Error('Scan failed');
+        const data = await resp.json();
+        const txs = data.data.transactions;
+        
+        btn.disabled = false;
+        msg.textContent = txs.length === 0 ? 'No unaccounted transactions found.' : `Found ${txs.length} items.`;
+        
+        if (txs.length > 0) {
+          container.classList.remove('d-none');
+          table.innerHTML = txs.map(t => {
+            let actionHtml = '-';
+            if (t.category === 'ORPHAN_DEPOSIT') {
+              actionHtml = `<button class="btn btn-sm btn-success py-0 px-1" onclick="adminActionSwap('${t.swap_id}', 'settle')">Settle to ${t.swap_id}</button>`;
+            } else if (t.category === 'LIQUIDITY_TOPUP') {
+              actionHtml = `<span class="badge bg-info">Liquidity (${t.purpose})</span>`;
+            }
+
+            return `
+              <tr>
+                <td>${t.coin}</td>
+                <td><span class="badge ${t.category === 'ORPHAN_DEPOSIT' ? 'bg-warning' : 'bg-secondary'}">${t.category}</span></td>
+                <td>${t.amount.toFixed(8)}</td>
+                <td class="small mono">${t.txid}<br><span class="muted">${t.address}</span></td>
+                <td>${actionHtml}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        msg.textContent = 'Error: ' + err.message;
+      }
+    });
     document.getElementById('change-password').addEventListener('click', async () => {
       pwMessage.textContent = '';
       const username = (pwUser.value || currentAdmin || '').trim();

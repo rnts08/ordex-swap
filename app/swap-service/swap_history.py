@@ -148,7 +148,31 @@ class SwapHistoryService:
                 return None
             return json.loads(row[0])
         except (sqlite3.Error, json.JSONDecodeError) as e:
-            logger.error(f"Failed to fetch swap: {e}")
+            logger.error(f"Failed to fetch swap {swap_id}: {e}")
+            return None
+
+    def get_swap_by_address(self, address: str) -> Optional[Dict[str, Any]]:
+        """Find the most recent swap associated with a deposit address."""
+        if not address:
+            return None
+        try:
+            with self._pool.get_connection() as conn:
+                # Search within data_json for the address
+                # Since address is unique per swap (usually), we look for a match
+                rows = conn.execute(
+                    "SELECT data_json FROM swaps WHERE data_json LIKE ?",
+                    (f'%"deposit_address": "{address}"%',),
+                ).fetchall()
+            if not rows:
+                return None
+            
+            # If multiple swaps use the same address (rare but possible if re-used after long time),
+            # pick the most recent one.
+            swaps = [json.loads(r[0]) for r in rows]
+            swaps.sort(key=lambda s: s.get("created_at", ""), reverse=True)
+            return swaps[0]
+        except (sqlite3.Error, json.JSONDecodeError) as e:
+            logger.error(f"Failed to fetch swap by address {address}: {e}")
             return None
 
     def get_pending_swaps(self) -> List[Dict[str, Any]]:

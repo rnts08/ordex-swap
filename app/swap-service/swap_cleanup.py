@@ -42,6 +42,7 @@ class SwapCleanupJob:
         while self._running:
             try:
                 self.cleanup_expired_swaps()
+                self.scan_unspent_deposits()
             except Exception as e:
                 logger.error(f"Error in swap cleanup: {e}")
             # Wait for next interval
@@ -118,6 +119,61 @@ class SwapCleanupJob:
 
         except Exception as e:
             logger.error(f"Error in cleanup_expired_swaps: {e}")
+
+    def scan_unspent_deposits(self):
+        """Scans the node's listunspent for deposits matching our open/expired swaps"""
+        try:
+            try:
+                with self.swap_engine.history._pool.get_connection() as conn:
+                    rows = conn.execute(
+                        """
+                        SELECT swap_id, data_json 
+                        FROM swaps 
+                        WHERE status NOT IN ('completed', 'failed', 'late_deposit', 'processing')
+                        """
+                    ).fetchall()
+            except Exception as e:
+                logger.error(f"Error scanning swaps from DB: {e}")
+                return
+
+            address_to_swap = {}
+            for swap_id, data_json in rows:
+                try:
+                    swap_data = json.loads(data_json)
+                    deposit_addr = swap_data.get("deposit_address")
+                    if deposit_addr:
+                        address_to_swap[deposit_addr] = swap_data
+                except json.JSONDecodeError:
+                    pass
+
+            if not address_to_swap:
+                return
+
+            unspent_txs = []
+            try:
+                unspent_txs.extend(self.swap_engine.oxc_wallet.rpc.list_unspent(minconf=0))
+            except Exception as e:
+                logger.warning(f"Failed to list unspent from OXC wallet: {e}")
+
+            try:
+                unspent_txs.extend(self.swap_engine.oxg_wallet.rpc.list_unspent(minconf=0))
+            except Exception as e:
+                logger.warning(f"Failed to list unspent from OXG wallet: {e}")
+
+            for utxo in unspent_txs:
+                addr = utxo.get("address")
+                txid = utxo.get("txid")
+                amount = float(utxo.get("amount", 0.0))
+
+                if addr and addr in address_to_swap and txid:
+                    swap = address_to_swap[addr]
+                    
+                    if amount >= float(swap.get("from_amount", 0.0)):
+                        self.swap_engine.safe_confirm_deposit(swap["swap_id"], txid)
+                        logger.info(f"Background scanner caught deposit {txid} for swap {swap['swap_id']}")
+
+        except Exception as e:
+            logger.error(f"Error in scan_unspent_deposits: {e}")
 
     def get_expired_swaps(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recently expired swaps for admin display"""
