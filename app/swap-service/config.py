@@ -46,6 +46,9 @@ ORDEXGOLDD_DATADIR = os.getenv("ORDEXGOLDD_DATADIR", "./data/oxg")
 
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 DB_PATH = os.getenv("DB_PATH", os.path.join(DATA_DIR, "ordex.db"))
+
+BACKUP_INTERVAL_HOURS = int(os.getenv("BACKUP_INTERVAL_HOURS", "1"))
+BACKUP_ENABLED = os.getenv("BACKUP_ENABLED", "true").lower() == "true"
 PRICE_HISTORY_MAX_ENTRIES = 1000
 
 SUPPORTED_COINS = ["OXC", "OXG"]

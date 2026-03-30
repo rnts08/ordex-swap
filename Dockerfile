@@ -14,6 +14,8 @@ COPY app/main.py .
 COPY app/first_startup.py .
 COPY app/first-run.sh .
 COPY app/migrate_settings.py .
+COPY app/backup.py .
+COPY app/restore.py .
 
 RUN if [ "$BUILD_TEST" = "true" ]; then \
       COPY app/tests/ ./tests/; \

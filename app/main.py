@@ -21,6 +21,7 @@ from price_history import PriceHistoryService
 from admin_service import AdminService
 from api import init_app, run_server
 from daemon_manager import DaemonManager
+import backup as backup_module
 from config import (
     SWAP_FEE_PERCENT,
     SWAP_MIN_FEE_OXC,
@@ -45,6 +46,8 @@ from config import (
     ORDEXGOLDD_DATADIR,
     DATA_DIR,
     DB_PATH,
+    BACKUP_ENABLED,
+    BACKUP_INTERVAL_HOURS,
 )
 
 logging.basicConfig(
@@ -197,6 +200,30 @@ def main():
     logger.info("Starting API server...")
     init_app(engine, oracle, price_history, swap_history, admin_service)
 
+    backup_thread = None
+    backup_stop_event = None
+
+    if BACKUP_ENABLED:
+        logger.info(
+            f"Starting background backup scheduler (every {BACKUP_INTERVAL_HOURS} hour(s))..."
+        )
+        import threading
+
+        backup_stop_event = threading.Event()
+
+        def backup_loop():
+            while not backup_stop_event.is_set():
+                try:
+                    backup_module.run_backup()
+                except Exception as e:
+                    logger.error(f"Backup failed: {e}")
+                backup_stop_event.wait(BACKUP_INTERVAL_HOURS * 3600)
+
+        backup_thread = threading.Thread(target=backup_loop, daemon=True)
+        backup_thread.start()
+    else:
+        logger.info("Background backups disabled")
+
     logger.info("=" * 50)
     logger.info(f"Ordex Swap Service started on {API_HOST}:{API_PORT}")
     logger.info(f"Testing mode: {TESTING_MODE}")
@@ -210,6 +237,10 @@ def main():
         price_history.stop_background_fetch()
         logger.info("Stopping delayed swap processing...")
         engine.stop_background_settlement()
+
+        if backup_stop_event:
+            logger.info("Stopping backup scheduler...")
+            backup_stop_event.set()
 
         if daemon_manager:
             daemon_manager.stop_daemons()
