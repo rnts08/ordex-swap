@@ -174,6 +174,8 @@ class PriceOracle:
 
         if oxc_price and oxg_price:
             cross_rate = oxc_price / oxg_price
+            if from_coin == "OXG" and to_coin == "OXC":
+                cross_rate = 1.0 / cross_rate
             return {
                 "from_coin": from_coin,
                 "to_coin": to_coin,
