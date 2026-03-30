@@ -21,6 +21,7 @@ from price_history import PriceHistoryService
 from admin_service import AdminService
 from api import init_app, run_server
 from daemon_manager import DaemonManager
+from swap_cleanup import SwapCleanupJob
 import backup as backup_module
 from config import (
     SWAP_FEE_PERCENT,
@@ -211,8 +212,14 @@ def main():
     )
     engine.start_background_settlement()
 
+    logger.info("Initializing swap cleanup job...")
+    cleanup_job = SwapCleanupJob(engine, db_path=DB_PATH)
+
     logger.info("Starting API server...")
     init_app(engine, oracle, price_history, swap_history, admin_service)
+
+    logger.info("Starting swap cleanup job...")
+    cleanup_job.start()
 
     backup_thread = None
     backup_stop_event = None
@@ -251,6 +258,8 @@ def main():
         price_history.stop_background_fetch()
         logger.info("Stopping delayed swap processing...")
         engine.stop_background_settlement()
+        logger.info("Stopping swap cleanup job...")
+        cleanup_job.stop()
 
         if backup_stop_event:
             logger.info("Stopping backup scheduler...")

@@ -32,6 +32,8 @@ class SwapStatus(Enum):
     DELAYED = "delayed"
     FAILED = "failed"
     EXPIRED = "expired"
+    CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
 
 
 class SwapError(Exception):
@@ -402,15 +404,20 @@ class SwapEngine:
         if swap["status"] in [SwapStatus.COMPLETED.value, SwapStatus.FAILED.value]:
             raise SwapError(f"Cannot cancel swap in state: {swap['status']}")
 
-        swap["status"] = SwapStatus.EXPIRED.value
+        swap["status"] = SwapStatus.CANCELLED.value
         swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        # Persist to database
+        self.history.update_swap(swap_id, swap)
 
         logger.info(f"Swap {swap_id} cancelled")
 
         return swap
 
-    def list_swaps(self, status: str = None) -> list:
-        return self.history.get_all_swaps(status=status, limit=100)
+    def list_swaps(self, status: str = None, include_inactive: bool = False) -> list:
+        return self.history.get_all_swaps(
+            status=status, limit=100, include_inactive=include_inactive
+        )
 
     def get_balance(self, coin: str) -> float:
         coin = coin.upper()

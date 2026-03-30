@@ -188,14 +188,33 @@ class SwapHistoryService:
             return []
 
     def get_all_swaps(
-        self, status: str = None, limit: int = 100
+        self, status: str = None, limit: int = 100, include_inactive: bool = False
     ) -> List[Dict[str, Any]]:
-        if status == "pending":
-            return self.get_pending_swaps()
-        if status == "completed":
-            return self.get_completed_swaps(limit)
-        if status == "delayed":
-            return self.get_swaps_by_statuses(["delayed"])
+        if status:
+            if status == "pending":
+                return self.get_pending_swaps()
+            if status == "completed":
+                return self.get_completed_swaps(limit)
+            if status == "delayed":
+                return self.get_swaps_by_statuses(["delayed"])
+            if status in ["cancelled", "expired", "timed_out"]:
+                return self.get_swaps_by_statuses([status])
+            return self.get_swaps_by_statuses([status])
+
+        if include_inactive:
+            # Return all swaps (including cancelled, timed_out, expired, etc.)
+            try:
+                with self._pool.get_connection() as conn:
+                    rows = conn.execute(
+                        "SELECT data_json FROM swaps ORDER BY created_at DESC LIMIT ?",
+                        (limit,),
+                    ).fetchall()
+                return [json.loads(r[0]) for r in rows]
+            except (sqlite3.Error, json.JSONDecodeError) as e:
+                logger.error(f"Failed to fetch all swaps: {e}")
+                return []
+
+        # Active only: pending + completed (excludes cancelled, timed_out, expired)
         pending = self.get_pending_swaps()
         completed = self.get_completed_swaps(max(limit - len(pending), 0))
         return pending + completed

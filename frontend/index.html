@@ -885,11 +885,25 @@
         
         if (data.success) {
           const swapId = data.data.swap_id;
+          const isCancellable = ['pending', 'awaiting_deposit', 'processing'].includes(data.data.status);
+          const cancelButton = isCancellable ? `
+            <button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelSwap('${swapId}')" title="Cancel swap">
+              <i class="fas fa-times"></i> Cancel
+            </button>
+          ` : '';
           showMessage(`
             <div class="mb-2">Swap created! Send <strong>${fromAmount.value} ${fromCoin.value}</strong> to:</div>
-            <div class="deposit-address mb-2">${data.data.deposit_address}</div>
+            <div class="mb-3 d-flex align-items-center gap-2">
+              <div class="deposit-address flex-grow-1">${data.data.deposit_address}</div>
+              <button class="btn btn-sm btn-outline-secondary border-0" onclick="copyToClipboard('${data.data.deposit_address}')" title="Copy address">
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
             <div class="small text-brand-muted mb-2">Then confirm below after sending.</div>
-            <div class="small text-warning" id="countdown-timer">Expires in 14:59</div>
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="small text-warning" id="countdown-timer">Expires in 14:59</div>
+              ${cancelButton}
+            </div>
           `, 'success');
           
           // Start countdown AFTER message is in DOM
@@ -1259,6 +1273,40 @@
         }
       } catch (err) {
         console.error('Failed to load swaps');
+      }
+    }
+
+    // Copy address to clipboard
+    function copyToClipboard(address) {
+      navigator.clipboard.writeText(address).then(() => {
+        showMessage('Address copied to clipboard', 'success');
+      }).catch(() => {
+        showMessage('Failed to copy address', 'error');
+      });
+    }
+
+    // Cancel a swap
+    async function cancelSwap(swapId) {
+      if (!confirm('Are you sure you want to cancel this swap?')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/swap/${swapId}/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (data.success) {
+          showMessage('Swap cancelled successfully', 'success');
+          // Reload swaps to reflect cancellation
+          loadRecentSwaps();
+        } else {
+          showMessage(data.error || 'Failed to cancel swap', 'error');
+        }
+      } catch (err) {
+        showMessage('Could not connect to API', 'error');
+        console.error('Cancel failed:', err);
       }
     }
     

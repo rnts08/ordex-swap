@@ -239,7 +239,7 @@ class TestE2EApiFlow(unittest.TestCase):
 
         cancel = self.client.post(f"/api/v1/swap/{swap_id}/cancel")
         self.assertEqual(cancel.status_code, 200)
-        self.assertEqual(cancel.get_json()["data"]["status"], "expired")
+        self.assertEqual(cancel.get_json()["data"]["status"], "cancelled")
 
     def test_admin_dashboard_basic_auth(self):
         import base64

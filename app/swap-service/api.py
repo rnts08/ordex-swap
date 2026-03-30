@@ -417,7 +417,9 @@ def admin_dashboard():
 def admin_swaps():
     status = request.args.get("status")
     limit = int(request.args.get("limit", 100))
-    swaps = swap_engine.list_swaps(status)
+    # By default, admin sees all swaps including cancelled/timed_out/expired
+    include_inactive = status is None
+    swaps = swap_engine.list_swaps(status, include_inactive=include_inactive)
     return json_success({"swaps": swaps[:limit], "count": len(swaps)})
 
 

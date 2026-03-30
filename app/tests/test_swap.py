@@ -224,7 +224,7 @@ class TestSwapEngine(unittest.TestCase):
 
         cancelled = self.engine.cancel_swap(swap_id)
 
-        self.assertEqual(cancelled["status"], "expired")
+        self.assertEqual(cancelled["status"], "cancelled")
 
     def test_cancel_swap_without_deposit(self):
         swap = self.engine.create_swap("OXG", "OXC", 5.0, "user_address")
@@ -232,7 +232,7 @@ class TestSwapEngine(unittest.TestCase):
 
         cancelled = self.engine.cancel_swap(swap_id)
 
-        self.assertEqual(cancelled["status"], "expired")
+        self.assertEqual(cancelled["status"], "cancelled")
         self.assertIsNone(cancelled.get("deposit_txid"))
 
     def test_cancel_completed_swap_fails(self):
