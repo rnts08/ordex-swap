@@ -84,6 +84,20 @@ def sanitize_error_message(error: Exception, default_message: str) -> str:
     error_msg = str(error)
     if not error_msg or len(error_msg) > 100:
         return default_message
+
+    leaking_patterns = [
+        " at ",
+        "/",
+        "\\",
+        "line ",
+        "traceback",
+        "python",
+        "sqlite3",
+        "urllib",
+    ]
+    if any(p in error_msg.lower() for p in leaking_patterns):
+        return default_message
+
     safe_patterns = [
         "invalid",
         "missing",

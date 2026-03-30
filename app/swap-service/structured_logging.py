@@ -20,8 +20,36 @@ class StructuredFormatter(logging.Formatter):
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)
 
-        if hasattr(record, "extra"):
-            log_data.update(record.extra)
+        standard_fields = {
+            "name",
+            "msg",
+            "args",
+            "created",
+            "filename",
+            "funcName",
+            "levelname",
+            "lineno",
+            "module",
+            "msecs",
+            "message",
+            "pathname",
+            "process",
+            "processName",
+            "relativeCreated",
+            "thread",
+            "threadName",
+            "exc_info",
+            "exc_text",
+            "stack_info",
+        }
+
+        extra_fields = {
+            key: getattr(record, key)
+            for key in record.__dict__
+            if key not in standard_fields
+        }
+        if extra_fields:
+            log_data["extra"] = extra_fields
 
         return json.dumps(log_data)
 
@@ -38,7 +66,7 @@ class StructuredLogger:
         exc_info: bool = False,
     ) -> None:
         if extra:
-            self.logger.log(level, message, extra={"extra": extra}, exc_info=exc_info)
+            self.logger.log(level, message, extra=extra, exc_info=exc_info)
         else:
             self.logger.log(level, message, exc_info=exc_info)
 

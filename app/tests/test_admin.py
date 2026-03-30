@@ -93,6 +93,25 @@ class TestAdminService(unittest.TestCase):
         self.assertEqual(actions[0]["txid"], "tx123")
         self.assertEqual(actions[0]["performed_by"], "admin")
 
+    def test_wallet_actions_include_ip_address(self):
+        service = self.AdminService()
+        self.assertTrue(
+            service.log_wallet_action(
+                action_type="rotate",
+                coin="OXG",
+                purpose="fees",
+                address="newaddr456",
+                performed_by="admin",
+                ip_address="192.168.1.100",
+                details="Generated new fee address",
+            )
+        )
+
+        actions = service.get_wallet_actions(limit=10)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]["ip_address"], "192.168.1.100")
+        self.assertEqual(actions[0]["details"], "Generated new fee address")
+
     def test_wallet_actions_empty(self):
         service = self.AdminService()
         actions = service.get_wallet_actions(limit=10)
