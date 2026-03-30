@@ -26,6 +26,8 @@ from config import (
     SWAP_CONFIRMATIONS_REQUIRED,
     SWAP_MIN_FEE_OXC,
     SWAP_MIN_FEE_OXG,
+    SWAP_MIN_AMOUNT,
+    SWAP_MAX_AMOUNT,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,6 +110,8 @@ def get_status():
     confirmations_required = SWAP_CONFIRMATIONS_REQUIRED
     min_fee_oxc = SWAP_MIN_FEE_OXC
     min_fee_oxg = SWAP_MIN_FEE_OXG
+    min_amount = SWAP_MIN_AMOUNT
+    max_amount = SWAP_MAX_AMOUNT
     if admin_service:
         swaps_enabled = admin_service.get_swaps_enabled()
         db_fee = admin_service.get_swap_fee_percent()
@@ -122,6 +126,12 @@ def get_status():
         db_min_fee_oxg = admin_service.get_swap_min_fee("OXG")
         if db_min_fee_oxg is not None:
             min_fee_oxg = db_min_fee_oxg
+        db_min_amount = admin_service.get_swap_min_amount()
+        if db_min_amount is not None:
+            min_amount = db_min_amount
+        db_max_amount = admin_service.get_swap_max_amount()
+        if db_max_amount is not None:
+            max_amount = db_max_amount
     return json_success(
         {
             "testing_mode": TESTING_MODE,
@@ -131,6 +141,8 @@ def get_status():
             "confirmations_required": confirmations_required,
             "min_fee_oxc": min_fee_oxc,
             "min_fee_oxg": min_fee_oxg,
+            "min_amount": min_amount,
+            "max_amount": max_amount,
         }
     )
 
@@ -611,6 +623,20 @@ def admin_update_settings():
             errors.append("min_fee must be >= 0")
         elif not admin_service.set_swap_min_fee("OXG", min_fee):
             errors.append("Failed to update min fee OXG")
+
+    if "swap_min_amount" in data:
+        min_amount = float(data["swap_min_amount"])
+        if min_amount < 0:
+            errors.append("min_amount must be >= 0")
+        elif not admin_service.set_swap_min_amount(min_amount):
+            errors.append("Failed to update min amount")
+
+    if "swap_max_amount" in data:
+        max_amount = float(data["swap_max_amount"])
+        if max_amount < 0:
+            errors.append("max_amount must be >= 0")
+        elif not admin_service.set_swap_max_amount(max_amount):
+            errors.append("Failed to update max amount")
 
     if errors:
         return json_error("; ".join(errors), 400)

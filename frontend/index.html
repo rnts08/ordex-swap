@@ -510,6 +510,8 @@
     let currentFeePercent = 1.0;
     let currentMinFeeOxc = 1.0;
     let currentMinFeeOxg = 1.0;
+    let currentMinAmount = 0.0001;
+    let currentMaxAmount = 10000.0;
     
     // DOM Elements
     const fromCoin = document.getElementById('from-coin');
@@ -612,6 +614,8 @@
           currentFeePercent = data.data.fee_percent || 1.0;
           currentMinFeeOxc = data.data.min_fee_oxc || 1.0;
           currentMinFeeOxg = data.data.min_fee_oxg || 1.0;
+          currentMinAmount = data.data.min_amount || 0.0001;
+          currentMaxAmount = data.data.max_amount || 10000.0;
           document.getElementById('fee-display').textContent = currentFeePercent.toFixed(1) + '%';
           document.getElementById('fee-percent-label').textContent = '(' + currentFeePercent.toFixed(1) + '%)';
           
@@ -751,6 +755,26 @@
         quoteFee.textContent = '--';
         quoteReceive.textContent = '--';
         showLiquidityWarning(null);
+        swapBtn.disabled = true;
+        return;
+      }
+      
+      if (amount < currentMinAmount) {
+        toAmount.value = '';
+        quoteRate.textContent = '--';
+        quoteFee.textContent = '--';
+        quoteReceive.textContent = '--';
+        quoteRate.textContent = 'Amount too low (min: ' + currentMinAmount + ')';
+        swapBtn.disabled = true;
+        return;
+      }
+      
+      if (amount > currentMaxAmount) {
+        toAmount.value = '';
+        quoteRate.textContent = '--';
+        quoteFee.textContent = '--';
+        quoteReceive.textContent = '--';
+        quoteRate.textContent = 'Amount too high (max: ' + currentMaxAmount + ')';
         swapBtn.disabled = true;
         return;
       }

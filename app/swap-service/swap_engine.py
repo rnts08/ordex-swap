@@ -17,6 +17,8 @@ from config import (
     SWAP_EXPIRE_MINUTES,
     SWAP_MIN_FEE_OXC,
     SWAP_MIN_FEE_OXG,
+    SETTLEMENT_INTERVAL_SECONDS,
+    DEFAULT_LIMIT,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,14 +164,10 @@ class SwapEngine:
         else:
             raise UnsupportedPairError(f"Unknown coin: {coin}")
 
-    def create_swap_quote(
+    def _calculate_conversion(
         self, from_coin: str, to_coin: str, amount: float
     ) -> Dict[str, Any]:
-        self.validate_swap_request(from_coin, to_coin, amount)
-
-        from_coin = from_coin.upper()
-        to_coin = to_coin.upper()
-
+        """Calculate conversion with fees. Returns conversion dict and liquidity status."""
         conversion = self.oracle.get_conversion_amount(
             from_coin,
             to_coin,
@@ -182,6 +180,19 @@ class SwapEngine:
         liquidity_blocked = (
             liquidity_hold is not None
             and float(conversion["net_amount"]) > liquidity_hold
+        )
+        return conversion, liquidity_hold, liquidity_blocked
+
+    def create_swap_quote(
+        self, from_coin: str, to_coin: str, amount: float
+    ) -> Dict[str, Any]:
+        self.validate_swap_request(from_coin, to_coin, amount)
+
+        from_coin = from_coin.upper()
+        to_coin = to_coin.upper()
+
+        conversion, liquidity_hold, liquidity_blocked = self._calculate_conversion(
+            from_coin, to_coin, amount
         )
 
         return {
@@ -216,19 +227,11 @@ class SwapEngine:
         from_coin = from_coin.upper()
         to_coin = to_coin.upper()
 
-        conversion = self.oracle.get_conversion_amount(
-            from_coin,
-            to_coin,
-            amount,
-            self.fee_percent,
-            min_fee_oxc=self.min_fee_oxc,
-            min_fee_oxg=self.min_fee_oxg,
+        conversion, liquidity_hold, liquidity_blocked = self._calculate_conversion(
+            from_coin, to_coin, amount
         )
-        liquidity_hold = self._get_liquidity_hold(to_coin)
-        if (
-            liquidity_hold is not None
-            and float(conversion["net_amount"]) > liquidity_hold
-        ):
+
+        if liquidity_blocked:
             raise LiquidityHoldError(
                 "Liquidity delay: swaps above the queued amount are temporarily paused."
             )
@@ -440,11 +443,12 @@ class SwapEngine:
 
         return processed
 
-    def start_background_settlement(self, interval_seconds: int = 30) -> None:
+    def start_background_settlement(self, interval_seconds: int = None) -> None:
         if self._settlement_thread:
             return
         import threading
 
+        interval_seconds = interval_seconds or SETTLEMENT_INTERVAL_SECONDS
         self._settlement_stop = threading.Event()
         self._settlement_interval = interval_seconds
         self._last_settlement_run = None

@@ -96,3 +96,53 @@ class TestAdminService(unittest.TestCase):
         service = self.AdminService()
         actions = service.get_wallet_actions(limit=10)
         self.assertEqual(len(actions), 0)
+
+    def test_swap_fee_percent_default(self):
+        service = self.AdminService()
+        fee = service.get_swap_fee_percent()
+        self.assertEqual(fee, 1.0)
+
+    def test_swap_fee_percent_set_and_get(self):
+        service = self.AdminService()
+        result = service.set_swap_fee_percent(2.5)
+        self.assertTrue(result)
+        self.assertEqual(service.get_swap_fee_percent(), 2.5)
+
+    def test_swap_min_fee_oxc_set_and_get(self):
+        service = self.AdminService()
+        result = service.set_swap_min_fee("OXC", 5.0)
+        self.assertTrue(result)
+        self.assertEqual(service.get_swap_min_fee("OXC"), 5.0)
+
+    def test_swap_min_amount_default(self):
+        service = self.AdminService()
+        amount = service.get_swap_min_amount()
+        self.assertEqual(amount, 0.0001)
+
+    def test_swap_min_amount_set_and_get(self):
+        service = self.AdminService()
+        result = service.set_swap_min_amount(0.001)
+        self.assertTrue(result)
+        self.assertEqual(service.get_swap_min_amount(), 0.001)
+
+    def test_swap_max_amount_default(self):
+        service = self.AdminService()
+        amount = service.get_swap_max_amount()
+        self.assertEqual(amount, 10000.0)
+
+    def test_swap_max_amount_set_and_get(self):
+        service = self.AdminService()
+        result = service.set_swap_max_amount(5000.0)
+        self.assertTrue(result)
+        self.assertEqual(service.get_swap_max_amount(), 5000.0)
+
+    def test_get_all_settings(self):
+        service = self.AdminService()
+        service.set_swap_fee_percent(3.0)
+        service.set_swap_min_amount(0.002)
+        service.set_swap_max_amount(8000.0)
+
+        settings = service.get_all_settings()
+        self.assertEqual(settings["swap_fee_percent"], 3.0)
+        self.assertEqual(settings["swap_min_amount"], 0.002)
+        self.assertEqual(settings["swap_max_amount"], 8000.0)

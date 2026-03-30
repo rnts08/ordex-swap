@@ -20,9 +20,13 @@ Access at:
 - **Admin**: http://localhost:8080/admin.html
 - **API**: http://localhost:8080/api/v1/
 
-## Production Deployment
+## Documentation
 
-See [DEPLOY.md](DEPLOY.md) for detailed deployment instructions.
+See the `docs/` folder for detailed documentation:
+
+- [Deployment Guide](docs/DEPLOY.md) - Production deployment instructions
+- [Testing Guide](docs/TESTING.md) - Running tests locally and in Docker
+- [Backup & Restore](docs/BACKUPS.md) - Backup system and restore procedures
 
 ## Architecture
 
@@ -53,13 +57,11 @@ See [DEPLOY.md](DEPLOY.md) for detailed deployment instructions.
 | `/api/v1/balance` | GET | Wallet balances |
 | `/api/v1/deposit/<coin>` | GET | Get deposit address |
 
-## Testing
-
-See [TESTING.md](TESTING.md) for running unit tests, e2e tests, and UI tests.
-
 ## Configuration
 
 Environment variables (see `app/.env.example`):
 - `TESTING_MODE` - Enable testing mode
 - `OXC_RPC_*` / `OXG_RPC_*` - RPC credentials
 - `SWAP_FEE_PERCENT` - Fee percentage (default: 1.0)
+- `BACKUP_ENABLED` - Enable automatic backups (default: true)
+- `BACKUP_INTERVAL_HOURS` - Hours between backups (default: 1)

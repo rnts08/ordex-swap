@@ -32,6 +32,7 @@ import shutil
 import logging
 import argparse
 from datetime import datetime
+from typing import Optional, List
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "swap-service"))
@@ -187,7 +188,7 @@ def restore_backup(backup_filename: str) -> bool:
         return False
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Restore OrdexSwap from backup")
     parser.add_argument(
         "--list", "-l", action="store_true", help="List available backups"

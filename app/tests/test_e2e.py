@@ -274,8 +274,18 @@ class TestE2EApiFlow(unittest.TestCase):
         candidates = [
             {"from": "OXC", "to": "OXG", "amount": -1, "user_address": "user_addr_123"},
             {"from": "OXC", "to": "OXG", "amount": 0, "user_address": "user_addr_123"},
-            {"from": "OXC", "to": "OXG", "amount": 999999999, "user_address": "user_addr_123"},
-            {"from": "OXC", "to": "OXG", "amount": "nan", "user_address": "user_addr_123"},
+            {
+                "from": "OXC",
+                "to": "OXG",
+                "amount": 999999999,
+                "user_address": "user_addr_123",
+            },
+            {
+                "from": "OXC",
+                "to": "OXG",
+                "amount": "nan",
+                "user_address": "user_addr_123",
+            },
             {"from": "OXC", "to": "OXG", "amount": 10, "user_address": ""},
             {"from": "OXC", "to": "OXG", "amount": 10, "user_address": "bad!"},
         ]
@@ -283,6 +293,53 @@ class TestE2EApiFlow(unittest.TestCase):
         for payload in candidates:
             resp = self.client.post("/api/v1/swap", json=payload)
             self.assertNotEqual(resp.status_code, 200, payload)
+
+    def test_admin_routes_require_authentication(self):
+        import base64
+
+        admin_endpoints = [
+            ("/api/v1/admin/dashboard", "GET"),
+            ("/api/v1/admin/settings", "GET"),
+            ("/api/v1/admin/settings", "POST"),
+            ("/api/v1/admin/swaps-enabled", "GET"),
+            ("/api/v1/admin/swaps-enabled", "POST"),
+            ("/api/v1/admin/fee", "GET"),
+            ("/api/v1/admin/fee", "POST"),
+        ]
+
+        for endpoint, method in admin_endpoints:
+            if method == "GET":
+                resp = self.client.get(endpoint)
+            else:
+                resp = self.client.post(endpoint)
+            self.assertEqual(
+                resp.status_code, 401, f"{method} {endpoint} should require auth"
+            )
+
+        token = base64.b64encode(b"swap:changeme26").decode("utf-8")
+        auth_header = {"Authorization": f"Basic {token}"}
+
+        for endpoint, method in admin_endpoints:
+            if method == "GET":
+                resp = self.client.get(endpoint, headers=auth_header)
+            else:
+                resp = self.client.post(endpoint, headers=auth_header)
+            self.assertNotEqual(
+                resp.status_code, 401, f"{method} {endpoint} should work with auth"
+            )
+
+    def test_status_endpoint_contains_swap_settings(self):
+        resp = self.client.get("/api/v1/status")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()["data"]
+
+        self.assertIn("fee_percent", data)
+        self.assertIn("min_fee_oxc", data)
+        self.assertIn("min_fee_oxg", data)
+        self.assertIn("min_amount", data)
+        self.assertIn("max_amount", data)
+        self.assertIn("confirmations_required", data)
+        self.assertIn("swaps_enabled", data)
 
 
 if __name__ == "__main__":

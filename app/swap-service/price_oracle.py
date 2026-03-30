@@ -19,6 +19,7 @@ from config import (
     SWAP_MIN_FEE_OXC,
     SWAP_MIN_FEE_OXG,
 )
+from db_pool import get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +49,12 @@ class PriceOracle:
         self._session = requests.Session()
         self._session.headers.update({"Content-Type": "application/json"})
         self._db_path = DB_PATH
+        self._pool = get_pool(self._db_path)
         self._init_cache_db()
 
     def _init_cache_db(self) -> None:
         try:
-            with sqlite3.connect(self._db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS price_cache (
@@ -67,7 +69,7 @@ class PriceOracle:
 
     def _get_persistent_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
         try:
-            with sqlite3.connect(self._db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     "SELECT price_json, fetched_at FROM price_cache WHERE cache_key = ?",
                     (cache_key,),
@@ -84,7 +86,7 @@ class PriceOracle:
 
     def _set_persistent_cache(self, cache_key: str, price_data: Dict[str, Any]) -> None:
         try:
-            with sqlite3.connect(self._db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     INSERT INTO price_cache (cache_key, price_json, fetched_at)

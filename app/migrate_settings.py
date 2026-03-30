@@ -8,6 +8,8 @@ This script adds:
 - swap_min_fee_OXG
 - swap_fee_percent (if not exists)
 - swaps_enabled (if not exists)
+- swap_min_amount (if not exists)
+- swap_max_amount (if not exists)
 
 Can be run safely multiple times (idempotent).
 
@@ -26,6 +28,7 @@ import os
 import sys
 import sqlite3
 from datetime import datetime, timezone
+from typing import Optional
 from dotenv import load_dotenv
 
 # Add swap-service to path and load environment
@@ -36,7 +39,7 @@ load_dotenv()
 from config import DB_PATH
 
 
-def migrate():
+def migrate() -> None:
     db_path = os.getenv("DB_PATH", DB_PATH)
     print(f"Running migration on database: {db_path}")
 
@@ -74,6 +77,8 @@ def migrate():
         ("swap_confirmations_required", "1"),
         ("swap_min_fee_OXC", "1.0"),
         ("swap_min_fee_OXG", "1.0"),
+        ("swap_min_amount", "0.0001"),
+        ("swap_max_amount", "10000.0"),
         ("swaps_enabled", "true"),
     ]
 

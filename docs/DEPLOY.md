@@ -98,6 +98,10 @@ docker compose -f docker-compose.prod.yml restart
 docker exec ordex-swap-ordex-swap-1 /app/first-run.sh
 ```
 
+### Backup and Restore
+
+See [BACKUPS.md](BACKUPS.md) for backup and restore procedures.
+
 ## Environment Variables
 
 | Variable | Description |
@@ -109,3 +113,5 @@ docker exec ordex-swap-ordex-swap-1 /app/first-run.sh
 | `OXG_RPC_PASSWORD` | OXG RPC password |
 | `OXC_WALLET_NAME` | OXC wallet name (e.g., `oxc_wallet`) |
 | `OXG_WALLET_NAME` | OXG wallet name (e.g., `oxg_wallet`) |
+| `BACKUP_ENABLED` | Enable automatic backups (default: true) |
+| `BACKUP_INTERVAL_HOURS` | Hours between backups (default: 1) |

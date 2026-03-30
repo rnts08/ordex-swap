@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, List
 import requests
 from requests.auth import HTTPBasicAuth
 
-from config import TESTING_MODE
+from config import TESTING_MODE, WALLET_RPC_TIMEOUT, WALLET_MAX_CONF
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,9 @@ class WalletRPC:
         }
 
         try:
-            response = self._session.post(self.rpc_url, json=payload, timeout=60)
+            response = self._session.post(
+                self.rpc_url, json=payload, timeout=WALLET_RPC_TIMEOUT
+            )
             try:
                 result = response.json()
             except ValueError:
@@ -90,14 +92,18 @@ class WalletRPC:
             return float(self._call("getbalance", params))
         except WalletRPCError as e:
             message = str(e)
-            if "Position 1 (dummy)" in message or "JSON value is not a string" in message:
+            if (
+                "Position 1 (dummy)" in message
+                or "JSON value is not a string" in message
+            ):
                 legacy_params = ["*", minconf, include_watchonly]
                 return float(self._call("getbalance", legacy_params))
             raise
 
     def list_unspent(
-        self, minconf: int = 0, maxconf: int = 9999999
+        self, minconf: int = 0, maxconf: int = None
     ) -> List[Dict[str, Any]]:
+        maxconf = maxconf if maxconf is not None else WALLET_MAX_CONF
         params = [minconf, maxconf]
         return self._call("listunspent", params)
 

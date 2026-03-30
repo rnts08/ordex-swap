@@ -5,7 +5,8 @@ import sqlite3
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from config import DATA_DIR, DB_PATH
+from config import DATA_DIR, DB_PATH, DEFAULT_LIMIT
+from db_pool import get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -14,13 +15,14 @@ class SwapHistoryService:
     def __init__(self, data_dir: str = None):
         self.data_dir = data_dir or DATA_DIR
         self.db_path = DB_PATH
+        self._pool = get_pool(self.db_path)
 
         os.makedirs(self.data_dir, exist_ok=True)
         self._init_db()
 
     def _init_db(self) -> None:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS swaps (
@@ -45,7 +47,7 @@ class SwapHistoryService:
             created_at = swap.get("created_at") or now
             updated_at = swap.get("updated_at") or now
             try:
-                with sqlite3.connect(self.db_path) as conn:
+                with self._pool.get_connection() as conn:
                     conn.execute(
                         """
                         INSERT INTO swaps (
@@ -84,7 +86,7 @@ class SwapHistoryService:
         status = existing.get("status", "pending")
         completed_at = existing.get("completed_at")
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     UPDATE swaps
@@ -116,7 +118,7 @@ class SwapHistoryService:
         swap["completed_at"] = datetime.now(timezone.utc).isoformat()
         swap["status"] = "completed"
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     UPDATE swaps
@@ -137,7 +139,7 @@ class SwapHistoryService:
 
     def get_swap(self, swap_id: str) -> Optional[Dict[str, Any]]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     "SELECT data_json FROM swaps WHERE swap_id = ?",
                     (swap_id,),
@@ -151,7 +153,7 @@ class SwapHistoryService:
 
     def get_pending_swaps(self) -> List[Dict[str, Any]]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     """
                     SELECT data_json FROM swaps
@@ -165,11 +167,12 @@ class SwapHistoryService:
             logger.error(f"Failed to fetch pending swaps: {e}")
             return []
 
-    def get_completed_swaps(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_completed_swaps(self, limit: int = None) -> List[Dict[str, Any]]:
+        limit = limit or DEFAULT_LIMIT
         if limit <= 0:
             return []
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     """
                     SELECT data_json FROM swaps
@@ -202,7 +205,7 @@ class SwapHistoryService:
             return []
         placeholders = ", ".join("?" for _ in statuses)
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     f"SELECT data_json FROM swaps WHERE status IN ({placeholders})",
                     statuses,
@@ -213,11 +216,13 @@ class SwapHistoryService:
             return []
 
     def get_stats(self) -> Dict[str, Any]:
-        today_start = datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).isoformat()
+        today_start = (
+            datetime.now(timezone.utc)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .isoformat()
+        )
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 total_swaps = conn.execute("SELECT COUNT(*) FROM swaps").fetchone()[0]
                 pending_swaps = conn.execute(
                     "SELECT COUNT(*) FROM swaps WHERE status = ?", ("pending",)
@@ -267,7 +272,7 @@ class SwapHistoryService:
             "total_out": {"OXC": 0.0, "OXG": 0.0},
         }
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     "SELECT data_json FROM swaps WHERE status = ?",
                     ("completed",),
@@ -277,7 +282,9 @@ class SwapHistoryService:
                 from_coin = swap.get("from_coin")
                 to_coin = swap.get("to_coin")
                 if from_coin in stats["total_in"]:
-                    stats["total_in"][from_coin] += float(swap.get("from_amount", 0) or 0)
+                    stats["total_in"][from_coin] += float(
+                        swap.get("from_amount", 0) or 0
+                    )
                 if to_coin in stats["total_out"]:
                     stats["total_out"][to_coin] += float(swap.get("net_amount", 0) or 0)
                 stats["total_fees_collected"] += float(swap.get("fee_amount", 0) or 0)
@@ -289,7 +296,7 @@ class SwapHistoryService:
     def get_status_counts(self) -> Dict[str, int]:
         counts: Dict[str, int] = {}
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     "SELECT status, COUNT(*) FROM swaps GROUP BY status"
                 ).fetchall()
@@ -304,7 +311,7 @@ class SwapHistoryService:
         query = query.lower()
         results = []
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute("SELECT data_json FROM swaps").fetchall()
             for row in rows:
                 swap = json.loads(row[0])

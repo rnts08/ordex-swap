@@ -12,6 +12,7 @@ from config import (
     DB_PATH,
     NESTEX_PRICE_TTL_SECONDS,
 )
+from db_pool import get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class PriceHistoryService:
         self.oracle = oracle
         self.data_dir = data_dir or DATA_DIR
         self.db_path = DB_PATH
+        self._pool = get_pool(self.db_path)
 
         self._fetch_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -32,7 +34,7 @@ class PriceHistoryService:
 
     def _init_db(self) -> None:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS price_history (
@@ -64,7 +66,7 @@ class PriceHistoryService:
             }
 
             try:
-                with sqlite3.connect(self.db_path) as conn:
+                with self._pool.get_connection() as conn:
                     conn.execute(
                         """
                         INSERT INTO price_history (
@@ -95,7 +97,7 @@ class PriceHistoryService:
     def has_24h_coverage(self, hours: int = 24) -> bool:
         cutoff = time.time() - (hours * 3600)
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     """
                     SELECT COUNT(*), MIN(ts_epoch), MAX(ts_epoch)
@@ -127,7 +129,7 @@ class PriceHistoryService:
 
     def get_latest(self) -> Optional[Dict[str, Any]]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     """
                     SELECT timestamp, oxc_usdt, oxg_usdt, cross_rate, source
@@ -197,7 +199,7 @@ class PriceHistoryService:
         if limit <= 0:
             return []
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     """
                     SELECT 
@@ -324,7 +326,7 @@ class PriceHistoryService:
             return
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     DELETE FROM price_history
@@ -348,7 +350,7 @@ class PriceHistoryService:
     def get_price_stats(self, hours: int = 24) -> Dict[str, Any]:
         cutoff = time.time() - (hours * 3600)
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     """
                     SELECT

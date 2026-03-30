@@ -1,11 +1,12 @@
 import logging
 import sqlite3
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from config import DB_PATH
+from config import DB_PATH, DEFAULT_LIMIT
+from db_pool import get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +14,13 @@ logger = logging.getLogger(__name__)
 class AdminService:
     def __init__(self, db_path: str = None):
         self.db_path = db_path or DB_PATH
+        self._pool = get_pool(self.db_path)
         self._init_db()
         self.ensure_default_admin()
 
     def _init_db(self) -> None:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS admin_users (
@@ -78,6 +80,22 @@ class AdminService:
                     ("swap_min_fee_OXG", "1.0", datetime.now(timezone.utc).isoformat()),
                 )
                 conn.execute(
+                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    (
+                        "swap_min_amount",
+                        "0.0001",
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                conn.execute(
+                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    (
+                        "swap_max_amount",
+                        "10000.0",
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS wallet_actions (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,7 +116,7 @@ class AdminService:
 
     def ensure_default_admin(self) -> None:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute("SELECT COUNT(*) FROM admin_users").fetchone()
                 count = row[0] if row else 0
                 if count > 0:
@@ -124,7 +142,7 @@ class AdminService:
 
     def verify_credentials(self, username: str, password: str) -> bool:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     "SELECT id, password_hash FROM admin_users WHERE username = ?",
                     (username,),
@@ -135,7 +153,7 @@ class AdminService:
             if not check_password_hash(password_hash, password):
                 return False
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     "UPDATE admin_users SET last_login_at = ?, updated_at = ? WHERE id = ?",
                     (now, now, admin_id),
@@ -149,7 +167,7 @@ class AdminService:
         self, coin: str, purpose: str, address_generator
     ) -> Optional[str]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     "SELECT address FROM admin_wallets WHERE coin = ? AND purpose = ?",
                     (coin, purpose),
@@ -178,7 +196,7 @@ class AdminService:
         try:
             address = address_generator()
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO admin_wallets
@@ -195,7 +213,7 @@ class AdminService:
     def list_wallets(self) -> Dict[str, Dict[str, Any]]:
         wallets: Dict[str, Dict[str, Any]] = {}
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     "SELECT coin, purpose, address, updated_at FROM admin_wallets"
                 ).fetchall()
@@ -215,7 +233,7 @@ class AdminService:
             return False
         try:
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     INSERT INTO admin_users (username, password_hash, created_at, updated_at)
@@ -230,9 +248,9 @@ class AdminService:
             logger.error(f"Failed to create admin user: {e}")
             return False
 
-    def list_admins(self):
+    def list_admins(self) -> List[Dict[str, Any]]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     "SELECT username, created_at, last_login_at FROM admin_users"
                 ).fetchall()
@@ -257,7 +275,7 @@ class AdminService:
             return False
         try:
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     UPDATE admin_users
@@ -273,7 +291,7 @@ class AdminService:
 
     def get_swaps_enabled(self) -> bool:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     "SELECT value FROM app_settings WHERE key = ?",
                     ("swaps_enabled",),
@@ -286,7 +304,7 @@ class AdminService:
     def set_swaps_enabled(self, enabled: bool) -> bool:
         try:
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swaps_enabled", "true" if enabled else "false", now),
@@ -298,7 +316,7 @@ class AdminService:
 
     def get_swap_fee_percent(self) -> float:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     "SELECT value FROM app_settings WHERE key = ?",
                     ("swap_fee_percent",),
@@ -319,7 +337,7 @@ class AdminService:
             return False
         try:
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swap_fee_percent", str(fee_percent), now),
@@ -331,7 +349,7 @@ class AdminService:
 
     def get_swap_confirmations_required(self) -> int:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     "SELECT value FROM app_settings WHERE key = ?",
                     ("swap_confirmations_required",),
@@ -352,7 +370,7 @@ class AdminService:
             return False
         try:
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swap_confirmations_required", str(confirmations), now),
@@ -364,7 +382,7 @@ class AdminService:
 
     def get_swap_min_fee(self, coin: str) -> float:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 row = conn.execute(
                     "SELECT value FROM app_settings WHERE key = ?",
                     (f"swap_min_fee_{coin.upper()}",),
@@ -385,7 +403,7 @@ class AdminService:
             return False
         try:
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     (f"swap_min_fee_{coin.upper()}", str(min_fee), now),
@@ -398,7 +416,7 @@ class AdminService:
     def get_all_settings(self) -> Dict[str, Any]:
         settings = {}
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute("SELECT key, value FROM app_settings").fetchall()
             for key, value in rows:
                 if value == "true":
@@ -414,6 +432,72 @@ class AdminService:
             logger.error(f"Failed to get all settings: {e}")
         return settings
 
+    def get_swap_min_amount(self) -> float:
+        try:
+            with self._pool.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    ("swap_min_amount",),
+                ).fetchone()
+            if row:
+                return float(row[0])
+            return None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get swap_min_amount: {e}")
+            return None
+
+    def set_swap_min_amount(self, min_amount: float) -> bool:
+        try:
+            min_amount = float(min_amount)
+            if min_amount < 0:
+                return False
+        except (ValueError, TypeError):
+            return False
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swap_min_amount", str(min_amount), now),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set swap_min_amount: {e}")
+            return False
+
+    def get_swap_max_amount(self) -> float:
+        try:
+            with self._pool.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    ("swap_max_amount",),
+                ).fetchone()
+            if row:
+                return float(row[0])
+            return None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get swap_max_amount: {e}")
+            return None
+
+    def set_swap_max_amount(self, max_amount: float) -> bool:
+        try:
+            max_amount = float(max_amount)
+            if max_amount < 0:
+                return False
+        except (ValueError, TypeError):
+            return False
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swap_max_amount", str(max_amount), now),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set swap_max_amount: {e}")
+            return False
+
     def log_wallet_action(
         self,
         action_type: str,
@@ -427,7 +511,7 @@ class AdminService:
     ) -> bool:
         try:
             now = datetime.now(timezone.utc).isoformat()
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     INSERT INTO wallet_actions 
@@ -451,9 +535,10 @@ class AdminService:
             logger.error(f"Failed to log wallet action: {e}")
             return False
 
-    def get_wallet_actions(self, limit: int = 100) -> list:
+    def get_wallet_actions(self, limit: int = None) -> list:
+        limit = limit or DEFAULT_LIMIT
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     """
                     SELECT action_type, coin, purpose, amount, address, txid, performed_by, created_at, details

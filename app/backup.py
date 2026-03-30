@@ -25,6 +25,7 @@ import tarfile
 import shutil
 import logging
 from datetime import datetime
+from typing import Optional, List
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "swap-service"))
@@ -101,7 +102,7 @@ def create_backup_archive(
     return backup_path
 
 
-def cleanup_old_backups(backup_dir: str, keep_count: int = 24):
+def cleanup_old_backups(backup_dir: str, keep_count: int = 24) -> None:
     """Remove old backup files, keeping the most recent ones."""
     if not os.path.exists(backup_dir):
         return

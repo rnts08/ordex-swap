@@ -179,6 +179,20 @@ def main():
     else:
         logger.info(f"Using default min fee OXG: {SWAP_MIN_FEE_OXG}")
 
+    db_min_amount = admin_service.get_swap_min_amount()
+    if db_min_amount is not None:
+        SWAP_MIN_AMOUNT = db_min_amount
+        logger.info(f"Using configured min amount: {SWAP_MIN_AMOUNT}")
+    else:
+        logger.info(f"Using default min amount: {SWAP_MIN_AMOUNT}")
+
+    db_max_amount = admin_service.get_swap_max_amount()
+    if db_max_amount is not None:
+        SWAP_MAX_AMOUNT = db_max_amount
+        logger.info(f"Using configured max amount: {SWAP_MAX_AMOUNT}")
+    else:
+        logger.info(f"Using default max amount: {SWAP_MAX_AMOUNT}")
+
     logger.info("Starting background price fetch...")
     price_history.start_background_fetch()
 

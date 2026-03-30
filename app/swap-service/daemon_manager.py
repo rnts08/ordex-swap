@@ -4,7 +4,7 @@ import signal
 import subprocess
 import logging
 import time
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +196,7 @@ class DaemonManager:
     def is_running(self) -> bool:
         return self.coind_proc is not None and self.goldd_proc is not None
 
-    def get_status(self) -> dict:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "ordexcoind_running": self.coind_proc is not None
             and self.coind_proc.poll() is None,
