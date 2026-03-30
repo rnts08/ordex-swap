@@ -14,15 +14,19 @@ class DaemonManager:
         self,
         coind_path: str,
         goldd_path: str,
-        rpc_user: str,
-        rpc_password: str,
+        oxc_rpc_user: str,
+        oxc_rpc_password: str,
+        oxg_rpc_user: str,
+        oxg_rpc_password: str,
         coind_datadir: str = None,
         goldd_datadir: str = None,
     ):
         self.coind_path = coind_path
         self.goldd_path = goldd_path
-        self.rpc_user = rpc_user
-        self.rpc_password = rpc_password
+        self.oxc_rpc_user = oxc_rpc_user
+        self.oxc_rpc_password = oxc_rpc_password
+        self.oxg_rpc_user = oxg_rpc_user
+        self.oxg_rpc_password = oxg_rpc_password
         self.coind_datadir = coind_datadir
         self.goldd_datadir = goldd_datadir
         self.coind_proc: Optional[subprocess.Popen] = None
@@ -34,6 +38,8 @@ class DaemonManager:
         port: int,
         rpc_port: int,
         conf_path: str,
+        rpc_user: str,
+        rpc_password: str,
         datadir: str = None,
     ) -> List[str]:
         args = [
@@ -43,8 +49,8 @@ class DaemonManager:
             "-bind=127.0.0.1",
             "-rpcbind=127.0.0.1",
             "-rpcallowip=127.0.0.1",
-            f"-rpcuser={self.rpc_user}",
-            f"-rpcpassword={self.rpc_password}",
+            f"-rpcuser={rpc_user}",
+            f"-rpcpassword={rpc_password}",
             f"-port={port}",
             f"-rpcport={rpc_port}",
             f"-conf={conf_path}",
@@ -54,7 +60,13 @@ class DaemonManager:
         return args
 
     def _write_conf(
-        self, datadir: str, conf_name: str, port: int, rpc_port: int
+        self,
+        datadir: str,
+        conf_name: str,
+        port: int,
+        rpc_port: int,
+        rpc_user: str,
+        rpc_password: str,
     ) -> str:
         conf_path = os.path.join(datadir, f"{conf_name}.conf")
         contents = "\n".join(
@@ -65,8 +77,8 @@ class DaemonManager:
                 "bind=127.0.0.1",
                 "rpcbind=127.0.0.1",
                 "rpcallowip=127.0.0.1",
-                f"rpcuser={self.rpc_user}",
-                f"rpcpassword={self.rpc_password}",
+                f"rpcuser={rpc_user}",
+                f"rpcpassword={rpc_password}",
                 f"port={port}",
                 f"rpcport={rpc_port}",
             ]
@@ -90,14 +102,40 @@ class DaemonManager:
         if self.goldd_datadir:
             os.makedirs(self.goldd_datadir, exist_ok=True)
 
-        coind_conf = self._write_conf(self.coind_datadir, "ordexcoin", 25174, 25173)
-        goldd_conf = self._write_conf(self.goldd_datadir, "ordexgold", 25466, 25465)
+        coind_conf = self._write_conf(
+            self.coind_datadir,
+            "ordexcoin",
+            25174,
+            25173,
+            self.oxc_rpc_user,
+            self.oxc_rpc_password,
+        )
+        goldd_conf = self._write_conf(
+            self.goldd_datadir,
+            "ordexgold",
+            25466,
+            25465,
+            self.oxg_rpc_user,
+            self.oxg_rpc_password,
+        )
 
         coind_args = self._build_args(
-            self.coind_path, 25174, 25173, coind_conf, self.coind_datadir
+            self.coind_path,
+            25174,
+            25173,
+            coind_conf,
+            self.oxc_rpc_user,
+            self.oxc_rpc_password,
+            self.coind_datadir,
         )
         goldd_args = self._build_args(
-            self.goldd_path, 25466, 25465, goldd_conf, self.goldd_datadir
+            self.goldd_path,
+            25466,
+            25465,
+            goldd_conf,
+            self.oxg_rpc_user,
+            self.oxg_rpc_password,
+            self.goldd_datadir,
         )
 
         logger.info(f"Starting ordexcoind with datadir: {self.coind_datadir}")

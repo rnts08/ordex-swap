@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "swap-service"))
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from wallet_rpc import OXCWallet, OXGWallet, WalletRPCError
 from price_oracle import PriceOracle
@@ -42,7 +42,11 @@ def ensure_wallet(
                     time.sleep(delay)
                     continue
                 except WalletRPCError:
-                    logger.info("%s wallet load failed; trying createwallet %s", label, wallet_name)
+                    logger.info(
+                        "%s wallet load failed; trying createwallet %s",
+                        label,
+                        wallet_name,
+                    )
                     try:
                         wallet.rpc.create_wallet(wallet_name)
                         time.sleep(delay)
@@ -51,7 +55,9 @@ def ensure_wallet(
                         logger.warning("%s wallet create failed: %s", label, create_err)
             if attempt == retries:
                 raise
-            logger.warning("%s wallet not ready (attempt %s/%s): %s", label, attempt, retries, msg)
+            logger.warning(
+                "%s wallet not ready (attempt %s/%s): %s", label, attempt, retries, msg
+            )
             time.sleep(delay)
 
 

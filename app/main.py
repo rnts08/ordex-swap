@@ -67,6 +67,8 @@ def main():
         ORDEXGOLDD_PATH,
         OXC_RPC_USER,
         OXC_RPC_PASSWORD,
+        OXG_RPC_USER,
+        OXG_RPC_PASSWORD,
         coind_datadir=ORDEXCOIND_DATADIR,
         goldd_datadir=ORDEXGOLDD_DATADIR,
     )
@@ -99,10 +101,7 @@ def main():
                 logger.info(f"{label} wallet OK: {info}")
                 return
             except Exception as e:
-                if (
-                    not attempted_create
-                    and "No wallet is loaded" in str(e)
-                ):
+                if not attempted_create and "No wallet is loaded" in str(e):
                     attempted_create = True
                     try:
                         logger.warning(
@@ -125,7 +124,9 @@ def main():
                                 f"{label} wallet create failed: {create_err}"
                             )
                 if attempt == retries:
-                    logger.error(f"{label} wallet check failed after {retries} attempts: {e}")
+                    logger.error(
+                        f"{label} wallet check failed after {retries} attempts: {e}"
+                    )
                     sys.exit(1)
                 logger.warning(
                     f"{label} wallet not ready (attempt {attempt}/{retries}): {e}"
