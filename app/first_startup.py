@@ -22,6 +22,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
 
 def ensure_wallet(
     wallet, label: str, wallet_name: str, retries: int = 10, delay: float = 2.0
@@ -69,6 +72,35 @@ def main() -> int:
     ensure_wallet(oxc_wallet, "OXC", OXC_WALLET_NAME)
     ensure_wallet(oxg_wallet, "OXG", OXG_WALLET_NAME)
     logger.info("Base wallets initialized.")
+
+    from admin_service import AdminService, validate_password
+
+    admin_service = AdminService()
+    if not admin_service.has_admin_users():
+        if not ADMIN_PASSWORD:
+            logger.error(
+                "No admin users exist and ADMIN_PASSWORD environment variable is not set."
+            )
+            logger.error(
+                "Please set ADMIN_USERNAME and ADMIN_PASSWORD in your .env file."
+            )
+            return 1
+
+        valid, msg = validate_password(ADMIN_PASSWORD)
+        if not valid:
+            logger.error(f"Invalid ADMIN_PASSWORD: {msg}")
+            logger.error("Password must be at least 8 characters.")
+            return 1
+
+        if admin_service.create_admin(
+            ADMIN_USERNAME, ADMIN_PASSWORD, created_by="system"
+        ):
+            logger.info(f"Created admin user '{ADMIN_USERNAME}'")
+        else:
+            logger.error(f"Failed to create admin user '{ADMIN_USERNAME}'")
+            return 1
+    else:
+        logger.info("Admin users already exist, skipping creation.")
 
     logger.info("Checking price history backfill...")
     oracle = PriceOracle()

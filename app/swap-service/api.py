@@ -84,13 +84,17 @@ def require_admin_auth(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         if not admin_service:
-            return json_error("Admin service not available", 500)
+            return json_error("Service unavailable", 500)
         username, password = _parse_basic_auth(request.headers.get("Authorization"))
-        if not username or not admin_service.verify_credentials(username, password):
-            response = json_error("Unauthorized", 401)
-            response[0].headers["WWW-Authenticate"] = 'Basic realm="OrdexSwap Admin"'
-            return response
+        if not username:
+            return json_error("Authentication required", 401)
+
+        ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+        if not admin_service.verify_credentials(username, password, ip_address):
+            return json_error("Invalid credentials", 401)
+
         g.admin_username = username
+        g.admin_ip = ip_address
         return func(*args, **kwargs)
 
     return wrapper
@@ -460,26 +464,33 @@ def admin_list_users():
 @require_admin_auth
 def admin_create_user():
     data = request.get_json() or {}
-    username = (data.get("username") or "").strip()
-    password = data.get("password") or ""
+    username = data.get("username", "")
+    password = data.get("password", "")
     if not username or not password:
-        return json_error("Missing username or password", 400, "MISSING_PARAMS")
-    if not admin_service.create_admin(username, password):
-        return json_error("Failed to create admin (username may exist)", 400)
-    return json_success({"username": username})
+        return json_error("Invalid request", 400, "MISSING_PARAMS")
+    username = getattr(g, "admin_username", None)
+    ip_address = getattr(g, "admin_ip", None)
+    if not admin_service.create_admin(
+        username, password, ip_address, created_by=username
+    ):
+        return json_error("Operation failed", 400)
+    return json_success({"username": data.get("username")})
 
 
 @app.route("/api/v1/admin/users/change-password", methods=["POST"])
 @require_admin_auth
 def admin_change_password():
     data = request.get_json() or {}
-    username = (data.get("username") or "").strip()
-    current_password = data.get("current_password") or ""
-    new_password = data.get("new_password") or ""
+    username = data.get("username", "")
+    current_password = data.get("current_password", "")
+    new_password = data.get("new_password", "")
     if not username or not current_password or not new_password:
-        return json_error("Missing username or password fields", 400, "MISSING_PARAMS")
-    if not admin_service.update_password(username, current_password, new_password):
-        return json_error("Password update failed", 400, "UPDATE_FAILED")
+        return json_error("Invalid request", 400, "MISSING_PARAMS")
+    ip_address = getattr(g, "admin_ip", None)
+    if not admin_service.update_password(
+        username, current_password, new_password, ip_address
+    ):
+        return json_error("Operation failed", 400, "UPDATE_FAILED")
     return json_success({"username": username})
 
 
@@ -538,11 +549,13 @@ def admin_get_swaps_enabled():
 @require_admin_auth
 def admin_set_swaps_enabled():
     if not admin_service:
-        return json_error("Admin service not available", 500)
+        return json_error("Service unavailable", 500)
     data = request.get_json() or {}
     enabled = data.get("enabled", True)
-    if not admin_service.set_swaps_enabled(enabled):
-        return json_error("Failed to update swaps enabled status", 500)
+    username = getattr(g, "admin_username", None)
+    ip_address = getattr(g, "admin_ip", None)
+    if not admin_service.set_swaps_enabled(enabled, username, ip_address):
+        return json_error("Operation failed", 500)
     return json_success({"swaps_enabled": enabled})
 
 
@@ -550,10 +563,10 @@ def admin_set_swaps_enabled():
 @require_admin_auth
 def admin_get_fee():
     if not admin_service:
-        return json_error("Admin service not available", 500)
+        return json_error("Service unavailable", 500)
     fee = admin_service.get_swap_fee_percent()
     if fee is None:
-        return json_error("Failed to get fee", 500)
+        return json_error("Operation failed", 500)
     return json_success({"fee_percent": fee})
 
 
@@ -561,21 +574,21 @@ def admin_get_fee():
 @require_admin_auth
 def admin_set_fee():
     if not admin_service:
-        return json_error("Admin service not available", 500)
+        return json_error("Service unavailable", 500)
     data = request.get_json() or {}
     fee_percent = data.get("fee_percent")
     if fee_percent is None:
-        return json_error("Missing fee_percent", 400, "MISSING_PARAMS")
+        return json_error("Invalid request", 400, "MISSING_PARAMS")
     try:
         fee_percent = float(fee_percent)
     except (ValueError, TypeError):
-        return json_error("Invalid fee_percent", 400, "INVALID_PARAMS")
+        return json_error("Invalid request", 400, "INVALID_PARAMS")
     if fee_percent < 0 or fee_percent > 100:
-        return json_error(
-            "fee_percent must be between 0 and 100", 400, "INVALID_PARAMS"
-        )
-    if not admin_service.set_swap_fee_percent(fee_percent):
-        return json_error("Failed to update fee", 500)
+        return json_error("Invalid request", 400, "INVALID_PARAMS")
+    username = getattr(g, "admin_username", None)
+    ip_address = getattr(g, "admin_ip", None)
+    if not admin_service.set_swap_fee_percent(fee_percent, username, ip_address):
+        return json_error("Operation failed", 500)
     return json_success({"fee_percent": fee_percent})
 
 
@@ -583,7 +596,7 @@ def admin_set_fee():
 @require_admin_auth
 def admin_get_settings():
     if not admin_service:
-        return json_error("Admin service not available", 500)
+        return json_error("Service unavailable", 500)
     settings = admin_service.get_all_settings()
     return json_success(settings)
 
@@ -592,56 +605,97 @@ def admin_get_settings():
 @require_admin_auth
 def admin_update_settings():
     if not admin_service:
-        return json_error("Admin service not available", 500)
+        return json_error("Service unavailable", 500)
     data = request.get_json() or {}
     errors = []
+    username = getattr(g, "admin_username", None)
+    ip_address = getattr(g, "admin_ip", None)
 
     if "swap_fee_percent" in data:
-        fee = float(data["swap_fee_percent"])
-        if fee < 0 or fee > 100:
-            errors.append("fee_percent must be between 0 and 100")
-        elif not admin_service.set_swap_fee_percent(fee):
-            errors.append("Failed to update fee_percent")
+        try:
+            fee = float(data["swap_fee_percent"])
+            if fee < 0 or fee > 100:
+                errors.append("invalid fee_percent")
+            elif not admin_service.set_swap_fee_percent(fee, username, ip_address):
+                errors.append("fee_percent update failed")
+        except (ValueError, TypeError):
+            errors.append("invalid fee_percent")
 
     if "swap_confirmations_required" in data:
-        confirmations = int(data["swap_confirmations_required"])
-        if confirmations < 0:
-            errors.append("confirmations must be >= 0")
-        elif not admin_service.set_swap_confirmations_required(confirmations):
-            errors.append("Failed to update confirmations")
+        try:
+            confirmations = int(data["swap_confirmations_required"])
+            if confirmations < 0:
+                errors.append("invalid confirmations")
+            elif not admin_service.set_swap_confirmations_required(
+                confirmations, username, ip_address
+            ):
+                errors.append("confirmations update failed")
+        except (ValueError, TypeError):
+            errors.append("invalid confirmations")
 
     if "swap_min_fee_OXC" in data:
-        min_fee = float(data["swap_min_fee_OXC"])
-        if min_fee < 0:
-            errors.append("min_fee must be >= 0")
-        elif not admin_service.set_swap_min_fee("OXC", min_fee):
-            errors.append("Failed to update min fee OXC")
+        try:
+            min_fee = float(data["swap_min_fee_OXC"])
+            if min_fee < 0:
+                errors.append("invalid min_fee_oxc")
+            elif not admin_service.set_swap_min_fee(
+                "OXC", min_fee, username, ip_address
+            ):
+                errors.append("min_fee_oxc update failed")
+        except (ValueError, TypeError):
+            errors.append("invalid min_fee_oxc")
 
     if "swap_min_fee_OXG" in data:
-        min_fee = float(data["swap_min_fee_OXG"])
-        if min_fee < 0:
-            errors.append("min_fee must be >= 0")
-        elif not admin_service.set_swap_min_fee("OXG", min_fee):
-            errors.append("Failed to update min fee OXG")
+        try:
+            min_fee = float(data["swap_min_fee_OXG"])
+            if min_fee < 0:
+                errors.append("invalid min_fee_oxg")
+            elif not admin_service.set_swap_min_fee(
+                "OXG", min_fee, username, ip_address
+            ):
+                errors.append("min_fee_oxg update failed")
+        except (ValueError, TypeError):
+            errors.append("invalid min_fee_oxg")
 
     if "swap_min_amount" in data:
-        min_amount = float(data["swap_min_amount"])
-        if min_amount < 0:
-            errors.append("min_amount must be >= 0")
-        elif not admin_service.set_swap_min_amount(min_amount):
-            errors.append("Failed to update min amount")
+        try:
+            min_amount = float(data["swap_min_amount"])
+            if min_amount < 0:
+                errors.append("invalid min_amount")
+            elif not admin_service.set_swap_min_amount(
+                min_amount, username, ip_address
+            ):
+                errors.append("min_amount update failed")
+        except (ValueError, TypeError):
+            errors.append("invalid min_amount")
 
     if "swap_max_amount" in data:
-        max_amount = float(data["swap_max_amount"])
-        if max_amount < 0:
-            errors.append("max_amount must be >= 0")
-        elif not admin_service.set_swap_max_amount(max_amount):
-            errors.append("Failed to update max amount")
+        try:
+            max_amount = float(data["swap_max_amount"])
+            if max_amount < 0:
+                errors.append("invalid max_amount")
+            elif not admin_service.set_swap_max_amount(
+                max_amount, username, ip_address
+            ):
+                errors.append("max_amount update failed")
+        except (ValueError, TypeError):
+            errors.append("invalid max_amount")
 
     if errors:
-        return json_error("; ".join(errors), 400)
+        return json_error("Invalid request", 400)
 
     return json_success(admin_service.get_all_settings())
+
+
+@app.route("/api/v1/admin/audit-log", methods=["GET"])
+@require_admin_auth
+def admin_get_audit_log():
+    if not admin_service:
+        return json_error("Service unavailable", 500)
+    limit = request.args.get("limit", 100, type=int)
+    limit = min(max(limit, 1), 1000)
+    audit_log = admin_service.get_audit_log(limit)
+    return json_success(audit_log)
 
 
 @app.errorhandler(Exception)

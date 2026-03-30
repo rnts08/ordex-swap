@@ -142,3 +142,44 @@ test('wallet actions are recorded in history', async ({ page, request }) => {
   expect(data.data.actions.length).toBeGreaterThan(0);
   await expect(page.locator('#wallet-actions-table')).toContainText('withdraw_failed');
 });
+
+test('settings configuration section is visible and functional', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  const feeConfig = page.locator('#feeconfig');
+  await expect(feeConfig).toBeVisible();
+
+  await expect(page.locator('#fee-percent')).toBeVisible();
+  await expect(page.locator('#confirmations-required')).toBeVisible();
+  await expect(page.locator('#min-fee-oxc')).toBeVisible();
+  await expect(page.locator('#min-fee-oxg')).toBeVisible();
+  await expect(page.locator('#min-amount')).toBeVisible();
+  await expect(page.locator('#max-amount')).toBeVisible();
+  await expect(page.locator('#update-settings')).toBeVisible();
+});
+
+test('can update settings via admin interface', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  await page.locator('#fee-percent').fill('2.5');
+  await page.locator('#update-settings').click();
+
+  const msg = page.locator('#settings-message');
+  await expect(msg).toContainText(/updated successfully/i, { timeout: 10000 });
+
+  const auth = 'Basic ' + btoa('swap:changeme26');
+  const resp = await request.get('http://localhost:8080/api/v1/admin/settings', {
+    headers: { Authorization: auth }
+  });
+  const data = await resp.json();
+  expect(data.success).toBe(true);
+  expect(data.data.swap_fee_percent).toBe(2.5);
+});

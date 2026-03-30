@@ -1,4 +1,5 @@
 import logging
+import re
 import sqlite3
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
@@ -11,12 +12,49 @@ from db_pool import get_pool
 logger = logging.getLogger(__name__)
 
 
+def sanitize_string(value: str, max_length: int = 255) -> str:
+    if not isinstance(value, str):
+        return ""
+    sanitized = re.sub(r"[^\w\s\-_.@]", "", value)
+    return sanitized[:max_length].strip()
+
+
+def sanitize_username(username: str) -> str:
+    if not username or not isinstance(username, str):
+        return ""
+    return re.sub(r"[^a-zA-Z0-9_-]", "", username)[:64]
+
+
+def validate_username(username: str) -> bool:
+    if not username or not isinstance(username, str):
+        return False
+    return bool(re.match(r"^[a-zA-Z][a-zA-Z0-9_-]{2,63}$", username))
+
+
+def validate_password(password: str) -> tuple[bool, str]:
+    if not password or not isinstance(password, str):
+        return False, "Password is required"
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters"
+    if len(password) > 128:
+        return False, "Password too long"
+    return True, ""
+
+
+def sanitize_ip(ip: str) -> str:
+    if not ip or not isinstance(ip, str):
+        return ""
+    ip = ip.strip()[:45]
+    if re.match(r"^[a-zA-Z0-9:._-]+$", ip):
+        return ip
+    return ""
+
+
 class AdminService:
     def __init__(self, db_path: str = None):
         self.db_path = db_path or DB_PATH
         self._pool = get_pool(self.db_path)
         self._init_db()
-        self.ensure_default_admin()
 
     def _init_db(self) -> None:
         try:
@@ -111,36 +149,91 @@ class AdminService:
                     )
                     """
                 )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS admin_audit_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT NOT NULL,
+                        ip_address TEXT,
+                        action TEXT NOT NULL,
+                        result TEXT NOT NULL,
+                        details TEXT,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize admin db: {e}")
 
-    def ensure_default_admin(self) -> None:
+    def has_admin_users(self) -> bool:
         try:
             with self._pool.get_connection() as conn:
                 row = conn.execute("SELECT COUNT(*) FROM admin_users").fetchone()
-                count = row[0] if row else 0
-                if count > 0:
-                    return
-                now = datetime.now(timezone.utc).isoformat()
+                return (row[0] if row else 0) > 0
+        except sqlite3.Error as e:
+            logger.error(f"Failed to check admin users: {e}")
+            return False
+
+    def create_initial_admin(self, username: str, password: str) -> bool:
+        if not self.has_admin_users():
+            return self.create_admin(username, password)
+        return False
+
+    def log_audit(
+        self,
+        username: str,
+        action: str,
+        result: str,
+        ip_address: str = None,
+        details: str = None,
+    ) -> None:
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
                 conn.execute(
                     """
-                    INSERT INTO admin_users (username, password_hash, created_at, updated_at)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO admin_audit_log (username, ip_address, action, result, details, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (
-                        "swap",
-                        generate_password_hash("changeme26"),
-                        now,
-                        now,
-                    ),
-                )
-                logger.warning(
-                    "Created default admin user 'swap' with password 'changeme26'."
+                    (username, ip_address, action, result, details, now),
                 )
         except sqlite3.Error as e:
-            logger.error(f"Failed to create default admin: {e}")
+            logger.error(f"Failed to log audit: {e}")
 
-    def verify_credentials(self, username: str, password: str) -> bool:
+    def get_audit_log(self, limit: int = 100) -> List[Dict[str, Any]]:
+        try:
+            with self._pool.get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT username, ip_address, action, result, details, created_at
+                    FROM admin_audit_log
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            return [
+                {
+                    "username": row[0],
+                    "ip_address": row[1],
+                    "action": row[2],
+                    "result": row[3],
+                    "details": row[4],
+                    "created_at": row[5],
+                }
+                for row in rows
+            ]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to fetch audit log: {e}")
+            return []
+
+    def verify_credentials(
+        self, username: str, password: str, ip_address: str = None
+    ) -> bool:
+        username = sanitize_username(username)
+        if not username:
+            return False
+
         try:
             with self._pool.get_connection() as conn:
                 row = conn.execute(
@@ -151,6 +244,9 @@ class AdminService:
                 return False
             admin_id, password_hash = row
             if not check_password_hash(password_hash, password):
+                self.log_audit(
+                    username, "login", "failed", ip_address, "Invalid password"
+                )
                 return False
             now = datetime.now(timezone.utc).isoformat()
             with self._pool.get_connection() as conn:
@@ -158,6 +254,7 @@ class AdminService:
                     "UPDATE admin_users SET last_login_at = ?, updated_at = ? WHERE id = ?",
                     (now, now, admin_id),
                 )
+            self.log_audit(username, "login", "success", ip_address)
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to verify admin credentials: {e}")
@@ -227,10 +324,21 @@ class AdminService:
             logger.error(f"Failed to list admin wallets: {e}")
         return wallets
 
-    def create_admin(self, username: str, password: str) -> bool:
-        username = username.strip()
-        if not username or not password:
+    def create_admin(
+        self,
+        username: str,
+        password: str,
+        ip_address: str = None,
+        created_by: str = None,
+    ) -> bool:
+        username = sanitize_username(username)
+        if not validate_username(username):
             return False
+
+        valid, msg = validate_password(password)
+        if not valid:
+            return False
+
         try:
             now = datetime.now(timezone.utc).isoformat()
             with self._pool.get_connection() as conn:
@@ -241,8 +349,22 @@ class AdminService:
                     """,
                     (username, generate_password_hash(password), now, now),
                 )
+            self.log_audit(
+                created_by or username,
+                "create_admin",
+                "success",
+                ip_address,
+                f"Created user: {username}",
+            )
             return True
         except sqlite3.IntegrityError:
+            self.log_audit(
+                created_by or username,
+                "create_admin",
+                "failed",
+                ip_address,
+                f"Username already exists: {username}",
+            )
             return False
         except sqlite3.Error as e:
             logger.error(f"Failed to create admin user: {e}")
@@ -267,12 +389,30 @@ class AdminService:
             return []
 
     def update_password(
-        self, username: str, current_password: str, new_password: str
+        self,
+        username: str,
+        current_password: str,
+        new_password: str,
+        ip_address: str = None,
     ) -> bool:
-        if not username or not current_password or not new_password:
+        username = sanitize_username(username)
+        if not username:
             return False
-        if not self.verify_credentials(username, current_password):
+
+        valid, msg = validate_password(new_password)
+        if not valid:
             return False
+
+        if not self.verify_credentials(username, current_password, ip_address):
+            self.log_audit(
+                username,
+                "change_password",
+                "failed",
+                ip_address,
+                "Invalid current password",
+            )
+            return False
+
         try:
             now = datetime.now(timezone.utc).isoformat()
             with self._pool.get_connection() as conn:
@@ -284,6 +424,7 @@ class AdminService:
                     """,
                     (generate_password_hash(new_password), now, username),
                 )
+            self.log_audit(username, "change_password", "success", ip_address)
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to update admin password: {e}")
@@ -301,7 +442,9 @@ class AdminService:
             logger.error(f"Failed to get swaps_enabled: {e}")
             return True
 
-    def set_swaps_enabled(self, enabled: bool) -> bool:
+    def set_swaps_enabled(
+        self, enabled: bool, username: str = None, ip_address: str = None
+    ) -> bool:
         try:
             now = datetime.now(timezone.utc).isoformat()
             with self._pool.get_connection() as conn:
@@ -309,6 +452,13 @@ class AdminService:
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swaps_enabled", "true" if enabled else "false", now),
                 )
+            self.log_audit(
+                username or "system",
+                "set_swaps_enabled",
+                "success",
+                ip_address,
+                f"enabled={enabled}",
+            )
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to set swaps_enabled: {e}")
@@ -328,7 +478,9 @@ class AdminService:
             logger.error(f"Failed to get swap_fee_percent: {e}")
             return None
 
-    def set_swap_fee_percent(self, fee_percent: float) -> bool:
+    def set_swap_fee_percent(
+        self, fee_percent: float, username: str = None, ip_address: str = None
+    ) -> bool:
         try:
             fee_percent = float(fee_percent)
             if fee_percent < 0 or fee_percent > 100:
@@ -342,6 +494,13 @@ class AdminService:
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swap_fee_percent", str(fee_percent), now),
                 )
+            self.log_audit(
+                username or "system",
+                "set_swap_fee_percent",
+                "success",
+                ip_address,
+                f"fee_percent={fee_percent}",
+            )
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to set swap_fee_percent: {e}")
@@ -361,7 +520,9 @@ class AdminService:
             logger.error(f"Failed to get swap_confirmations_required: {e}")
             return None
 
-    def set_swap_confirmations_required(self, confirmations: int) -> bool:
+    def set_swap_confirmations_required(
+        self, confirmations: int, username: str = None, ip_address: str = None
+    ) -> bool:
         try:
             confirmations = int(confirmations)
             if confirmations < 0:
@@ -375,6 +536,13 @@ class AdminService:
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swap_confirmations_required", str(confirmations), now),
                 )
+            self.log_audit(
+                username or "system",
+                "set_swap_confirmations_required",
+                "success",
+                ip_address,
+                f"confirmations={confirmations}",
+            )
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to set swap_confirmations_required: {e}")
@@ -394,7 +562,12 @@ class AdminService:
             logger.error(f"Failed to get swap_min_fee_{coin}: {e}")
             return None
 
-    def set_swap_min_fee(self, coin: str, min_fee: float) -> bool:
+    def set_swap_min_fee(
+        self, coin: str, min_fee: float, username: str = None, ip_address: str = None
+    ) -> bool:
+        coin = sanitize_string(coin, 10).upper()
+        if coin not in ("OXC", "OXG"):
+            return False
         try:
             min_fee = float(min_fee)
             if min_fee < 0:
@@ -406,8 +579,15 @@ class AdminService:
             with self._pool.get_connection() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    (f"swap_min_fee_{coin.upper()}", str(min_fee), now),
+                    (f"swap_min_fee_{coin}", str(min_fee), now),
                 )
+            self.log_audit(
+                username or "system",
+                "set_swap_min_fee",
+                "success",
+                ip_address,
+                f"coin={coin},min_fee={min_fee}",
+            )
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to set swap_min_fee_{coin}: {e}")
@@ -446,7 +626,9 @@ class AdminService:
             logger.error(f"Failed to get swap_min_amount: {e}")
             return None
 
-    def set_swap_min_amount(self, min_amount: float) -> bool:
+    def set_swap_min_amount(
+        self, min_amount: float, username: str = None, ip_address: str = None
+    ) -> bool:
         try:
             min_amount = float(min_amount)
             if min_amount < 0:
@@ -460,6 +642,13 @@ class AdminService:
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swap_min_amount", str(min_amount), now),
                 )
+            self.log_audit(
+                username or "system",
+                "set_swap_min_amount",
+                "success",
+                ip_address,
+                f"min_amount={min_amount}",
+            )
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to set swap_min_amount: {e}")
@@ -479,7 +668,9 @@ class AdminService:
             logger.error(f"Failed to get swap_max_amount: {e}")
             return None
 
-    def set_swap_max_amount(self, max_amount: float) -> bool:
+    def set_swap_max_amount(
+        self, max_amount: float, username: str = None, ip_address: str = None
+    ) -> bool:
         try:
             max_amount = float(max_amount)
             if max_amount < 0:
@@ -493,6 +684,13 @@ class AdminService:
                     "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swap_max_amount", str(max_amount), now),
                 )
+            self.log_audit(
+                username or "system",
+                "set_swap_max_amount",
+                "success",
+                ip_address,
+                f"max_amount={max_amount}",
+            )
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to set swap_max_amount: {e}")

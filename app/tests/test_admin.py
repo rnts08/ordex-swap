@@ -28,6 +28,7 @@ class TestAdminService(unittest.TestCase):
 
     def test_default_admin_created_and_authenticates(self):
         service = self.AdminService()
+        service.create_admin("swap", "changeme26")
         self.assertTrue(service.verify_credentials("swap", "changeme26"))
         self.assertFalse(service.verify_credentials("swap", "wrongpass"))
 

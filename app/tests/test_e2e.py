@@ -100,6 +100,7 @@ class TestE2EApiFlow(unittest.TestCase):
         self.history_service = swap_history.SwapHistoryService()
         self.price_history = price_history.PriceHistoryService(self.oracle)
         self.admin_service = admin_service.AdminService(db_path=self.db_path)
+        self.admin_service.create_admin("swap", "changeme26")
 
         self.engine = swap_engine.SwapEngine(
             price_oracle=self.oracle,
@@ -311,7 +312,7 @@ class TestE2EApiFlow(unittest.TestCase):
             if method == "GET":
                 resp = self.client.get(endpoint)
             else:
-                resp = self.client.post(endpoint)
+                resp = self.client.post(endpoint, json={})
             self.assertEqual(
                 resp.status_code, 401, f"{method} {endpoint} should require auth"
             )
@@ -323,7 +324,7 @@ class TestE2EApiFlow(unittest.TestCase):
             if method == "GET":
                 resp = self.client.get(endpoint, headers=auth_header)
             else:
-                resp = self.client.post(endpoint, headers=auth_header)
+                resp = self.client.post(endpoint, json={}, headers=auth_header)
             self.assertNotEqual(
                 resp.status_code, 401, f"{method} {endpoint} should work with auth"
             )
