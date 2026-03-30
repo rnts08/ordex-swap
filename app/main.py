@@ -23,6 +23,9 @@ from api import init_app, run_server
 from daemon_manager import DaemonManager
 from config import (
     SWAP_FEE_PERCENT,
+    SWAP_MIN_FEE_OXC,
+    SWAP_MIN_FEE_OXG,
+    SWAP_CONFIRMATIONS_REQUIRED,
     SWAP_MIN_AMOUNT,
     SWAP_MAX_AMOUNT,
     API_HOST,
@@ -145,6 +148,34 @@ def main():
     logger.info("Initializing admin service...")
     admin_service = AdminService(db_path=DB_PATH)
 
+    db_fee = admin_service.get_swap_fee_percent()
+    if db_fee is not None:
+        SWAP_FEE_PERCENT = db_fee
+        logger.info(f"Using configured fee: {SWAP_FEE_PERCENT}%")
+    else:
+        logger.info(f"Using default fee: {SWAP_FEE_PERCENT}%")
+
+    db_confirmations = admin_service.get_swap_confirmations_required()
+    if db_confirmations is not None:
+        SWAP_CONFIRMATIONS_REQUIRED = db_confirmations
+        logger.info(f"Using configured confirmations: {SWAP_CONFIRMATIONS_REQUIRED}")
+    else:
+        logger.info(f"Using default confirmations: {SWAP_CONFIRMATIONS_REQUIRED}")
+
+    db_min_fee_oxc = admin_service.get_swap_min_fee("OXC")
+    if db_min_fee_oxc is not None:
+        SWAP_MIN_FEE_OXC = db_min_fee_oxc
+        logger.info(f"Using configured min fee OXC: {SWAP_MIN_FEE_OXC}")
+    else:
+        logger.info(f"Using default min fee OXC: {SWAP_MIN_FEE_OXC}")
+
+    db_min_fee_oxg = admin_service.get_swap_min_fee("OXG")
+    if db_min_fee_oxg is not None:
+        SWAP_MIN_FEE_OXG = db_min_fee_oxg
+        logger.info(f"Using configured min fee OXG: {SWAP_MIN_FEE_OXG}")
+    else:
+        logger.info(f"Using default min fee OXG: {SWAP_MIN_FEE_OXG}")
+
     logger.info("Starting background price fetch...")
     price_history.start_background_fetch()
 
@@ -157,6 +188,9 @@ def main():
         fee_percent=SWAP_FEE_PERCENT,
         min_amount=SWAP_MIN_AMOUNT,
         max_amount=SWAP_MAX_AMOUNT,
+        confirmations_required=SWAP_CONFIRMATIONS_REQUIRED,
+        min_fee_oxc=SWAP_MIN_FEE_OXC,
+        min_fee_oxg=SWAP_MIN_FEE_OXG,
     )
     engine.start_background_settlement()
 

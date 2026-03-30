@@ -16,6 +16,8 @@ from config import (
     OXC_OXG_FALLBACK_PRICE,
     TESTING_MODE,
     DB_PATH,
+    SWAP_MIN_FEE_OXC,
+    SWAP_MIN_FEE_OXG,
 )
 
 logger = logging.getLogger(__name__)
@@ -274,7 +276,13 @@ class PriceOracle:
             return False
 
     def get_conversion_amount(
-        self, from_coin: str, to_coin: str, amount: float, fee_percent: float
+        self,
+        from_coin: str,
+        to_coin: str,
+        amount: float,
+        fee_percent: float,
+        min_fee_oxc: float = SWAP_MIN_FEE_OXC,
+        min_fee_oxg: float = SWAP_MIN_FEE_OXG,
     ) -> Dict[str, Any]:
         """Calculate conversion with fees."""
         price_data = self.get_price(from_coin, to_coin)
@@ -290,6 +298,11 @@ class PriceOracle:
         to_amount = amount * rate
 
         fee = to_amount * (fee_percent / 100)
+
+        min_fee = min_fee_oxg if to_coin.upper() == "OXG" else min_fee_oxc
+        if fee < min_fee:
+            fee = min_fee
+
         net_amount = to_amount - fee
 
         return {

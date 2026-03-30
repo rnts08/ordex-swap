@@ -33,7 +33,6 @@ data/bin/
 .vscode/
 .idea/
 .agent/
-AGENTS.md
 .opencode
 
 # Test results

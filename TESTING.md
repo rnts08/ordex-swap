@@ -14,7 +14,7 @@ sed -i 's/^TESTING_MODE=.*/TESTING_MODE=true/' app/.env
 docker-compose up -d --build
 ```
 
-3) Initialize/load wallets (idempotent):
+3) Initialize/load wallets and run migrations (idempotent):
 
 ```bash
 docker exec ordex-swap-ordex-swap-1 /app/first-run.sh

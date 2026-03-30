@@ -58,6 +58,26 @@ class AdminService:
                     ("swaps_enabled", "true", datetime.now(timezone.utc).isoformat()),
                 )
                 conn.execute(
+                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swap_fee_percent", "1.0", datetime.now(timezone.utc).isoformat()),
+                )
+                conn.execute(
+                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    (
+                        "swap_confirmations_required",
+                        "1",
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                conn.execute(
+                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swap_min_fee_OXC", "1.0", datetime.now(timezone.utc).isoformat()),
+                )
+                conn.execute(
+                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swap_min_fee_OXG", "1.0", datetime.now(timezone.utc).isoformat()),
+                )
+                conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS wallet_actions (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -275,6 +295,124 @@ class AdminService:
         except sqlite3.Error as e:
             logger.error(f"Failed to set swaps_enabled: {e}")
             return False
+
+    def get_swap_fee_percent(self) -> float:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    ("swap_fee_percent",),
+                ).fetchone()
+            if row:
+                return float(row[0])
+            return None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get swap_fee_percent: {e}")
+            return None
+
+    def set_swap_fee_percent(self, fee_percent: float) -> bool:
+        try:
+            fee_percent = float(fee_percent)
+            if fee_percent < 0 or fee_percent > 100:
+                return False
+        except (ValueError, TypeError):
+            return False
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swap_fee_percent", str(fee_percent), now),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set swap_fee_percent: {e}")
+            return False
+
+    def get_swap_confirmations_required(self) -> int:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    ("swap_confirmations_required",),
+                ).fetchone()
+            if row:
+                return int(row[0])
+            return None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get swap_confirmations_required: {e}")
+            return None
+
+    def set_swap_confirmations_required(self, confirmations: int) -> bool:
+        try:
+            confirmations = int(confirmations)
+            if confirmations < 0:
+                return False
+        except (ValueError, TypeError):
+            return False
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swap_confirmations_required", str(confirmations), now),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set swap_confirmations_required: {e}")
+            return False
+
+    def get_swap_min_fee(self, coin: str) -> float:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    (f"swap_min_fee_{coin.upper()}",),
+                ).fetchone()
+            if row:
+                return float(row[0])
+            return None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get swap_min_fee_{coin}: {e}")
+            return None
+
+    def set_swap_min_fee(self, coin: str, min_fee: float) -> bool:
+        try:
+            min_fee = float(min_fee)
+            if min_fee < 0:
+                return False
+        except (ValueError, TypeError):
+            return False
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    (f"swap_min_fee_{coin.upper()}", str(min_fee), now),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set swap_min_fee_{coin}: {e}")
+            return False
+
+    def get_all_settings(self) -> Dict[str, Any]:
+        settings = {}
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                rows = conn.execute("SELECT key, value FROM app_settings").fetchall()
+            for key, value in rows:
+                if value == "true":
+                    settings[key] = True
+                elif value == "false":
+                    settings[key] = False
+                else:
+                    try:
+                        settings[key] = float(value)
+                    except ValueError:
+                        settings[key] = value
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get all settings: {e}")
+        return settings
 
     def log_wallet_action(
         self,

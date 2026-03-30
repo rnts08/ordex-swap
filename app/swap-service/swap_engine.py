@@ -15,6 +15,8 @@ from config import (
     TESTING_MODE,
     SWAP_CONFIRMATIONS_REQUIRED,
     SWAP_EXPIRE_MINUTES,
+    SWAP_MIN_FEE_OXC,
+    SWAP_MIN_FEE_OXG,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,9 @@ class SwapEngine:
         fee_percent: float = SWAP_FEE_PERCENT,
         min_amount: float = SWAP_MIN_AMOUNT,
         max_amount: float = SWAP_MAX_AMOUNT,
+        confirmations_required: int = SWAP_CONFIRMATIONS_REQUIRED,
+        min_fee_oxc: float = SWAP_MIN_FEE_OXC,
+        min_fee_oxg: float = SWAP_MIN_FEE_OXG,
     ):
         self.oracle = price_oracle
         self.oxc_wallet = oxc_wallet
@@ -72,6 +77,9 @@ class SwapEngine:
         self.fee_percent = fee_percent
         self.min_amount = min_amount
         self.max_amount = max_amount
+        self.confirmations_required = confirmations_required
+        self.min_fee_oxc = min_fee_oxc
+        self.min_fee_oxg = min_fee_oxg
         self._pending_swaps: Dict[str, Dict[str, Any]] = {}
         self._settlement_thread = None
         self._settlement_stop = None
@@ -163,7 +171,12 @@ class SwapEngine:
         to_coin = to_coin.upper()
 
         conversion = self.oracle.get_conversion_amount(
-            from_coin, to_coin, amount, self.fee_percent
+            from_coin,
+            to_coin,
+            amount,
+            self.fee_percent,
+            min_fee_oxc=self.min_fee_oxc,
+            min_fee_oxg=self.min_fee_oxg,
         )
         liquidity_hold = self._get_liquidity_hold(to_coin)
         liquidity_blocked = (
@@ -183,6 +196,8 @@ class SwapEngine:
             "price_data": conversion["price_data"],
             "expires_at": datetime.now(timezone.utc).isoformat(),
             "fee_percent": self.fee_percent,
+            "min_fee_oxc": self.min_fee_oxc,
+            "min_fee_oxg": self.min_fee_oxg,
             "liquidity_hold_amount": liquidity_hold,
             "liquidity_blocked": liquidity_blocked,
             "liquidity_notice": (
@@ -202,7 +217,12 @@ class SwapEngine:
         to_coin = to_coin.upper()
 
         conversion = self.oracle.get_conversion_amount(
-            from_coin, to_coin, amount, self.fee_percent
+            from_coin,
+            to_coin,
+            amount,
+            self.fee_percent,
+            min_fee_oxc=self.min_fee_oxc,
+            min_fee_oxg=self.min_fee_oxg,
         )
         liquidity_hold = self._get_liquidity_hold(to_coin)
         if (
@@ -266,7 +286,7 @@ class SwapEngine:
         ]:
             raise SwapError(f"Swap in invalid state: {swap['status']}")
 
-        if SWAP_CONFIRMATIONS_REQUIRED > 0:
+        if self.confirmations_required > 0:
             try:
                 from_coin = swap["from_coin"]
                 if from_coin == "OXC":
@@ -280,7 +300,7 @@ class SwapEngine:
                 if isinstance(tx, dict):
                     confirmations = int(tx.get("confirmations") or 0)
 
-                if confirmations < SWAP_CONFIRMATIONS_REQUIRED:
+                if confirmations < self.confirmations_required:
                     swap["deposit_txid"] = deposit_txid
                     swap["status"] = SwapStatus.AWAITING_DEPOSIT.value
                     swap["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -289,7 +309,7 @@ class SwapEngine:
                         "Swap %s awaiting confirmations: %s/%s",
                         swap_id,
                         confirmations,
-                        SWAP_CONFIRMATIONS_REQUIRED,
+                        self.confirmations_required,
                     )
                     return swap
             except WalletRPCError as e:

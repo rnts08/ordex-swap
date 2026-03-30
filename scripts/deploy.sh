@@ -17,6 +17,7 @@ rsync -av --exclude='.git' \
     --exclude='app/data' \
     --exclude='app/tests' \
     --exclude='app/__pycache__' \
+    --exclude='app/swap-service/__pycache__' \
     --exclude='app/.pytest_cache' \
     --exclude='app/.ruff_cache' \
     --exclude='app/.env' \
@@ -55,5 +56,5 @@ echo "To deploy, run on server:"
 echo "  cd $DEPLOY_DIR"
 echo "  docker compose -f docker-compose.prod.yml up -d --build"
 echo ""
-echo "Then initialize wallets:"
+echo "Then initialize wallets (also runs migrations):"
 echo "  docker exec ordex-swap-ordex-swap-1 /app/first-run.sh"

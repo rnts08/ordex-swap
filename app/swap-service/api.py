@@ -22,6 +22,10 @@ from config import (
     API_PORT,
     SUPPORTED_COINS,
     TESTING_MODE,
+    SWAP_FEE_PERCENT,
+    SWAP_CONFIRMATIONS_REQUIRED,
+    SWAP_MIN_FEE_OXC,
+    SWAP_MIN_FEE_OXG,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,13 +104,33 @@ def health_check():
 @app.route("/api/v1/status", methods=["GET"])
 def get_status():
     swaps_enabled = True
+    fee_percent = SWAP_FEE_PERCENT
+    confirmations_required = SWAP_CONFIRMATIONS_REQUIRED
+    min_fee_oxc = SWAP_MIN_FEE_OXC
+    min_fee_oxg = SWAP_MIN_FEE_OXG
     if admin_service:
         swaps_enabled = admin_service.get_swaps_enabled()
+        db_fee = admin_service.get_swap_fee_percent()
+        if db_fee is not None:
+            fee_percent = db_fee
+        db_confirmations = admin_service.get_swap_confirmations_required()
+        if db_confirmations is not None:
+            confirmations_required = db_confirmations
+        db_min_fee_oxc = admin_service.get_swap_min_fee("OXC")
+        if db_min_fee_oxc is not None:
+            min_fee_oxc = db_min_fee_oxc
+        db_min_fee_oxg = admin_service.get_swap_min_fee("OXG")
+        if db_min_fee_oxg is not None:
+            min_fee_oxg = db_min_fee_oxg
     return json_success(
         {
             "testing_mode": TESTING_MODE,
             "supported_coins": SUPPORTED_COINS,
             "swaps_enabled": swaps_enabled,
+            "fee_percent": fee_percent,
+            "confirmations_required": confirmations_required,
+            "min_fee_oxc": min_fee_oxc,
+            "min_fee_oxg": min_fee_oxg,
         }
     )
 
@@ -508,6 +532,90 @@ def admin_set_swaps_enabled():
     if not admin_service.set_swaps_enabled(enabled):
         return json_error("Failed to update swaps enabled status", 500)
     return json_success({"swaps_enabled": enabled})
+
+
+@app.route("/api/v1/admin/fee", methods=["GET"])
+@require_admin_auth
+def admin_get_fee():
+    if not admin_service:
+        return json_error("Admin service not available", 500)
+    fee = admin_service.get_swap_fee_percent()
+    if fee is None:
+        return json_error("Failed to get fee", 500)
+    return json_success({"fee_percent": fee})
+
+
+@app.route("/api/v1/admin/fee", methods=["POST"])
+@require_admin_auth
+def admin_set_fee():
+    if not admin_service:
+        return json_error("Admin service not available", 500)
+    data = request.get_json() or {}
+    fee_percent = data.get("fee_percent")
+    if fee_percent is None:
+        return json_error("Missing fee_percent", 400, "MISSING_PARAMS")
+    try:
+        fee_percent = float(fee_percent)
+    except (ValueError, TypeError):
+        return json_error("Invalid fee_percent", 400, "INVALID_PARAMS")
+    if fee_percent < 0 or fee_percent > 100:
+        return json_error(
+            "fee_percent must be between 0 and 100", 400, "INVALID_PARAMS"
+        )
+    if not admin_service.set_swap_fee_percent(fee_percent):
+        return json_error("Failed to update fee", 500)
+    return json_success({"fee_percent": fee_percent})
+
+
+@app.route("/api/v1/admin/settings", methods=["GET"])
+@require_admin_auth
+def admin_get_settings():
+    if not admin_service:
+        return json_error("Admin service not available", 500)
+    settings = admin_service.get_all_settings()
+    return json_success(settings)
+
+
+@app.route("/api/v1/admin/settings", methods=["POST"])
+@require_admin_auth
+def admin_update_settings():
+    if not admin_service:
+        return json_error("Admin service not available", 500)
+    data = request.get_json() or {}
+    errors = []
+
+    if "swap_fee_percent" in data:
+        fee = float(data["swap_fee_percent"])
+        if fee < 0 or fee > 100:
+            errors.append("fee_percent must be between 0 and 100")
+        elif not admin_service.set_swap_fee_percent(fee):
+            errors.append("Failed to update fee_percent")
+
+    if "swap_confirmations_required" in data:
+        confirmations = int(data["swap_confirmations_required"])
+        if confirmations < 0:
+            errors.append("confirmations must be >= 0")
+        elif not admin_service.set_swap_confirmations_required(confirmations):
+            errors.append("Failed to update confirmations")
+
+    if "swap_min_fee_OXC" in data:
+        min_fee = float(data["swap_min_fee_OXC"])
+        if min_fee < 0:
+            errors.append("min_fee must be >= 0")
+        elif not admin_service.set_swap_min_fee("OXC", min_fee):
+            errors.append("Failed to update min fee OXC")
+
+    if "swap_min_fee_OXG" in data:
+        min_fee = float(data["swap_min_fee_OXG"])
+        if min_fee < 0:
+            errors.append("min_fee must be >= 0")
+        elif not admin_service.set_swap_min_fee("OXG", min_fee):
+            errors.append("Failed to update min fee OXG")
+
+    if errors:
+        return json_error("; ".join(errors), 400)
+
+    return json_success(admin_service.get_all_settings())
 
 
 @app.errorhandler(Exception)

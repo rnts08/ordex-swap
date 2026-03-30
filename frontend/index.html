@@ -360,8 +360,8 @@
               <div class="fs-4 fw-bold text-gradient" id="current-rate">Loading...</div>
             </div>
             <div class="text-end">
-              <span class="text-brand-muted small">Fee</span>
-              <div class="fs-5 fw-bold text-white">1.0%</div>
+              <span class="text-brand-muted small">Fee <i class="fas fa-info-circle text-brand-muted" style="cursor: help;" title="Minimum fee of 1 OXG or 1 OXC applies"></i></span>
+              <div class="fs-5 fw-bold text-white" id="fee-display">1.0%</div>
             </div>
           </div>
           <!-- Price History Chart -->
@@ -421,7 +421,7 @@
                 <span class="text-white small" id="quote-rate">--</span>
               </div>
               <div class="d-flex justify-content-between mb-2">
-                <span class="text-brand-muted small">Service Fee (1%)</span>
+                <span class="text-brand-muted small">Service Fee <span class="text-brand-muted" id="fee-percent-label">(1%)</span> <i class="fas fa-info-circle text-brand-muted" style="cursor: help; font-size: 0.7em;" title="Minimum fee of 1 OXG or 1 OXC applies"></i></span>
                 <span class="text-white small" id="quote-fee">--</span>
               </div>
               <div class="d-flex justify-content-between">
@@ -507,6 +507,9 @@
     let currentSwapId = null;
     let priceData = null;
     let priceDisplayIndex = 0;
+    let currentFeePercent = 1.0;
+    let currentMinFeeOxc = 1.0;
+    let currentMinFeeOxg = 1.0;
     
     // DOM Elements
     const fromCoin = document.getElementById('from-coin');
@@ -606,6 +609,17 @@
         const data = await response.json();
         if (data.success) {
           testingMode = data.data.testing_mode;
+          currentFeePercent = data.data.fee_percent || 1.0;
+          currentMinFeeOxc = data.data.min_fee_oxc || 1.0;
+          currentMinFeeOxg = data.data.min_fee_oxg || 1.0;
+          document.getElementById('fee-display').textContent = currentFeePercent.toFixed(1) + '%';
+          document.getElementById('fee-percent-label').textContent = '(' + currentFeePercent.toFixed(1) + '%)';
+          
+          const minFeeTooltip = 'Minimum fee: ' + currentMinFeeOxc + ' OXC or ' + currentMinFeeOxg + ' OXG';
+          document.querySelectorAll('.fa-info-circle[title*="Minimum fee"]').forEach(el => {
+            el.setAttribute('title', minFeeTooltip);
+          });
+          
           const swapsEnabled = data.data.swaps_enabled;
           if (!swapsEnabled) {
             modeIndicator.innerHTML = '<i class="fas fa-hourglass-half me-1"></i> Live';
