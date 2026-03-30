@@ -346,6 +346,7 @@ def get_deposit_address(coin: str):
 
 
 @app.route("/api/v1/swaps", methods=["GET"])
+@limiter.limit("600 per hour")
 def list_swaps():
     status = request.args.get("status")
     limit = int(request.args.get("limit", 100))
@@ -354,6 +355,7 @@ def list_swaps():
 
 
 @app.route("/api/v1/swaps/stats", methods=["GET"])
+@limiter.limit("600 per hour")
 def get_swap_stats():
     if swap_history:
         return json_success(swap_history.get_stats())
@@ -575,6 +577,7 @@ def admin_change_password():
 
 
 @app.route("/api/v1/prices/history", methods=["GET"])
+@limiter.limit("600 per hour")
 def get_price_history():
     limit = int(request.args.get("limit", 100))
     if price_history:
@@ -587,6 +590,7 @@ def get_price_history():
 
 
 @app.route("/api/v1/prices/current", methods=["GET"])
+@limiter.limit("600 per hour")
 def get_current_prices():
     """Get current USDT rates and cross rate."""
     if price_history:
@@ -597,6 +601,7 @@ def get_current_prices():
 
 
 @app.route("/api/v1/prices/stats", methods=["GET"])
+@limiter.limit("600 per hour")
 def get_price_stats():
     hours = int(request.args.get("hours", 24))
     if price_history:
@@ -776,6 +781,72 @@ def admin_get_audit_log():
     limit = min(max(limit, 1), 1000)
     audit_log = admin_service.get_audit_log(limit)
     return json_success(audit_log)
+
+
+@app.route("/api/v1/admin/wallet-configs", methods=["GET"])
+@require_admin_auth
+def admin_get_wallet_configs():
+    if not admin_service:
+        return json_error("Service unavailable", 500)
+    username = g.get("admin_username", "system")
+    ip_address = g.get("admin_ip")
+    try:
+        wallet_configs = admin_service.list_wallet_configs()
+        admin_service.log_audit(username, "list_wallet_configs", "success", ip_address)
+        return json_success(wallet_configs)
+    except Exception as e:
+        logger.error("Failed to list wallet configs", error=str(e))
+        admin_service.log_audit(
+            username, "list_wallet_configs", "failed", ip_address, str(e)
+        )
+        return json_error("Failed to list wallet configs", 500)
+
+
+@app.route("/api/v1/admin/wallet-configs", methods=["PUT"])
+@require_admin_auth
+def admin_update_wallet_config():
+    if not admin_service:
+        return json_error("Service unavailable", 500)
+    username = g.get("admin_username", "system")
+    ip_address = g.get("admin_ip")
+    data = request.get_json() or {}
+    coin = data.get("coin", "").upper()
+    wallet_path = data.get("wallet_path", "").strip()
+    wallet_name = data.get("wallet_name", "").strip() or None
+
+    if not coin or coin not in ["OXC", "OXG"]:
+        return json_error("Invalid coin", 400)
+
+    if not wallet_path:
+        return json_error("wallet_path is required", 400)
+
+    try:
+        if admin_service.set_wallet_config(coin, wallet_path, wallet_name):
+            admin_service.log_audit(
+                username,
+                "update_wallet_config",
+                "success",
+                ip_address,
+                f"coin={coin}, path={wallet_path}",
+            )
+            return json_success(
+                {"coin": coin, "wallet_path": wallet_path, "wallet_name": wallet_name}
+            )
+        else:
+            admin_service.log_audit(
+                username,
+                "update_wallet_config",
+                "failed",
+                ip_address,
+                f"coin={coin}",
+            )
+            return json_error("Failed to update wallet config", 500)
+    except Exception as e:
+        logger.error("Failed to update wallet config", error=str(e))
+        admin_service.log_audit(
+            username, "update_wallet_config", "failed", ip_address, str(e)
+        )
+        return json_error("Failed to update wallet config", 500)
 
 
 @app.errorhandler(Exception)

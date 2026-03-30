@@ -164,6 +164,18 @@ class AdminService:
                     )
                     """
                 )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS wallet_configs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        coin TEXT UNIQUE NOT NULL,
+                        wallet_path TEXT NOT NULL,
+                        wallet_name TEXT,
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                    """
+                )
         except sqlite3.Error as e:
             logger.error("Failed to initialize admin db", error=str(e))
 
@@ -261,6 +273,59 @@ class AdminService:
         except sqlite3.Error as e:
             logger.error("Failed to verify admin credentials", error=str(e))
             return False
+
+    def get_wallet_path(self, coin: str) -> Optional[str]:
+        """Get wallet path for a coin from database."""
+        try:
+            with self._pool.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT wallet_path FROM wallet_configs WHERE coin = ?",
+                    (coin,),
+                ).fetchone()
+                return row[0] if row else None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get wallet path for {coin}", error=str(e))
+            return None
+
+    def set_wallet_config(
+        self, coin: str, wallet_path: str, wallet_name: str = None
+    ) -> bool:
+        """Store wallet configuration for a coin."""
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO wallet_configs
+                    (coin, wallet_path, wallet_name, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (coin, wallet_path, wallet_name, now, now),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set wallet config for {coin}", error=str(e))
+            return False
+
+    def list_wallet_configs(self) -> List[Dict[str, Any]]:
+        """List all wallet configurations."""
+        try:
+            with self._pool.get_connection() as conn:
+                rows = conn.execute(
+                    "SELECT coin, wallet_path, wallet_name, updated_at FROM wallet_configs"
+                ).fetchall()
+            return [
+                {
+                    "coin": row[0],
+                    "wallet_path": row[1],
+                    "wallet_name": row[2],
+                    "updated_at": row[3],
+                }
+                for row in rows
+            ]
+        except sqlite3.Error as e:
+            logger.error("Failed to list wallet configs", error=str(e))
+            return []
 
     def get_or_create_wallet_address(
         self, coin: str, purpose: str, address_generator
