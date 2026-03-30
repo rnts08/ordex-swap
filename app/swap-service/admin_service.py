@@ -57,6 +57,22 @@ class AdminService:
                     "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
                     ("swaps_enabled", "true", datetime.now(timezone.utc).isoformat()),
                 )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS wallet_actions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        action_type TEXT NOT NULL,
+                        coin TEXT NOT NULL,
+                        purpose TEXT,
+                        amount REAL,
+                        address TEXT,
+                        txid TEXT,
+                        performed_by TEXT,
+                        created_at TEXT,
+                        details TEXT
+                    )
+                    """
+                )
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize admin db: {e}")
 
@@ -259,3 +275,70 @@ class AdminService:
         except sqlite3.Error as e:
             logger.error(f"Failed to set swaps_enabled: {e}")
             return False
+
+    def log_wallet_action(
+        self,
+        action_type: str,
+        coin: str,
+        purpose: str = None,
+        amount: float = None,
+        address: str = None,
+        txid: str = None,
+        performed_by: str = None,
+        details: str = None,
+    ) -> bool:
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO wallet_actions 
+                    (action_type, coin, purpose, amount, address, txid, performed_by, created_at, details)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        action_type,
+                        coin,
+                        purpose,
+                        amount,
+                        address,
+                        txid,
+                        performed_by,
+                        now,
+                        details,
+                    ),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to log wallet action: {e}")
+            return False
+
+    def get_wallet_actions(self, limit: int = 100) -> list:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                rows = conn.execute(
+                    """
+                    SELECT action_type, coin, purpose, amount, address, txid, performed_by, created_at, details
+                    FROM wallet_actions
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            return [
+                {
+                    "action_type": row[0],
+                    "coin": row[1],
+                    "purpose": row[2],
+                    "amount": row[3],
+                    "address": row[4],
+                    "txid": row[5],
+                    "performed_by": row[6],
+                    "created_at": row[7],
+                    "details": row[8],
+                }
+                for row in rows
+            ]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get wallet actions: {e}")
+            return []

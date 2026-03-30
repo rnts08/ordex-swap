@@ -68,3 +68,31 @@ class TestAdminService(unittest.TestCase):
         result = service.set_swaps_enabled(True)
         self.assertTrue(result)
         self.assertTrue(service.get_swaps_enabled())
+
+    def test_wallet_actions_log_and_retrieve(self):
+        service = self.TestAdminService()
+        self.assertTrue(
+            service.log_wallet_action(
+                action_type="withdraw",
+                coin="OXC",
+                purpose="liquidity",
+                amount=1.5,
+                address="testaddr123",
+                txid="tx123",
+                performed_by="admin",
+            )
+        )
+
+        actions = service.get_wallet_actions(limit=10)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]["action_type"], "withdraw")
+        self.assertEqual(actions[0]["coin"], "OXC")
+        self.assertEqual(actions[0]["amount"], 1.5)
+        self.assertEqual(actions[0]["address"], "testaddr123")
+        self.assertEqual(actions[0]["txid"], "tx123")
+        self.assertEqual(actions[0]["performed_by"], "admin")
+
+    def test_wallet_actions_empty(self):
+        service = self.AdminService()
+        actions = service.get_wallet_actions(limit=10)
+        self.assertEqual(len(actions), 0)

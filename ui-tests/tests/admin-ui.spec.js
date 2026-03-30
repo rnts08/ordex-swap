@@ -93,3 +93,52 @@ test('can disable and enable swaps via admin', async ({ page, request }) => {
   statusData = await status.json();
   expect(statusData.data.swaps_enabled).toBe(true);
 });
+
+test('withdraw section shows input fields', async ({ page }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  await expect(page.locator('#withdraw')).toBeVisible();
+  await expect(page.locator('#withdraw-coin')).toBeVisible();
+  await expect(page.locator('#withdraw-purpose')).toBeVisible();
+  await expect(page.locator('#withdraw-amount')).toBeVisible();
+  await expect(page.locator('#withdraw-address')).toBeVisible();
+  await expect(page.locator('#withdraw-btn')).toBeVisible();
+  await expect(page.locator('#wallet-actions-table')).toBeVisible();
+});
+
+test('withdraw validates input and shows error for invalid address', async ({ page }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  await page.locator('#withdraw-coin').selectOption('OXC');
+  await page.locator('#withdraw-amount').fill('0.01');
+  await page.locator('#withdraw-address').fill('invalidaddr');
+  await page.locator('#withdraw-btn').click();
+
+  const msg = page.locator('#withdraw-message');
+  await expect(msg).toBeVisible();
+});
+
+test('wallet actions are recorded in history', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  const auth = 'Basic ' + btoa('swap:changeme26');
+  const resp = await request.get('http://localhost:8080/api/v1/admin/wallets/actions', {
+    headers: { Authorization: auth }
+  });
+  const data = await resp.json();
+  expect(data.success).toBe(true);
+  expect(data.data.actions.length).toBeGreaterThan(0);
+  await expect(page.locator('#wallet-actions-table')).toContainText('withdraw_failed');
+});

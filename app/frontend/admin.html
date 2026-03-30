@@ -33,6 +33,7 @@
         <a class="text-decoration-none text-light small" href="#stats">Stats</a>
         <a class="text-decoration-none text-light small" href="#graphs">Graphs</a>
         <a class="text-decoration-none text-light small" href="#wallets">Wallets</a>
+        <a class="text-decoration-none text-light small" href="#withdraw">Withdraw</a>
         <a class="text-decoration-none text-light small" href="#queue">Queue</a>
         <a class="text-decoration-none text-light small" href="#swaps">Swaps</a>
         <a class="text-decoration-none text-light small" href="#background">Background</a>
@@ -124,6 +125,57 @@
               </tr>
             </thead>
             <tbody id="wallets-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-4" id="withdraw">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0 fw-bold text-white">Withdraw Funds</h2>
+        </div>
+        <div class="row g-2 mt-2">
+          <div class="col-md-3">
+            <label class="form-label fw-bold text-white">Coin</label>
+            <select class="form-select" id="withdraw-coin">
+              <option value="OXC">OXC</option>
+              <option value="OXG">OXG</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold text-white">Purpose</label>
+            <select class="form-select" id="withdraw-purpose">
+              <option value="">Any</option>
+              <option value="liquidity">Liquidity</option>
+              <option value="fees">Fees</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold text-white">Amount</label>
+            <input class="form-control" id="withdraw-amount" type="number" step="0.00000001" min="0" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold text-white">To Address</label>
+            <input class="form-control" id="withdraw-address" />
+          </div>
+        </div>
+        <button class="btn btn-warning mt-3" id="withdraw-btn">Withdraw</button>
+        <div class="small mt-2 muted" id="withdraw-message"></div>
+
+        <h3 class="h6 mt-4 fw-bold text-white">Recent Wallet Actions</h3>
+        <div class="table-responsive mt-2">
+          <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Coin</th>
+                <th>Purpose</th>
+                <th>Amount</th>
+                <th>Address/TxID</th>
+                <th>By</th>
+              </tr>
+            </thead>
+            <tbody id="wallet-actions-table"></tbody>
           </table>
         </div>
       </div>
@@ -303,6 +355,7 @@
       loadSwaps();
       loadBackgroundStatus();
       loadSwapsEnabled();
+      loadWalletActions();
     }
 
     async function loadSwaps() {
@@ -358,6 +411,56 @@
         loadDashboard();
       }
     }
+
+    async function loadWalletActions() {
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/wallets/actions?limit=20`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const actionsTable = document.getElementById('wallet-actions-table');
+      actionsTable.innerHTML = data.data.actions.map(a => `
+        <tr>
+          <td class="small">${new Date(a.created_at).toLocaleString()}</td>
+          <td>${a.action_type}</td>
+          <td>${a.coin}</td>
+          <td>${a.purpose || '-'}</td>
+          <td>${a.amount ? a.amount.toFixed(8) : '-'}</td>
+          <td class="mono small">${a.address || a.txid || '-'}</td>
+          <td>${a.performed_by || '-'}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="7" class="muted">No wallet actions</td></tr>';
+    }
+
+    document.getElementById('withdraw-btn').addEventListener('click', async () => {
+      const msg = document.getElementById('withdraw-message');
+      msg.textContent = '';
+      const coin = document.getElementById('withdraw-coin').value;
+      const purpose = document.getElementById('withdraw-purpose').value;
+      const amount = parseFloat(document.getElementById('withdraw-amount').value);
+      const toAddress = document.getElementById('withdraw-address').value.trim();
+      if (!toAddress || isNaN(amount) || amount <= 0) {
+        msg.textContent = 'Please fill all fields with valid values.';
+        msg.className = 'small mt-2 text-danger';
+        return;
+      }
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/wallets/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+        body: JSON.stringify({ coin, purpose, amount, to_address: toAddress })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        msg.innerHTML = `Withdrawn ${amount} ${coin} to ${toAddress}<br>TxID: <span class="mono">${data.data.txid}</span>`;
+        msg.className = 'small mt-2 text-success';
+        document.getElementById('withdraw-amount').value = '';
+        document.getElementById('withdraw-address').value = '';
+        loadWalletActions();
+        loadDashboard();
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        msg.textContent = data.error || 'Withdraw failed.';
+        msg.className = 'small mt-2 text-danger';
+      }
+    });
 
     loginBtn.addEventListener('click', () => {
       buildAuth();

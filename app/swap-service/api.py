@@ -3,7 +3,7 @@ import math
 import re
 import base64
 from functools import wraps
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 
 from price_oracle import PriceOracle, PriceOracleError, PriceOracleStaleError
 from wallet_rpc import WalletRPCError
@@ -84,6 +84,7 @@ def require_admin_auth(func):
             response = json_error("Unauthorized", 401)
             response[0].headers["WWW-Authenticate"] = 'Basic realm="OrdexSwap Admin"'
             return response
+        g.admin_username = username
         return func(*args, **kwargs)
 
     return wrapper
@@ -337,8 +338,83 @@ def admin_rotate_wallet():
         lambda w=wallet, c=coin, p=purpose: w.get_labeled_address(f"{p}-{c.lower()}"),
     )
     if not address:
+        admin_service.log_wallet_action(
+            action_type="rotate_failed",
+            coin=coin,
+            purpose=purpose,
+            performed_by=g.admin_username,
+            details="Failed to generate new address",
+        )
         return json_error("Failed to rotate wallet", 500)
+    admin_service.log_wallet_action(
+        action_type="rotate",
+        coin=coin,
+        purpose=purpose,
+        address=address,
+        performed_by=g.admin_username,
+    )
     return json_success({"coin": coin, "purpose": purpose, "address": address})
+
+
+@app.route("/api/v1/admin/wallets/withdraw", methods=["POST"])
+@require_admin_auth
+def admin_withdraw():
+    data = request.get_json() or {}
+    coin = (data.get("coin") or "").upper()
+    purpose = data.get("purpose", "")
+    to_address = (data.get("to_address") or "").strip()
+    amount = data.get("amount")
+
+    if coin not in SUPPORTED_COINS:
+        return json_error("Invalid coin", 400, "INVALID_COIN")
+    if not to_address:
+        return json_error("Missing to_address", 400, "MISSING_PARAMS")
+    if amount is None:
+        return json_error("Missing amount", 400, "MISSING_PARAMS")
+    try:
+        amount = float(amount)
+        if amount <= 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        return json_error("Invalid amount", 400, "INVALID_AMOUNT")
+
+    wallet = swap_engine.oxc_wallet if coin == "OXC" else swap_engine.oxg_wallet
+    txid = None
+    try:
+        txid = wallet.send(to_address, amount)
+    except WalletRPCError as e:
+        admin_service.log_wallet_action(
+            action_type="withdraw_failed",
+            coin=coin,
+            purpose=purpose or None,
+            amount=amount,
+            address=to_address,
+            performed_by=g.admin_username,
+            details=str(e),
+        )
+        return json_error(f"Withdraw failed: {e}", 500, "WITHDRAW_ERROR")
+
+    admin_service.log_wallet_action(
+        action_type="withdraw",
+        coin=coin,
+        purpose=purpose or None,
+        amount=amount,
+        address=to_address,
+        txid=txid,
+        performed_by=g.admin_username,
+    )
+
+    return json_success(
+        {"coin": coin, "amount": amount, "to_address": to_address, "txid": txid}
+    )
+
+
+@app.route("/api/v1/admin/wallets/actions", methods=["GET"])
+@require_admin_auth
+def admin_wallet_actions():
+    limit = int(request.args.get("limit", 100))
+    actions = admin_service.get_wallet_actions(limit)
+    return json_success({"actions": actions})
 
 
 @app.route("/api/v1/admin/users", methods=["GET"])
