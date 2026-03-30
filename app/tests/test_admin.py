@@ -156,13 +156,28 @@ class TestAdminService(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(service.get_swap_max_amount(), 5000.0)
 
+    def test_swap_expire_minutes_default(self):
+        service = self.AdminService()
+        amount = service.get_swap_expire_minutes()
+        self.assertEqual(amount, 15)
+
+    def test_swap_expire_minutes_set_and_get(self):
+        service = self.AdminService()
+        result = service.set_swap_expire_minutes(30)
+        self.assertTrue(result)
+        self.assertEqual(service.get_swap_expire_minutes(), 30)
+        result = service.set_swap_expire_minutes(-5)
+        self.assertFalse(result)
+
     def test_get_all_settings(self):
         service = self.AdminService()
         service.set_swap_fee_percent(3.0)
         service.set_swap_min_amount(0.002)
         service.set_swap_max_amount(8000.0)
+        service.set_swap_expire_minutes(45)
 
         settings = service.get_all_settings()
         self.assertEqual(settings["swap_fee_percent"], 3.0)
         self.assertEqual(settings["swap_min_amount"], 0.002)
         self.assertEqual(settings["swap_max_amount"], 8000.0)
+        self.assertEqual(settings["swap_expire_minutes"], 45)

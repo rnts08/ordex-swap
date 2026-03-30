@@ -159,6 +159,7 @@ test('settings configuration section is visible and functional', async ({ page, 
   await expect(page.locator('#min-fee-oxg')).toBeVisible();
   await expect(page.locator('#min-amount')).toBeVisible();
   await expect(page.locator('#max-amount')).toBeVisible();
+  await expect(page.locator('#timeout-mins')).toBeVisible();
   await expect(page.locator('#update-settings')).toBeVisible();
 });
 
@@ -170,6 +171,7 @@ test('can update settings via admin interface', async ({ page, request }) => {
   await expect(page.locator('#dashboard')).toBeVisible();
 
   await page.locator('#fee-percent').fill('2.5');
+  await page.locator('#timeout-mins').fill('25');
   await page.locator('#update-settings').click();
 
   const msg = page.locator('#settings-message');
@@ -182,4 +184,5 @@ test('can update settings via admin interface', async ({ page, request }) => {
   const data = await resp.json();
   expect(data.success).toBe(true);
   expect(data.data.swap_fee_percent).toBe(2.5);
+  expect(data.data.swap_expire_minutes).toBe(25);
 });

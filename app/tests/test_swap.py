@@ -159,6 +159,41 @@ class TestSwapEngine(unittest.TestCase):
         with self.assertRaises(self.SwapError):
             self.engine.confirm_deposit(swap_id, "another_txid")
 
+    def test_confirm_deposit_late_deposit(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        # Simulate expiration
+        swap["status"] = "expired"
+        self.test_history.update_swap(swap_id, swap)
+        if swap_id in self.engine._pending_swaps:
+            del self.engine._pending_swaps[swap_id]
+
+        # Intercept late deposit
+        late = self.engine.confirm_deposit(swap_id, "late_deposit_txid")
+
+        self.assertEqual(late["status"], "late_deposit")
+        self.assertEqual(late["deposit_txid"], "late_deposit_txid")
+        self.assertNotIn(swap_id, self.engine._pending_swaps)
+
+        history_obj = self.test_history.get_swap(swap_id)
+        self.assertEqual(history_obj["status"], "late_deposit")
+
+    def test_cancel_swap_late_deposit(self):
+        swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
+        swap_id = swap["swap_id"]
+
+        swap["status"] = "late_deposit"
+        self.test_history.update_swap(swap_id, swap)
+        if swap_id in self.engine._pending_swaps:
+            del self.engine._pending_swaps[swap_id]
+
+        cancelled = self.engine.cancel_swap(swap_id)
+
+        self.assertEqual(cancelled["status"], "cancelled")
+        history_obj = self.test_history.get_swap(swap_id)
+        self.assertEqual(history_obj["status"], "cancelled")
+
     def test_confirm_deposit_delayed_on_low_liquidity(self):
         swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
         swap_id = swap["swap_id"]
