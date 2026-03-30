@@ -70,7 +70,7 @@ class TestAdminService(unittest.TestCase):
         self.assertTrue(service.get_swaps_enabled())
 
     def test_wallet_actions_log_and_retrieve(self):
-        service = self.TestAdminService()
+        service = self.AdminService()
         self.assertTrue(
             service.log_wallet_action(
                 action_type="withdraw",
