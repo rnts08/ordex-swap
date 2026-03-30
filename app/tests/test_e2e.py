@@ -15,10 +15,23 @@ if _swap_service_path not in sys.path:
 
 
 class FakeOracle:
-    def get_conversion_amount(self, from_coin, to_coin, amount, fee_percent):
+    def get_conversion_amount(
+        self,
+        from_coin,
+        to_coin,
+        amount,
+        fee_percent,
+        min_fee_oxc: float = 1.0,
+        min_fee_oxg: float = 1.0,
+    ):
         rate = 2.0 if from_coin == "OXC" else 0.5
         to_amount = amount * rate
         fee = to_amount * (fee_percent / 100)
+
+        min_fee = min_fee_oxg if to_coin == "OXG" else min_fee_oxc
+        if fee < min_fee:
+            fee = min_fee
+
         net_amount = to_amount - fee
         return {
             "from_coin": from_coin,
