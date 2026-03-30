@@ -161,6 +161,7 @@ def get_status():
     min_fee_oxg = SWAP_MIN_FEE_OXG
     min_amount = SWAP_MIN_AMOUNT
     max_amount = SWAP_MAX_AMOUNT
+    expire_minutes = SWAP_EXPIRE_MINUTES
     if admin_service:
         swaps_enabled = admin_service.get_swaps_enabled()
         db_fee = admin_service.get_swap_fee_percent()
@@ -181,6 +182,9 @@ def get_status():
         db_max_amount = admin_service.get_swap_max_amount()
         if db_max_amount is not None:
             max_amount = db_max_amount
+        db_expire_mins = admin_service.get_swap_expire_minutes()
+        if db_expire_mins is not None:
+            expire_minutes = db_expire_mins
     return json_success(
         {
             "testing_mode": TESTING_MODE,
@@ -192,6 +196,7 @@ def get_status():
             "min_fee_oxg": min_fee_oxg,
             "min_amount": min_amount,
             "max_amount": max_amount,
+            "expire_minutes": expire_minutes,
         }
     )
 
@@ -424,6 +429,26 @@ def admin_swaps():
     include_inactive = status is None
     swaps = swap_engine.list_swaps(status, include_inactive=include_inactive)
     return json_success({"swaps": swaps[:limit], "count": len(swaps)})
+
+
+@app.route("/api/v1/admin/swaps/<swap_id>/action", methods=["POST"])
+@require_admin_auth
+def admin_action_swap(swap_id):
+    if not swap_engine:
+        return json_error("Swap engine not available", 500)
+    data = request.get_json() or {}
+    action = data.get("action")
+    if action not in ["settle", "cancel"]:
+        return json_error("Invalid action", 400)
+    
+    try:
+        if action == "settle":
+            swap = swap_engine._settle_swap(swap_id)
+        else:
+            swap = swap_engine.cancel_swap(swap_id)
+        return json_success({"swap": swap, "action": action})
+    except Exception as e:
+        return json_error(str(e), 400)
 
 
 @app.route("/api/v1/admin/queues/process", methods=["POST"])

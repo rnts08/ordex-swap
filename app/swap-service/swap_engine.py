@@ -34,6 +34,7 @@ class SwapStatus(Enum):
     EXPIRED = "expired"
     CANCELLED = "cancelled"
     TIMED_OUT = "timed_out"
+    LATE_DEPOSIT = "late_deposit"
 
 
 class SwapError(Exception):
@@ -298,12 +299,32 @@ class SwapEngine:
             swap = self.history.get_swap(swap_id)
             if not swap:
                 raise SwapError(f"Swap not found: {swap_id}")
-            raise SwapError(f"Swap already completed: {swap_id}")
+            if swap["status"] in [SwapStatus.EXPIRED.value, SwapStatus.CANCELLED.value, SwapStatus.TIMED_OUT.value]:
+                swap["deposit_txid"] = deposit_txid
+                swap["status"] = SwapStatus.LATE_DEPOSIT.value
+                swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+                self.history.update_swap(swap_id, swap)
+                logger.warning(
+                    f"Late deposit caught for swap {swap_id}. Status changed to {swap['status']}"
+                )
+                return swap
+            raise SwapError(f"Swap already completed or unprocessable: {swap_id}")
 
         if swap["status"] not in [
             SwapStatus.PENDING.value,
             SwapStatus.AWAITING_DEPOSIT.value,
         ]:
+            if swap["status"] in [SwapStatus.EXPIRED.value, SwapStatus.CANCELLED.value, SwapStatus.TIMED_OUT.value]:
+                swap["deposit_txid"] = deposit_txid
+                swap["status"] = SwapStatus.LATE_DEPOSIT.value
+                swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+                self.history.update_swap(swap_id, swap)
+                if swap_id in self._pending_swaps:
+                    del self._pending_swaps[swap_id]
+                logger.warning(
+                    f"Late deposit caught for swap {swap_id}. Status changed to {swap['status']}"
+                )
+                return swap
             raise SwapError(f"Swap in invalid state: {swap['status']}")
 
         if self.confirmations_required > 0:
@@ -399,13 +420,18 @@ class SwapEngine:
     def cancel_swap(self, swap_id: str) -> Dict[str, Any]:
         swap = self._pending_swaps.get(swap_id)
         if not swap:
-            raise SwapError(f"Swap not found: {swap_id}")
+            swap = self.history.get_swap(swap_id)
+            if not swap:
+                raise SwapError(f"Swap not found: {swap_id}")
 
         if swap["status"] in [SwapStatus.COMPLETED.value, SwapStatus.FAILED.value]:
             raise SwapError(f"Cannot cancel swap in state: {swap['status']}")
 
         swap["status"] = SwapStatus.CANCELLED.value
         swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        if swap_id in self._pending_swaps:
+            del self._pending_swaps[swap_id]
         
         # Persist to database
         self.history.update_swap(swap_id, swap)

@@ -401,19 +401,43 @@
       loadWalletActions();
     }
 
+    async function adminActionSwap(swapId, action) {
+      if (!confirm(`Are you sure you want to ${action} swap ${swapId}?`)) return;
+      
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps/${swapId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+        body: JSON.stringify({ action: action })
+      });
+      if (resp.ok) {
+        loadSwaps();
+        loadDashboard();
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        alert(data.error || `Failed to ${action} swap.`);
+      }
+    }
+
     async function loadSwaps() {
       const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps?limit=20`);
       if (!resp.ok) return;
       const data = await resp.json();
-      swapsTable.innerHTML = data.data.swaps.map(s => `
+      swapsTable.innerHTML = data.data.swaps.map(s => {
+        let statusHtml = s.status;
+        if (s.status === 'late_deposit') {
+          statusHtml = `<span class="text-warning fw-bold me-2">late_deposit</span>
+            <button class="btn btn-sm btn-success py-0 px-1 me-1" onclick="adminActionSwap('${s.swap_id}', 'settle')">Settle</button>
+            <button class="btn btn-sm btn-danger py-0 px-1" onclick="adminActionSwap('${s.swap_id}', 'cancel')">Cancel</button>`;
+        }
+        return `
         <tr>
           <td class="mono">${s.swap_id}</td>
           <td>${s.from_amount} ${s.from_coin}</td>
           <td>${s.net_amount} ${s.to_coin}</td>
           <td>${s.fee_amount}</td>
-          <td>${s.status}</td>
+          <td>${statusHtml}</td>
         </tr>
-      `).join('') || '<tr><td colspan="5" class="muted">No swaps</td></tr>';
+      `}).join('') || '<tr><td colspan="5" class="muted">No swaps</td></tr>';
     }
 
     async function loadBackgroundStatus() {

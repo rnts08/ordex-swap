@@ -513,6 +513,7 @@
     let currentMinFeeOxg = 1.0;
     let currentMinAmount = 0.0001;
     let currentMaxAmount = 10000.0;
+    let currentExpireMins = 15;
     
     // DOM Elements
     const fromCoin = document.getElementById('from-coin');
@@ -546,7 +547,7 @@
     
     function startSwapCountdown(swapId) {
       currentSwapId = swapId;
-      let secondsRemaining = 15 * 60 - 1; // 14:59
+      let secondsRemaining = currentExpireMins * 60 - 1;
       
       if (countdownInterval) {
         clearInterval(countdownInterval);
@@ -617,6 +618,7 @@
           currentMinFeeOxg = data.data.min_fee_oxg || 1.0;
           currentMinAmount = data.data.min_amount || 0.0001;
           currentMaxAmount = data.data.max_amount || 10000.0;
+          currentExpireMins = data.data.expire_minutes || 15;
           
           document.getElementById('from-amount').min = Math.ceil(currentMinAmount);
           document.getElementById('from-amount').title = 'Min: ' + Math.ceil(currentMinAmount) + ' | Max: ' + currentMaxAmount;
@@ -901,7 +903,7 @@
             </div>
             <div class="small text-brand-muted mb-2">Then confirm below after sending.</div>
             <div class="d-flex justify-content-between align-items-center">
-              <div class="small text-warning" id="countdown-timer">Expires in 14:59</div>
+              <div class="small text-warning" id="countdown-timer">Expires in ${currentExpireMins - 1}:59</div>
               ${cancelButton}
             </div>
           `, 'success');
