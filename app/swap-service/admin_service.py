@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from config import DB_PATH, DEFAULT_LIMIT
+from config import DB_PATH, DEFAULT_LIMIT, SWAP_EXPIRE_MINUTES
 from db_pool import get_pool
 from structured_logging import StructuredLogger
 
@@ -131,6 +131,14 @@ class AdminService:
                     (
                         "swap_max_amount",
                         "10000.0",
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                conn.execute(
+                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    (
+                        "swap_expire_minutes",
+                        str(SWAP_EXPIRE_MINUTES),
                         datetime.now(timezone.utc).isoformat(),
                     ),
                 )
@@ -613,6 +621,48 @@ class AdminService:
             return True
         except sqlite3.Error as e:
             logger.error("Failed to set swap_confirmations_required", error=str(e))
+            return False
+
+    def get_swap_expire_minutes(self) -> int:
+        try:
+            with self._pool.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    ("swap_expire_minutes",),
+                ).fetchone()
+            if row:
+                return int(row[0])
+            return None
+        except sqlite3.Error as e:
+            logger.error("Failed to get swap_expire_minutes", error=str(e))
+            return None
+
+    def set_swap_expire_minutes(
+        self, expire_minutes: int, username: str = None, ip_address: str = None
+    ) -> bool:
+        try:
+            expire_minutes = int(expire_minutes)
+            if expire_minutes <= 0:
+                return False
+        except (ValueError, TypeError):
+            return False
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swap_expire_minutes", str(expire_minutes), now),
+                )
+            self.log_audit(
+                username or "system",
+                "set_swap_expire_minutes",
+                "success",
+                ip_address,
+                f"expire_minutes={expire_minutes}",
+            )
+            return True
+        except sqlite3.Error as e:
+            logger.error("Failed to set swap_expire_minutes", error=str(e))
             return False
 
     def get_swap_min_fee(self, coin: str) -> float:

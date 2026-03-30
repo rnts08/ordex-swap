@@ -55,10 +55,15 @@ class SwapCleanupJob:
     def cleanup_expired_swaps(self):
         """Find and mark expired swaps as TIMED_OUT"""
         try:
+            from admin_service import AdminService
+            admin_svc = AdminService(self.db_path)
+            db_expire_mins = admin_svc.get_swap_expire_minutes()
+            expire_mins = db_expire_mins if db_expire_mins is not None else SWAP_EXPIRE_MINUTES
+
             with self.swap_engine.history._pool.get_connection() as conn:
-                # Find swaps that are older than SWAP_EXPIRE_MINUTES
+                # Find swaps that are older than expire_mins
                 expire_threshold = datetime.now(timezone.utc) - timedelta(
-                    minutes=SWAP_EXPIRE_MINUTES
+                    minutes=expire_mins
                 )
                 threshold_str = expire_threshold.isoformat()
 

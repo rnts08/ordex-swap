@@ -145,6 +145,7 @@ def require_admin_auth(func):
 
 
 @app.route("/health", methods=["GET"])
+@limiter.limit("1000 per hour")
 def health_check():
     return json_success(
         {"status": "healthy", "service": "ordex-swap", "testing_mode": TESTING_MODE}
@@ -765,6 +766,18 @@ def admin_update_settings():
                 errors.append("max_amount update failed")
         except (ValueError, TypeError):
             errors.append("invalid max_amount")
+
+    if "swap_expire_minutes" in data:
+        try:
+            expire_minutes = int(data["swap_expire_minutes"])
+            if expire_minutes <= 0:
+                errors.append("invalid expire_minutes")
+            elif not admin_service.set_swap_expire_minutes(
+                expire_minutes, username, ip_address
+            ):
+                errors.append("expire_minutes update failed")
+        except (ValueError, TypeError):
+            errors.append("invalid expire_minutes")
 
     if errors:
         return json_error("Invalid request", 400)
