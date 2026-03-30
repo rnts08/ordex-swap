@@ -11,21 +11,13 @@
 
 ### Medium
 
-3. **Basic Auth for Admin API**
-   - Credentials sent over network without TLS in non-production
-   - **Fix**: Ensure admin is only accessible via HTTPS in production
-
-4. **Wallet Operations Not Fully Logged**
-   - Withdraw/rotate actions logged but could be more detailed
-   - **Fix**: Add more context to wallet action logs
-
-5. **No CSRF Protection**
+4. **No CSRF Protection**
    - Flask app doesn't have CSRF tokens
    - **Fix**: Implement Flask-WTF CSRF protection
 
 ### Low
 
-6. **Debug Mode Potential**
+5. **Debug Mode Potential**
    - No explicit check for debug mode in production
    - **Fix**: Ensure debug=False in production config
 
@@ -36,10 +28,6 @@
 1. **Error Handling Inconsistency**
    - Some places catch broad `Exception`, others specific
    - **Fix**: Standardize error handling
-
-2. **No Structured Logging**
-   - Using basic logging without structured format
-   - **Fix**: Use JSON structured logging for easier parsing
 
 ---
 
