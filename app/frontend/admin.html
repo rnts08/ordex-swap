@@ -37,6 +37,7 @@
         <a class="text-decoration-none text-light small" href="#swaps">Swaps</a>
         <a class="text-decoration-none text-light small" href="#background">Background</a>
         <a class="text-decoration-none text-light small" href="#password">Password</a>
+        <a class="text-decoration-none text-light small" href="#swapcontrol">Swap Control</a>
         <button class="btn btn-sm btn-outline-light" id="logout-btn" type="button">Logout</button>
       </div>
     </div>
@@ -198,6 +199,19 @@
         <button class="btn btn-outline-warning mt-3" id="change-password">Update Password</button>
         <div class="small mt-2 muted" id="pw-message"></div>
       </div>
+
+      <div class="card p-3 mb-4" id="swapcontrol">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0 fw-bold text-white">Swap Control</h2>
+          <span class="badge" id="swap-status-badge">Loading...</span>
+        </div>
+        <div class="mt-3">
+          <p class="muted small">Enable or disable swap functionality globally. When disabled, users cannot create new swaps or quotes.</p>
+          <button class="btn btn-success" id="enable-swaps">Enable Swaps</button>
+          <button class="btn btn-danger" id="disable-swaps">Disable Swaps</button>
+          <div class="small mt-2 muted" id="swap-control-message"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -288,6 +302,7 @@
 
       loadSwaps();
       loadBackgroundStatus();
+      loadSwapsEnabled();
     }
 
     async function loadSwaps() {
@@ -394,6 +409,58 @@
       pwNew.value = '';
       pwMessage.textContent = '';
       document.getElementById('admin-pass').value = '';
+    });
+
+    async function loadSwapsEnabled() {
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps-enabled`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const enabled = data.data.swaps_enabled;
+      const badge = document.getElementById('swap-status-badge');
+      if (enabled) {
+        badge.textContent = 'Swaps Enabled';
+        badge.className = 'badge bg-success';
+      } else {
+        badge.textContent = 'Swaps Disabled';
+        badge.className = 'badge bg-danger';
+      }
+    }
+
+    document.getElementById('enable-swaps').addEventListener('click', async () => {
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps-enabled`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+        body: JSON.stringify({ enabled: true })
+      });
+      const msg = document.getElementById('swap-control-message');
+      if (resp.ok) {
+        msg.textContent = 'Swaps enabled.';
+        msg.className = 'small mt-2 text-success';
+        loadSwapsEnabled();
+      } else {
+        msg.textContent = 'Failed to enable swaps.';
+        msg.className = 'small mt-2 text-danger';
+      }
+    });
+
+    document.getElementById('disable-swaps').addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to disable swaps? Users will not be able to create new swaps.')) {
+        return;
+      }
+      const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps-enabled`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+        body: JSON.stringify({ enabled: false })
+      });
+      const msg = document.getElementById('swap-control-message');
+      if (resp.ok) {
+        msg.textContent = 'Swaps disabled.';
+        msg.className = 'small mt-2 text-success';
+        loadSwapsEnabled();
+      } else {
+        msg.textContent = 'Failed to disable swaps.';
+        msg.className = 'small mt-2 text-danger';
+      }
     });
 
     function renderInOutGraph(financial) {

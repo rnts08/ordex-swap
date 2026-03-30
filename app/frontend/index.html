@@ -606,8 +606,17 @@
         const data = await response.json();
         if (data.success) {
           testingMode = data.data.testing_mode;
-          modeIndicator.textContent = testingMode ? 'Testing Mode' : 'Live';
-          modeIndicator.className = testingMode ? 'network-badge text-warning' : 'network-badge text-success';
+          const swapsEnabled = data.data.swaps_enabled;
+          if (!swapsEnabled) {
+            modeIndicator.innerHTML = '<i class="fas fa-hourglass-half me-1"></i> Live';
+            modeIndicator.className = 'network-badge text-warning';
+          } else if (testingMode) {
+            modeIndicator.textContent = 'Testing Mode';
+            modeIndicator.className = 'network-badge text-warning';
+          } else {
+            modeIndicator.textContent = 'Live';
+            modeIndicator.className = 'network-badge text-success';
+          }
         }
       } catch (err) {
         modeIndicator.textContent = 'Offline';

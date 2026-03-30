@@ -44,15 +44,26 @@ class AdminService:
                     )
                     """
                 )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL,
+                        updated_at TEXT
+                    )
+                    """
+                )
+                conn.execute(
+                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swaps_enabled", "true", datetime.now(timezone.utc).isoformat()),
+                )
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize admin db: {e}")
 
     def ensure_default_admin(self) -> None:
         try:
             with sqlite3.connect(self.db_path) as conn:
-                row = conn.execute(
-                    "SELECT COUNT(*) FROM admin_users"
-                ).fetchone()
+                row = conn.execute("SELECT COUNT(*) FROM admin_users").fetchone()
                 count = row[0] if row else 0
                 if count > 0:
                     return
@@ -201,7 +212,9 @@ class AdminService:
             logger.error(f"Failed to list admin users: {e}")
             return []
 
-    def update_password(self, username: str, current_password: str, new_password: str) -> bool:
+    def update_password(
+        self, username: str, current_password: str, new_password: str
+    ) -> bool:
         if not username or not current_password or not new_password:
             return False
         if not self.verify_credentials(username, current_password):
@@ -220,4 +233,29 @@ class AdminService:
             return True
         except sqlite3.Error as e:
             logger.error(f"Failed to update admin password: {e}")
+            return False
+
+    def get_swaps_enabled(self) -> bool:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    ("swaps_enabled",),
+                ).fetchone()
+            return row[0] == "true" if row else True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get swaps_enabled: {e}")
+            return True
+
+    def set_swaps_enabled(self, enabled: bool) -> bool:
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("swaps_enabled", "true" if enabled else "false", now),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set swaps_enabled: {e}")
             return False

@@ -98,10 +98,14 @@ def health_check():
 
 @app.route("/api/v1/status", methods=["GET"])
 def get_status():
+    swaps_enabled = True
+    if admin_service:
+        swaps_enabled = admin_service.get_swaps_enabled()
     return json_success(
         {
             "testing_mode": TESTING_MODE,
             "supported_coins": SUPPORTED_COINS,
+            "swaps_enabled": swaps_enabled,
         }
     )
 
@@ -116,6 +120,9 @@ def create_quote():
 
     if not from_coin or not to_coin or amount is None:
         return json_error("Missing from, to, or amount", 400, "MISSING_PARAMS")
+
+    if admin_service and not admin_service.get_swaps_enabled():
+        return json_error("Swaps are currently disabled", 503, "SWAPS_DISABLED")
 
     try:
         amount = float(amount)
@@ -147,6 +154,9 @@ def create_swap():
 
     if not re.match(r"^[A-Za-z0-9_-]{8,120}$", user_address):
         return json_error("Invalid user_address", 400, "INVALID_ADDRESS")
+
+    if admin_service and not admin_service.get_swaps_enabled():
+        return json_error("Swaps are currently disabled", 503, "SWAPS_DISABLED")
 
     try:
         amount = float(amount)
@@ -261,13 +271,22 @@ def admin_dashboard():
 
     wallets = {}
     if swap_engine:
-        for coin, wallet in (("OXC", swap_engine.oxc_wallet), ("OXG", swap_engine.oxg_wallet)):
+        for coin, wallet in (
+            ("OXC", swap_engine.oxc_wallet),
+            ("OXG", swap_engine.oxg_wallet),
+        ):
             wallets.setdefault(coin, {})
             wallets[coin]["liquidity"] = admin_service.get_or_create_wallet_address(
-                coin, "liquidity", lambda w=wallet, c=coin: w.get_labeled_address(f"liquidity-{c.lower()}")
+                coin,
+                "liquidity",
+                lambda w=wallet, c=coin: w.get_labeled_address(
+                    f"liquidity-{c.lower()}"
+                ),
             )
             wallets[coin]["fees"] = admin_service.get_or_create_wallet_address(
-                coin, "fees", lambda w=wallet, c=coin: w.get_labeled_address(f"fees-{c.lower()}")
+                coin,
+                "fees",
+                lambda w=wallet, c=coin: w.get_labeled_address(f"fees-{c.lower()}"),
             )
             wallets[coin]["balance"] = wallet.get_balance()
 
@@ -396,6 +415,26 @@ def admin_background_status():
             "queue_settlement": swap_engine.get_settlement_status(),
         }
     )
+
+
+@app.route("/api/v1/admin/swaps-enabled", methods=["GET"])
+@require_admin_auth
+def admin_get_swaps_enabled():
+    if not admin_service:
+        return json_error("Admin service not available", 500)
+    return json_success({"swaps_enabled": admin_service.get_swaps_enabled()})
+
+
+@app.route("/api/v1/admin/swaps-enabled", methods=["POST"])
+@require_admin_auth
+def admin_set_swaps_enabled():
+    if not admin_service:
+        return json_error("Admin service not available", 500)
+    data = request.get_json() or {}
+    enabled = data.get("enabled", True)
+    if not admin_service.set_swaps_enabled(enabled):
+        return json_error("Failed to update swaps enabled status", 500)
+    return json_success({"swaps_enabled": enabled})
 
 
 @app.errorhandler(Exception)
