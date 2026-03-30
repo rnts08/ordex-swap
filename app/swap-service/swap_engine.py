@@ -154,6 +154,21 @@ class SwapEngine:
         if amount > self.max_amount:
             raise InvalidAmountError(f"Amount {amount} above maximum {self.max_amount}")
 
+        conversion = self.oracle.get_conversion_amount(
+            from_coin,
+            to_coin,
+            amount,
+            self.fee_percent,
+            min_fee_oxc=self.min_fee_oxc,
+            min_fee_oxg=self.min_fee_oxg,
+        )
+
+        if conversion["net_amount"] <= 0:
+            raise InvalidAmountError(
+                f"Fee too high: would result in zero or negative output. "
+                f"Output would be {conversion['net_amount']} {to_coin}"
+            )
+
     def get_deposit_address(self, coin: str) -> str:
         coin = coin.upper()
 

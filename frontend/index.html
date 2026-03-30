@@ -387,7 +387,8 @@
                   <option value="OXG">OXG (OrdexGold)</option>
                 </select>
                 <input type="number" class="form-control form-control-dark text-end" 
-                       id="from-amount" placeholder="0.00" step="0.00000001" min="0.0001" style="width: 140px;">
+                       id="from-amount" placeholder="0" step="1" style="width: 140px;"
+                       title="Min: 1 | Max: 10000">
               </div>
               <div class="text-brand-muted small mt-1" style="font-size: 0.7rem;">
                 Enter exact amount to send. Network fees apply on outbound.
@@ -616,6 +617,9 @@
           currentMinFeeOxg = data.data.min_fee_oxg || 1.0;
           currentMinAmount = data.data.min_amount || 0.0001;
           currentMaxAmount = data.data.max_amount || 10000.0;
+          
+          document.getElementById('from-amount').min = Math.ceil(currentMinAmount);
+          document.getElementById('from-amount').title = 'Min: ' + Math.ceil(currentMinAmount) + ' | Max: ' + currentMaxAmount;
           document.getElementById('fee-display').textContent = currentFeePercent.toFixed(1) + '%';
           document.getElementById('fee-percent-label').textContent = '(' + currentFeePercent.toFixed(1) + '%)';
           
@@ -654,6 +658,8 @@
     fromAmount.addEventListener('input', updateQuote);
     fromCoin.addEventListener('change', () => {
       toCoin.value = fromCoin.value === 'OXC' ? 'OXG' : 'OXC';
+      document.getElementById('from-amount').min = Math.ceil(currentMinAmount);
+      document.getElementById('from-amount').title = 'Min: ' + Math.ceil(currentMinAmount) + ' | Max: ' + currentMaxAmount;
       updateQuote();
     });
     
@@ -793,6 +799,16 @@
         const data = await response.json();
         
         if (data.success) {
+          if (data.data.net_amount <= 0) {
+            toAmount.value = '';
+            quoteRate.textContent = 'Fee too high - would result in zero or negative output';
+            quoteFee.textContent = '--';
+            quoteReceive.textContent = '--';
+            swapBtn.disabled = true;
+            showMessage('Fee too high for this amount. Try a larger amount.');
+            return;
+          }
+          
           currentQuote = data.data;
           toAmount.value = data.data.net_amount.toFixed(8);
           quoteRate.textContent = `1 ${data.data.from_coin} = ${data.data.rate.toFixed(8)} ${data.data.to_coin}`;

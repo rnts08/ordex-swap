@@ -163,9 +163,7 @@ class TestSwapEngine(unittest.TestCase):
         swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
         swap_id = swap["swap_id"]
 
-        self.oxg_wallet.send.side_effect = self.WalletRPCError(
-            "insufficient funds"
-        )
+        self.oxg_wallet.send.side_effect = self.WalletRPCError("insufficient funds")
 
         delayed = self.engine.confirm_deposit(swap_id, "deposit_txid")
 
@@ -176,9 +174,7 @@ class TestSwapEngine(unittest.TestCase):
         swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
         swap_id = swap["swap_id"]
 
-        self.oxg_wallet.send.side_effect = self.WalletRPCError(
-            "balance too low"
-        )
+        self.oxg_wallet.send.side_effect = self.WalletRPCError("balance too low")
         delayed = self.engine.confirm_deposit(swap_id, "deposit_txid")
         self.assertEqual(delayed["status"], "delayed")
 
@@ -191,9 +187,13 @@ class TestSwapEngine(unittest.TestCase):
         self.assertEqual(completed["status"], "completed")
 
     def test_liquidity_hold_blocks_higher_amount_swaps(self):
-        def conversion(from_coin, to_coin, amount, fee_percent):
+        def conversion(
+            from_coin, to_coin, amount, fee_percent, min_fee_oxc=None, min_fee_oxg=None
+        ):
             to_amount = amount * 2.0
             fee_amount = to_amount * (fee_percent / 100)
+            if fee_amount < (min_fee_oxg if to_coin == "OXG" else min_fee_oxc):
+                fee_amount = min_fee_oxg if to_coin == "OXG" else min_fee_oxc
             net_amount = to_amount - fee_amount
             now = datetime.now(timezone.utc)
             return {
@@ -208,9 +208,7 @@ class TestSwapEngine(unittest.TestCase):
 
         swap = self.engine.create_swap("OXC", "OXG", 10.0, "user_address")
         swap_id = swap["swap_id"]
-        self.oxg_wallet.send.side_effect = self.WalletRPCError(
-            "insufficient balance"
-        )
+        self.oxg_wallet.send.side_effect = self.WalletRPCError("insufficient balance")
         delayed = self.engine.confirm_deposit(swap_id, "deposit_txid")
         self.assertEqual(delayed["status"], "delayed")
 
@@ -315,6 +313,179 @@ class TestSwapEngineFeeCalculation(unittest.TestCase):
 
         self.assertEqual(swap["fee_amount"], 1.0)
         self.assertEqual(swap["net_amount"], 99.0)
+
+
+class TestMinFeeEnforcement(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        os.environ["DATA_DIR"] = self._tmpdir.name
+        os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+        os.environ["TESTING_MODE"] = "false"
+        os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
+
+        for mod in ("config", "swap_engine", "swap_history"):
+            if mod in sys.modules:
+                del sys.modules[mod]
+
+        swap_history = importlib.import_module("swap_history")
+        self.SwapHistoryService = swap_history.SwapHistoryService
+
+    def test_min_fee_enforced_oxc_to_oxg(self):
+        import price_oracle
+
+        oracle = price_oracle.PriceOracle()
+
+        swap_engine = importlib.import_module("swap_engine")
+
+        oxc_wallet = Mock()
+        oxg_wallet = Mock()
+        oxc_wallet.get_address.return_value = "oxc_addr"
+        oxg_wallet.get_address.return_value = "oxg_addr"
+
+        history = self.SwapHistoryService()
+
+        engine = swap_engine.SwapEngine(
+            price_oracle=oracle,
+            oxc_wallet=oxc_wallet,
+            oxg_wallet=oxg_wallet,
+            history_service=history,
+            fee_percent=1.0,
+            min_amount=0.0001,
+            max_amount=10000.0,
+            min_fee_oxc=1.0,
+            min_fee_oxg=1.0,
+        )
+
+        quote = engine.create_swap_quote("OXC", "OXG", 1.0)
+
+        self.assertGreaterEqual(quote["fee_amount"], 1.0)
+        self.assertEqual(quote["fee_amount"], 1.0)
+
+    def test_min_fee_enforced_oxg_to_oxc(self):
+        import price_oracle
+
+        oracle = price_oracle.PriceOracle()
+
+        swap_engine = importlib.import_module("swap_engine")
+
+        oxc_wallet = Mock()
+        oxg_wallet = Mock()
+        oxc_wallet.get_address.return_value = "oxc_addr"
+        oxg_wallet.get_address.return_value = "oxg_addr"
+
+        history = self.SwapHistoryService()
+
+        engine = swap_engine.SwapEngine(
+            price_oracle=oracle,
+            oxc_wallet=oxc_wallet,
+            oxg_wallet=oxg_wallet,
+            history_service=history,
+            fee_percent=1.0,
+            min_amount=0.0001,
+            max_amount=10000.0,
+            min_fee_oxc=1.0,
+            min_fee_oxg=1.0,
+        )
+
+        quote = engine.create_swap_quote("OXG", "OXC", 100.0)
+
+        self.assertGreaterEqual(quote["fee_amount"], 1.0)
+        self.assertEqual(quote["fee_amount"], 1.0)
+
+    def test_fee_percentage_applied_when_higher_than_min(self):
+        import price_oracle
+
+        oracle = price_oracle.PriceOracle()
+
+        swap_engine = importlib.import_module("swap_engine")
+
+        oxc_wallet = Mock()
+        oxg_wallet = Mock()
+        oxc_wallet.get_address.return_value = "oxc_addr"
+        oxg_wallet.get_address.return_value = "oxg_addr"
+
+        history = self.SwapHistoryService()
+
+        engine = swap_engine.SwapEngine(
+            price_oracle=oracle,
+            oxc_wallet=oxc_wallet,
+            oxg_wallet=oxg_wallet,
+            history_service=history,
+            fee_percent=2.0,
+            min_amount=0.0001,
+            max_amount=10000.0,
+            min_fee_oxc=0.5,
+            min_fee_oxg=0.5,
+        )
+
+        quote = engine.create_swap_quote("OXC", "OXG", 100.0)
+
+        expected_fee = quote["to_amount"] * 2.0 / 100.0
+        self.assertGreater(quote["fee_amount"], 0.5)
+
+    def test_min_fee_takes_precedence_when_percentage_fee_is_lower(self):
+        import price_oracle
+
+        oracle = price_oracle.PriceOracle()
+
+        swap_engine = importlib.import_module("swap_engine")
+
+        oxc_wallet = Mock()
+        oxg_wallet = Mock()
+        oxc_wallet.get_address.return_value = "oxc_addr"
+        oxg_wallet.get_address.return_value = "oxg_addr"
+
+        history = self.SwapHistoryService()
+
+        engine = swap_engine.SwapEngine(
+            price_oracle=oracle,
+            oxc_wallet=oxc_wallet,
+            oxg_wallet=oxg_wallet,
+            history_service=history,
+            fee_percent=0.1,
+            min_amount=0.0001,
+            max_amount=10000.0,
+            min_fee_oxc=5.0,
+            min_fee_oxg=5.0,
+        )
+
+        quote = engine.create_swap_quote("OXC", "OXG", 100.0)
+
+        self.assertGreaterEqual(quote["fee_amount"], 5.0)
+        self.assertEqual(quote["fee_amount"], 5.0)
+
+    def test_negative_net_amount_rejected_by_validation(self):
+        import price_oracle
+
+        oracle = price_oracle.PriceOracle()
+
+        swap_engine = importlib.import_module("swap_engine")
+
+        oxc_wallet = Mock()
+        oxg_wallet = Mock()
+        oxc_wallet.get_address.return_value = "oxc_addr"
+        oxg_wallet.get_address.return_value = "oxg_addr"
+
+        history = self.SwapHistoryService()
+
+        engine = swap_engine.SwapEngine(
+            price_oracle=oracle,
+            oxc_wallet=oxc_wallet,
+            oxg_wallet=oxg_wallet,
+            history_service=history,
+            fee_percent=99.0,
+            min_amount=0.0001,
+            max_amount=10000.0,
+            min_fee_oxc=1.0,
+            min_fee_oxg=1.0,
+        )
+
+        with self.assertRaises(swap_engine.InvalidAmountError) as ctx:
+            engine.validate_swap_request("OXC", "OXG", 0.001)
+
+        self.assertIn("zero or negative", str(ctx.exception).lower())
+        self.assertIn("Fee too high", str(ctx.exception))
 
 
 if __name__ == "__main__":
