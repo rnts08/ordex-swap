@@ -9,11 +9,6 @@
    - Visible in process list
    - **Fix**: Use config file or environment variables for RPC credentials
 
-2. **No Rate Limiting on API**
-   - Endpoints like `/api/v1/quote` and `/api/v1/swap` have no rate limiting
-   - Vulnerable to abuse/DoS
-   - **Fix**: Implement rate limiting (e.g., Flask-Limiter)
-
 ### Medium
 
 3. **Basic Auth for Admin API**
@@ -174,7 +169,6 @@
 | Issue | Location | Fix |
 |-------|----------|-----|
 | Magic number 15 | `swap_engine.py` | Move to config |
-| No rate limit | `api.py` | Add Flask-Limiter |
 | Hardcoded ports | `daemon_manager.py` | Make configurable |
 
 (End of file - total 135 lines)

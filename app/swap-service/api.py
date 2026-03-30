@@ -4,6 +4,8 @@ import re
 import base64
 from functools import wraps
 from flask import Flask, request, jsonify, g
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from price_oracle import PriceOracle, PriceOracleError, PriceOracleStaleError
 from wallet_rpc import WalletRPCError
@@ -33,6 +35,14 @@ from config import (
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+limiter = Limiter(
+    app=app,
+    key_func=lambda: request.headers.get("X-Forwarded-For", request.remote_addr),
+    storage_uri="memory://",
+    default_limits=["200 per day", "50 per hour"],
+    enabled=not TESTING_MODE,
+)
 
 swap_engine: SwapEngine = None
 price_oracle: PriceOracle = None
@@ -152,6 +162,7 @@ def get_status():
 
 
 @app.route("/api/v1/quote", methods=["POST"])
+@limiter.limit("10 per minute")
 def create_quote():
     data = request.get_json() or {}
 
@@ -179,6 +190,7 @@ def create_quote():
 
 
 @app.route("/api/v1/swap", methods=["POST"])
+@limiter.limit("10 per minute")
 def create_swap():
     data = request.get_json() or {}
 
