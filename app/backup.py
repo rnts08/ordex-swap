@@ -134,27 +134,34 @@ def cleanup_old_backups(backup_dir: str, keep_count: int = 24) -> None:
 
 
 def initialize_wallet_configs(admin_service: AdminService) -> None:
-    """Initialize wallet configs in database from environment variables."""
-    wallet_configs = [
-        (
-            "OXC",
-            os.path.join(ORDEXCOIND_DATADIR, OXC_WALLET_NAME, "wallet.dat"),
-            OXC_WALLET_NAME,
-        ),
-        (
-            "OXG",
-            os.path.join(ORDEXGOLDD_DATADIR, OXG_WALLET_NAME, "wallet.dat"),
-            OXG_WALLET_NAME,
-        ),
+    """Initialize wallet configs in database from environment variables.
+    
+    Standard wallet path format: datadir/<coin_lowercase>/<wallet_name>/wallet.dat
+    Examples:
+    - OXC: ./data/oxc/oxc/oxc_wallet/wallet.dat
+    - OXG: ./data/oxg/oxg/oxg_wallet/wallet.dat
+    """
+    wallet_configs_to_init = [
+        ("OXC", ORDEXCOIND_DATADIR, OXC_WALLET_NAME),
+        ("OXG", ORDEXGOLDD_DATADIR, OXG_WALLET_NAME),
     ]
 
-    for coin, wallet_path, wallet_name in wallet_configs:
+    for coin, datadir, wallet_name in wallet_configs_to_init:
         existing_path = admin_service.get_wallet_path(coin)
-        if not existing_path:
-            logger.info(
-                f"Initializing wallet config for {coin}: {wallet_path}"
-            )
+        if existing_path:
+            continue  # Already configured
+        
+        # Standard wallet path: datadir/<coin_lowercase>/<wallet_name>/wallet.dat
+        # Note: coin directory is lowercase because Linux filesystem is case-sensitive
+        wallet_path = os.path.join(datadir, coin.lower(), wallet_name, "wallet.dat")
+        
+        if os.path.exists(wallet_path):
+            logger.info(f"Found {coin} wallet at: {wallet_path}")
             admin_service.set_wallet_config(coin, wallet_path, wallet_name)
+        else:
+            logger.warning(
+                f"Wallet for {coin} not found at expected location: {wallet_path}"
+            )
 
 
 def run_backup() -> str:

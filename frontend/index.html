@@ -895,7 +895,7 @@
             <div class="mb-2">Swap created! Send <strong>${fromAmount.value} ${fromCoin.value}</strong> to:</div>
             <div class="mb-3 d-flex align-items-center gap-2">
               <div class="deposit-address flex-grow-1">${data.data.deposit_address}</div>
-              <button class="btn btn-sm btn-outline-secondary border-0" onclick="copyToClipboard('${data.data.deposit_address}')" title="Copy address">
+              <button class="btn btn-sm btn-outline-secondary border-0" onclick="return copyToClipboard('${data.data.deposit_address}')" title="Copy address">
                 <i class="fas fa-copy"></i>
               </button>
             </div>
@@ -1279,10 +1279,17 @@
     // Copy address to clipboard
     function copyToClipboard(address) {
       navigator.clipboard.writeText(address).then(() => {
-        showMessage('Address copied to clipboard', 'success');
+        // Show brief toast notification without closing the current message
+        const toast = document.createElement('div');
+        toast.className = 'position-fixed bottom-0 start-50 translate-middle-x mb-3 alert alert-success alert-dismissible fade show';
+        toast.style.zIndex = '9999';
+        toast.innerHTML = '<i class="fas fa-check-circle"></i> Address copied!<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
       }).catch(() => {
-        showMessage('Failed to copy address', 'error');
+        console.error('Failed to copy address');
       });
+      return false;
     }
 
     // Cancel a swap

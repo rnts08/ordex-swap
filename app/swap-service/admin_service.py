@@ -839,5 +839,6 @@ class AdminService:
                 for row in rows
             ]
         except sqlite3.Error as e:
-            logger.error("Failed to get wallet actions", error=str(e))
+            # Wallet actions table may not be populated yet, which is fine
+            logger.debug("Unable to fetch wallet actions", error=str(e))
             return []
