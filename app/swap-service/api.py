@@ -122,9 +122,6 @@ def create_quote():
     if not from_coin or not to_coin or amount is None:
         return json_error("Missing from, to, or amount", 400, "MISSING_PARAMS")
 
-    if admin_service and not admin_service.get_swaps_enabled():
-        return json_error("Swaps are currently disabled", 503, "SWAPS_DISABLED")
-
     try:
         amount = float(amount)
     except (ValueError, TypeError):

@@ -16,20 +16,17 @@ venv/
 .ruff_cache/
 .ruff-cache/
 
-# Data stores
-/app/data/*.db
-/app/data/*.sqlite*
-/app/data/oxc/
-/app/data/oxg/
-/app/data/bin/
+# Data stores (local dev only)
+/app/data/
+data/
 
 # Env files
 .env
-/app/.env
+.env.production
 
 # Binaries (provided locally)
-/app/data/bin/ordexcoind
-/app/data/bin/ordexgoldd
+/app/data/bin/
+data/bin/
 
 # editors and agents
 .opencode/
@@ -38,3 +35,6 @@ venv/
 .agent/
 AGENTS.md
 .opencode
+
+# Test results
+test-results/
