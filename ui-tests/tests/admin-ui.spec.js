@@ -37,3 +37,59 @@ test('rotate buttons show confirmation dialog', async ({ page }) => {
   const rotateLiquidity = page.locator('text=Rotate Liquidity').first();
   await rotateLiquidity.click();
 });
+
+test('swap control shows enable/disable buttons', async ({ page }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  await expect(page.locator('#swapcontrol')).toBeVisible();
+  await expect(page.locator('#enable-swaps')).toBeVisible();
+  await expect(page.locator('#disable-swaps')).toBeVisible();
+  await expect(page.locator('#swap-status-badge')).toBeVisible();
+});
+
+test('swap control requires admin login', async ({ page }) => {
+  await page.goto('/admin.html');
+  
+  await expect(page.locator('#swapcontrol')).not.toBeVisible();
+  await expect(page.locator('#enable-swaps')).not.toBeVisible();
+  await expect(page.locator('#disable-swaps')).not.toBeVisible();
+});
+
+test('can disable and enable swaps via admin', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  const enableBtn = page.locator('#enable-swaps');
+  const disableBtn = page.locator('#disable-swaps');
+  const badge = page.locator('#swap-status-badge');
+  const msg = page.locator('#swap-control-message');
+
+  await expect(badge).toHaveText(/Enabled/);
+
+  page.on('dialog', async (dialog) => {
+    await dialog.accept();
+  });
+
+  await disableBtn.click();
+  await expect(msg).toHaveText(/Swaps disabled/, { timeout: 10000 });
+  await expect(badge).toHaveText(/Disabled/);
+
+  let status = await request.get('http://localhost:8080/api/v1/status');
+  let statusData = await status.json();
+  expect(statusData.data.swaps_enabled).toBe(false);
+
+  await enableBtn.click();
+  await expect(msg).toHaveText(/Swaps enabled/, { timeout: 10000 });
+  await expect(badge).toHaveText(/Enabled/);
+
+  status = await request.get('http://localhost:8080/api/v1/status');
+  statusData = await status.json();
+  expect(statusData.data.swaps_enabled).toBe(true);
+});

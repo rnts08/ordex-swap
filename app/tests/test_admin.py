@@ -52,3 +52,19 @@ class TestAdminService(unittest.TestCase):
         created = service.create_admin("alice", "secretpass")
         self.assertTrue(created)
         self.assertTrue(service.verify_credentials("alice", "secretpass"))
+
+    def test_swaps_enabled_default(self):
+        service = self.AdminService()
+        self.assertTrue(service.get_swaps_enabled())
+
+    def test_swaps_enabled_set_and_get(self):
+        service = self.AdminService()
+        self.assertTrue(service.get_swaps_enabled())
+
+        result = service.set_swaps_enabled(False)
+        self.assertTrue(result)
+        self.assertFalse(service.get_swaps_enabled())
+
+        result = service.set_swaps_enabled(True)
+        self.assertTrue(result)
+        self.assertTrue(service.get_swaps_enabled())
