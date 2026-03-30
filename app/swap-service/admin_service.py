@@ -8,8 +8,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import DB_PATH, DEFAULT_LIMIT
 from db_pool import get_pool
+from structured_logging import StructuredLogger
 
-logger = logging.getLogger(__name__)
+logger = StructuredLogger(__name__)
 
 
 def sanitize_string(value: str, max_length: int = 255) -> str:
@@ -144,6 +145,7 @@ class AdminService:
                         address TEXT,
                         txid TEXT,
                         performed_by TEXT,
+                        ip_address TEXT,
                         created_at TEXT,
                         details TEXT
                     )
@@ -163,7 +165,7 @@ class AdminService:
                     """
                 )
         except sqlite3.Error as e:
-            logger.error(f"Failed to initialize admin db: {e}")
+            logger.error("Failed to initialize admin db", error=str(e))
 
     def has_admin_users(self) -> bool:
         try:
@@ -171,7 +173,7 @@ class AdminService:
                 row = conn.execute("SELECT COUNT(*) FROM admin_users").fetchone()
                 return (row[0] if row else 0) > 0
         except sqlite3.Error as e:
-            logger.error(f"Failed to check admin users: {e}")
+            logger.error("Failed to check admin users", error=str(e))
             return False
 
     def create_initial_admin(self, username: str, password: str) -> bool:
@@ -198,7 +200,7 @@ class AdminService:
                     (username, ip_address, action, result, details, now),
                 )
         except sqlite3.Error as e:
-            logger.error(f"Failed to log audit: {e}")
+            logger.error("Failed to log audit", error=str(e))
 
     def get_audit_log(self, limit: int = 100) -> List[Dict[str, Any]]:
         try:
@@ -224,7 +226,7 @@ class AdminService:
                 for row in rows
             ]
         except sqlite3.Error as e:
-            logger.error(f"Failed to fetch audit log: {e}")
+            logger.error("Failed to fetch audit log", error=str(e))
             return []
 
     def verify_credentials(
@@ -257,7 +259,7 @@ class AdminService:
             self.log_audit(username, "login", "success", ip_address)
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to verify admin credentials: {e}")
+            logger.error("Failed to verify admin credentials", error=str(e))
             return False
 
     def get_or_create_wallet_address(
@@ -284,7 +286,7 @@ class AdminService:
                 )
                 return address
         except sqlite3.Error as e:
-            logger.error(f"Failed to get or create admin wallet: {e}")
+            logger.error("Failed to get or create admin wallet", error=str(e))
             return None
 
     def rotate_wallet_address(
@@ -304,7 +306,7 @@ class AdminService:
                 )
             return address
         except sqlite3.Error as e:
-            logger.error(f"Failed to rotate admin wallet: {e}")
+            logger.error("Failed to rotate admin wallet", error=str(e))
             return None
 
     def list_wallets(self) -> Dict[str, Dict[str, Any]]:
@@ -321,7 +323,7 @@ class AdminService:
                     "updated_at": updated_at,
                 }
         except sqlite3.Error as e:
-            logger.error(f"Failed to list admin wallets: {e}")
+            logger.error("Failed to list admin wallets", error=str(e))
         return wallets
 
     def create_admin(
@@ -367,7 +369,7 @@ class AdminService:
             )
             return False
         except sqlite3.Error as e:
-            logger.error(f"Failed to create admin user: {e}")
+            logger.error("Failed to create admin user", error=str(e))
             return False
 
     def list_admins(self) -> List[Dict[str, Any]]:
@@ -385,7 +387,7 @@ class AdminService:
                 for row in rows
             ]
         except sqlite3.Error as e:
-            logger.error(f"Failed to list admin users: {e}")
+            logger.error("Failed to list admin users", error=str(e))
             return []
 
     def update_password(
@@ -427,7 +429,7 @@ class AdminService:
             self.log_audit(username, "change_password", "success", ip_address)
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to update admin password: {e}")
+            logger.error("Failed to update admin password", error=str(e))
             return False
 
     def get_swaps_enabled(self) -> bool:
@@ -439,7 +441,7 @@ class AdminService:
                 ).fetchone()
             return row[0] == "true" if row else True
         except sqlite3.Error as e:
-            logger.error(f"Failed to get swaps_enabled: {e}")
+            logger.error("Failed to get swaps_enabled", error=str(e))
             return True
 
     def set_swaps_enabled(
@@ -461,7 +463,7 @@ class AdminService:
             )
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to set swaps_enabled: {e}")
+            logger.error("Failed to set swaps_enabled", error=str(e))
             return False
 
     def get_swap_fee_percent(self) -> float:
@@ -475,7 +477,7 @@ class AdminService:
                 return float(row[0])
             return None
         except sqlite3.Error as e:
-            logger.error(f"Failed to get swap_fee_percent: {e}")
+            logger.error("Failed to get swap_fee_percent", error=str(e))
             return None
 
     def set_swap_fee_percent(
@@ -503,7 +505,7 @@ class AdminService:
             )
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to set swap_fee_percent: {e}")
+            logger.error("Failed to set swap_fee_percent", error=str(e))
             return False
 
     def get_swap_confirmations_required(self) -> int:
@@ -517,7 +519,7 @@ class AdminService:
                 return int(row[0])
             return None
         except sqlite3.Error as e:
-            logger.error(f"Failed to get swap_confirmations_required: {e}")
+            logger.error("Failed to get swap_confirmations_required", error=str(e))
             return None
 
     def set_swap_confirmations_required(
@@ -545,7 +547,7 @@ class AdminService:
             )
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to set swap_confirmations_required: {e}")
+            logger.error("Failed to set swap_confirmations_required", error=str(e))
             return False
 
     def get_swap_min_fee(self, coin: str) -> float:
@@ -559,7 +561,7 @@ class AdminService:
                 return float(row[0])
             return None
         except sqlite3.Error as e:
-            logger.error(f"Failed to get swap_min_fee_{coin}: {e}")
+            logger.error(f"Failed to get swap_min_fee_{coin}", error=str(e))
             return None
 
     def set_swap_min_fee(
@@ -590,7 +592,7 @@ class AdminService:
             )
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to set swap_min_fee_{coin}: {e}")
+            logger.error(f"Failed to set swap_min_fee_{coin}", error=str(e))
             return False
 
     def get_all_settings(self) -> Dict[str, Any]:
@@ -609,7 +611,7 @@ class AdminService:
                     except ValueError:
                         settings[key] = value
         except sqlite3.Error as e:
-            logger.error(f"Failed to get all settings: {e}")
+            logger.error("Failed to get all settings", error=str(e))
         return settings
 
     def get_swap_min_amount(self) -> float:
@@ -623,7 +625,7 @@ class AdminService:
                 return float(row[0])
             return None
         except sqlite3.Error as e:
-            logger.error(f"Failed to get swap_min_amount: {e}")
+            logger.error("Failed to get swap_min_amount", error=str(e))
             return None
 
     def set_swap_min_amount(
@@ -651,7 +653,7 @@ class AdminService:
             )
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to set swap_min_amount: {e}")
+            logger.error("Failed to set swap_min_amount", error=str(e))
             return False
 
     def get_swap_max_amount(self) -> float:
@@ -665,7 +667,7 @@ class AdminService:
                 return float(row[0])
             return None
         except sqlite3.Error as e:
-            logger.error(f"Failed to get swap_max_amount: {e}")
+            logger.error("Failed to get swap_max_amount", error=str(e))
             return None
 
     def set_swap_max_amount(
@@ -693,7 +695,7 @@ class AdminService:
             )
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to set swap_max_amount: {e}")
+            logger.error("Failed to set swap_max_amount", error=str(e))
             return False
 
     def log_wallet_action(
@@ -705,6 +707,7 @@ class AdminService:
         address: str = None,
         txid: str = None,
         performed_by: str = None,
+        ip_address: str = None,
         details: str = None,
     ) -> bool:
         try:
@@ -713,8 +716,8 @@ class AdminService:
                 conn.execute(
                     """
                     INSERT INTO wallet_actions 
-                    (action_type, coin, purpose, amount, address, txid, performed_by, created_at, details)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (action_type, coin, purpose, amount, address, txid, performed_by, ip_address, created_at, details)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         action_type,
@@ -724,13 +727,22 @@ class AdminService:
                         address,
                         txid,
                         performed_by,
+                        ip_address,
                         now,
                         details,
                     ),
                 )
+            logger.info(
+                f"Wallet action logged",
+                action_type=action_type,
+                coin=coin,
+                purpose=purpose,
+                performed_by=performed_by,
+                ip_address=ip_address,
+            )
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to log wallet action: {e}")
+            logger.error("Failed to log wallet action", error=str(e))
             return False
 
     def get_wallet_actions(self, limit: int = None) -> list:
@@ -739,7 +751,7 @@ class AdminService:
             with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     """
-                    SELECT action_type, coin, purpose, amount, address, txid, performed_by, created_at, details
+                    SELECT action_type, coin, purpose, amount, address, txid, performed_by, ip_address, created_at, details
                     FROM wallet_actions
                     ORDER BY created_at DESC
                     LIMIT ?
@@ -755,11 +767,12 @@ class AdminService:
                     "address": row[4],
                     "txid": row[5],
                     "performed_by": row[6],
-                    "created_at": row[7],
-                    "details": row[8],
+                    "ip_address": row[7],
+                    "created_at": row[8],
+                    "details": row[9],
                 }
                 for row in rows
             ]
         except sqlite3.Error as e:
-            logger.error(f"Failed to get wallet actions: {e}")
+            logger.error("Failed to get wallet actions", error=str(e))
             return []

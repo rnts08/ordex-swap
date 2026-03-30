@@ -7,6 +7,8 @@ from flask import Flask, request, jsonify, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+from structured_logging import StructuredLogger
+
 from price_oracle import PriceOracle, PriceOracleError, PriceOracleStaleError
 from wallet_rpc import WalletRPCError
 from swap_engine import (
@@ -32,7 +34,7 @@ from config import (
     SWAP_MAX_AMOUNT,
 )
 
-logger = logging.getLogger(__name__)
+logger = StructuredLogger(__name__)
 
 app = Flask(__name__)
 
@@ -76,6 +78,24 @@ def json_error(message: str, status_code: int, error_code: str = None):
 def json_success(data):
     response = {"success": True, "data": data}
     return jsonify(response)
+
+
+def sanitize_error_message(error: Exception, default_message: str) -> str:
+    error_msg = str(error)
+    if not error_msg or len(error_msg) > 100:
+        return default_message
+    safe_patterns = [
+        "invalid",
+        "missing",
+        "required",
+        "cannot",
+        "must be",
+        "failed",
+        "error",
+    ]
+    if any(p in error_msg.lower() for p in safe_patterns):
+        return error_msg[:100]
+    return default_message
 
 
 def _parse_basic_auth(header_value: str):
@@ -184,9 +204,13 @@ def create_quote():
         quote = swap_engine.create_swap_quote(from_coin, to_coin, amount)
         return json_success(quote)
     except (InvalidAmountError, UnsupportedPairError) as e:
-        return json_error(str(e), 400, "VALIDATION_ERROR")
+        return json_error(
+            sanitize_error_message(e, "Validation failed"), 400, "VALIDATION_ERROR"
+        )
     except PriceOracleError as e:
-        return json_error(str(e), 503, "PRICE_UNAVAILABLE")
+        return json_error(
+            sanitize_error_message(e, "Price unavailable"), 503, "PRICE_UNAVAILABLE"
+        )
 
 
 @app.route("/api/v1/swap", methods=["POST"])
@@ -219,13 +243,25 @@ def create_swap():
         swap = swap_engine.create_swap(from_coin, to_coin, amount, user_address)
         return json_success(swap)
     except LiquidityHoldError as e:
-        return json_error(str(e), 503, "LIQUIDITY_DELAY")
+        return json_error(
+            sanitize_error_message(e, "Swap temporarily unavailable"),
+            503,
+            "LIQUIDITY_DELAY",
+        )
     except (InvalidAmountError, UnsupportedPairError) as e:
-        return json_error(str(e), 400, "VALIDATION_ERROR")
+        return json_error(
+            sanitize_error_message(e, "Validation failed"), 400, "VALIDATION_ERROR"
+        )
     except PriceOracleError as e:
-        return json_error(str(e), 503, "PRICE_UNAVAILABLE")
+        return json_error(
+            sanitize_error_message(e, "Price unavailable"), 503, "PRICE_UNAVAILABLE"
+        )
     except WalletRPCError as e:
-        return json_error(str(e), 503, "WALLET_ERROR")
+        return json_error(
+            sanitize_error_message(e, "Service temporarily unavailable"),
+            503,
+            "WALLET_ERROR",
+        )
 
 
 @app.route("/api/v1/swap/<swap_id>", methods=["GET"])
@@ -251,7 +287,9 @@ def confirm_deposit(swap_id: str):
         swap = swap_engine.confirm_deposit(swap_id, deposit_txid)
         return json_success(swap)
     except SwapError as e:
-        return json_error(str(e), 400, "SWAP_ERROR")
+        return json_error(
+            sanitize_error_message(e, "Swap operation failed"), 400, "SWAP_ERROR"
+        )
 
 
 @app.route("/api/v1/swap/<swap_id>/cancel", methods=["POST"])
@@ -260,7 +298,9 @@ def cancel_swap(swap_id: str):
         swap = swap_engine.cancel_swap(swap_id)
         return json_success(swap)
     except SwapError as e:
-        return json_error(str(e), 400, "SWAP_ERROR")
+        return json_error(
+            sanitize_error_message(e, "Swap operation failed"), 400, "SWAP_ERROR"
+        )
 
 
 @app.route("/api/v1/balance", methods=["GET"])
@@ -270,7 +310,9 @@ def get_balances():
         oxg_balance = swap_engine.get_balance("OXG")
         return json_success({"OXC": oxc_balance, "OXG": oxg_balance})
     except (WalletRPCError, UnsupportedPairError) as e:
-        return json_error(str(e), 500, "WALLET_ERROR")
+        return json_error(
+            sanitize_error_message(e, "Service unavailable"), 500, "WALLET_ERROR"
+        )
 
 
 @app.route("/api/v1/deposit/<coin>", methods=["GET"])
@@ -278,13 +320,15 @@ def get_deposit_address(coin: str):
     coin = coin.upper()
 
     if coin not in SUPPORTED_COINS:
-        return json_error(f"Unsupported coin: {coin}", 400, "INVALID_COIN")
+        return json_error("Invalid coin", 400, "INVALID_COIN")
 
     try:
         address = swap_engine.get_deposit_address(coin)
         return json_success({"coin": coin, "address": address})
     except (WalletRPCError, UnsupportedPairError) as e:
-        return json_error(str(e), 500, "WALLET_ERROR")
+        return json_error(
+            sanitize_error_message(e, "Service unavailable"), 500, "WALLET_ERROR"
+        )
 
 
 @app.route("/api/v1/swaps", methods=["GET"])
@@ -386,12 +430,14 @@ def admin_rotate_wallet():
         purpose,
         lambda w=wallet, c=coin, p=purpose: w.get_labeled_address(f"{p}-{c.lower()}"),
     )
+    ip_address = getattr(g, "admin_ip", None)
     if not address:
         admin_service.log_wallet_action(
             action_type="rotate_failed",
             coin=coin,
             purpose=purpose,
             performed_by=g.admin_username,
+            ip_address=ip_address,
             details="Failed to generate new address",
         )
         return json_error("Failed to rotate wallet", 500)
@@ -401,6 +447,8 @@ def admin_rotate_wallet():
         purpose=purpose,
         address=address,
         performed_by=g.admin_username,
+        ip_address=ip_address,
+        details=f"New address generated for {purpose} wallet",
     )
     return json_success({"coin": coin, "purpose": purpose, "address": address})
 
@@ -429,6 +477,7 @@ def admin_withdraw():
 
     wallet = swap_engine.oxc_wallet if coin == "OXC" else swap_engine.oxg_wallet
     txid = None
+    ip_address = getattr(g, "admin_ip", None)
     try:
         txid = wallet.send(to_address, amount)
     except WalletRPCError as e:
@@ -439,9 +488,10 @@ def admin_withdraw():
             amount=amount,
             address=to_address,
             performed_by=g.admin_username,
-            details=str(e),
+            ip_address=ip_address,
+            details="Wallet RPC error during withdrawal",
         )
-        return json_error(f"Withdraw failed: {e}", 500, "WITHDRAW_ERROR")
+        return json_error("Withdraw failed", 500, "WITHDRAW_ERROR")
 
     admin_service.log_wallet_action(
         action_type="withdraw",
@@ -451,6 +501,8 @@ def admin_withdraw():
         address=to_address,
         txid=txid,
         performed_by=g.admin_username,
+        ip_address=ip_address,
+        details=f"Withdrew {amount} {coin} to external address",
     )
 
     return json_success(
@@ -712,7 +764,7 @@ def admin_get_audit_log():
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    logger.exception(f"Unhandled exception: {e}")
+    logger.exception("Unhandled exception", error=str(e))
     return json_error("Internal server error", 500, "INTERNAL_ERROR")
 
 
