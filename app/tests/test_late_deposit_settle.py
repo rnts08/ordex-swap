@@ -102,7 +102,9 @@ class TestLateDepositSettle(unittest.TestCase):
         finally:
             swap_engine.TESTING_MODE = original_testing_mode
         
-        self.assertEqual(settled["status"], "completed")
+        # Late deposits are settled with RECONCILED status, not COMPLETED
+        self.assertEqual(settled["status"], "reconciled")
+        self.assertEqual(settled["reconciled_by"], "admin")
         self.assertEqual(settled["net_amount"], 1.98)
         self.oxg_wallet.send.assert_called_with(user_addr, 1.98)
 
