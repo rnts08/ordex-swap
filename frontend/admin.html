@@ -256,40 +256,18 @@
       </div>
 
       <div class="card p-3 mb-4 border-warning" id="reconciliation">
-        <div class="d-flex justify-content-between align-items-center">
-          <h2 class="h5 mb-0 fw-bold text-warning">Full Audit Reconciliation</h2>
-          <div class="d-flex gap-2">
-            <input class="form-control form-control-sm" id="recon-count" type="number" value="1000" style="width: 80px;" />
-            <button class="btn btn-warning btn-sm" id="run-reconcile-btn">Run Deep Audit</button>
+        <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 text-white">Full Reconciliation</h5>
+          <div class="d-flex gap-2 align-items-center">
+            <span class="small muted">Count:</span>
+            <input type="number" id="reconcile-count" class="form-control form-control-sm bg-secondary text-white border-0" value="100" style="width: 80px;">
+            <button id="run-reconcile-btn" class="btn btn-sm btn-primary">Start Deep Audit</button>
           </div>
         </div>
-        <p class="muted small mt-2">Deep-scans the wallet history and compares every transaction against recorded swaps to find missing or mismatched funds.</p>
         
         <div id="reconciliation-results" class="d-none mt-3">
-          <div class="row g-2 mb-3">
-            <div class="col-md-3">
-              <div class="card bg-black p-2 border-secondary">
-                <div class="small muted">Scanned Count</div>
-                <div class="h6 mb-0 text-white" id="recon-scanned">0</div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="card bg-black p-2 border-danger">
-                <div class="small text-danger">Unaccounted</div>
-                <div class="h6 mb-0 text-white" id="recon-unaccounted">0</div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="card bg-black p-2 border-warning">
-                <div class="small text-warning">Mismatched</div>
-                <div class="h6 mb-0 text-white" id="recon-mismatched">0</div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="row g-2 mb-3" id="recon-coin-stats"></div>
-
-          <div id="recon-tables-container"></div>
+          <div id="reconcile-summary"></div>
+          <div id="reconcile-tables"></div>
         </div>
         <div class="small mt-2 muted" id="reconcile-message"></div>
       </div>
@@ -748,11 +726,182 @@
       }
     });
 
+    document.getElementById('run-reconcile-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('run-reconcile-btn');
+      const count = document.getElementById('reconcile-count').value || 100;
+      const msg = document.getElementById('reconcile-message');
+      const results = document.getElementById('reconciliation-results');
+      
+      btn.disabled = true;
+      msg.textContent = 'Performing deep audit scan...';
+      results.classList.add('d-none');
+
+      try {
+        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/audit/reconcile?count=${count}`, { method: 'POST' });
+        if (!resp.ok) throw new Error('Reconciliation failed');
+        const data = await resp.json();
+        
+        btn.disabled = false;
+        msg.textContent = `Deep audit complete. Scanned ${data.data.scanned_count} items.`;
+        results.classList.remove('d-none');
+        renderReconciliationResults(data.data);
+      } catch (err) {
+        btn.disabled = false;
+        msg.textContent = 'Error: ' + err.message;
+      }
+    });
+
+    function renderReconciliationResults(r) {
+        const stats = document.getElementById('reconcile-summary');
+        stats.innerHTML = `
+            <div class="row text-center mb-3">
+                <div class="col"><div class="small muted">Matched Swaps</div><div class="h5 mb-0">${r.matched_swaps_count}</div></div>
+                <div class="col text-danger"><div class="small muted">Unaccounted Tx</div><div class="h5 mb-0">${r.unaccounted_deposits.length + r.unaccounted_withdrawals.length}</div></div>
+                <div class="col text-warning"><div class="small muted">Mismatched</div><div class="h5 mb-0">${r.mismatched_amounts.length}</div></div>
+                <div class="col text-info"><div class="small muted">Late</div><div class="h5 mb-0">${r.late_deposits.length}</div></div>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <div class="p-2 border border-secondary rounded">
+                  <div class="small muted">OXC Balance Check</div>
+                  <div class="small">In: <span class="text-success">${r.coin_stats.OXC.total_received.toFixed(4)}</span> | Out: ${r.coin_stats.OXC.total_sent.toFixed(4)}</div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="p-2 border border-secondary rounded">
+                  <div class="small muted">OXG Balance Check</div>
+                  <div class="small">In: <span class="text-success">${r.coin_stats.OXG.total_received.toFixed(4)}</span> | Out: ${r.coin_stats.OXG.total_sent.toFixed(4)}</div>
+                </div>
+              </div>
+            </div>
+        `;
+
+        let tablesHtml = '';
+        
+        // 1. Unaccounted Deposits (Inbound)
+        if (r.unaccounted_deposits.length > 0) {
+            tablesHtml += `
+                <h6 class="text-danger mt-3 fw-bold small">UNACCOUNTED INCOMING</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm">
+                        <thead><tr><th>Coin</th><th>Amount</th><th>TXID/Addr</th><th>Actions</th></tr></thead>
+                        <tbody>${r.unaccounted_deposits.map(t => `
+                            <tr>
+                                <td>${t.coin}</td>
+                                <td>${t.amount.toFixed(8)}</td>
+                                <td class="mono small">${t.txid}<br><span class="muted">${t.address}</span></td>
+                                <td>
+                                  <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">Ack</button>
+                                  <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.amount})">Settle</button>
+                                  <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.amount})">Refund</button>
+                                </td>
+                            </tr>
+                        `).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // 2. Unaccounted Withdrawals (Outbound)
+        if (r.unaccounted_withdrawals.length > 0) {
+            tablesHtml += `
+                <h6 class="text-danger mt-3 fw-bold small">UNACCOUNTED OUTGOING (MANUAL ACTION)</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm">
+                        <thead><tr><th>Coin</th><th>Amount</th><th>TXID/Addr</th><th>Actions</th></tr></thead>
+                        <tbody>${r.unaccounted_withdrawals.map(t => `
+                            <tr>
+                                <td>${t.coin}</td>
+                                <td class="text-danger">${t.amount.toFixed(8)}</td>
+                                <td class="mono small">${t.txid}<br><span class="muted">${t.address}</span></td>
+                                <td>
+                                  <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">Ack Movement</button>
+                                </td>
+                            </tr>
+                        `).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // 3. Late Deposits
+        if (r.late_deposits.length > 0) {
+            tablesHtml += `
+                <h6 class="text-info mt-3 fw-bold small">LATE DEPOSITS (EXPIRED SWAPS)</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm">
+                        <thead><tr><th>Coin</th><th>Amount</th><th>Swap ID</th><th>Actions</th></tr></thead>
+                        <tbody>${r.late_deposits.map(t => `
+                            <tr>
+                                <td>${t.coin}</td>
+                                <td>${t.amount.toFixed(8)}</td>
+                                <td class="small">${t.swap_id}<br><span class="badge bg-secondary">${t.status}</span></td>
+                                <td>
+                                  <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.amount}, '${t.swap_id}')">Settle</button>
+                                  <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">To Liq</button>
+                                  <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.amount})">Refund</button>
+                                </td>
+                            </tr>
+                        `).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // 4. Mismatched Amounts
+        if (r.mismatched_amounts.length > 0) {
+            tablesHtml += `
+                <h6 class="text-warning mt-3 fw-bold small">MISMATCHED DISCREPANCIES</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm">
+                        <thead><tr><th>Coin</th><th>Diff</th><th>Swap ID</th><th>Actions</th></tr></thead>
+                        <tbody>${r.mismatched_amounts.map(t => {
+                            const isSurplus = t.type === 'SURPLUS';
+                            const diff = (t.actual - t.expected).toFixed(8);
+                            return `
+                            <tr>
+                                <td>${t.coin}</td>
+                                <td class="${isSurplus ? 'text-success' : 'text-danger'}">${isSurplus ? '+' : ''}${diff}</td>
+                                <td class="small">${t.swap_id}<br><span class="muted">Exp: ${t.expected} / Act: ${t.actual}</span></td>
+                                <td>
+                                  ${isSurplus ? `<button class="btn btn-sm btn-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.actual}, '${t.swap_id}')">Settle All</button>` : ''}
+                                  <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.actual})">To Liq</button>
+                                  <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.actual})">Refund</button>
+                                </td>
+                            </tr>
+                        `}).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        if (r.acknowledged_deposits && r.acknowledged_deposits.length > 0) {
+            tablesHtml += `
+                <h6 class="text-muted mt-3 fw-bold small">HANDLED / ADMIN MOVEMENTS</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm">
+                        <thead><tr><th>Type</th><th>Coin</th><th>Amount</th><th>Category</th></tr></thead>
+                        <tbody>${r.acknowledged_deposits.map(t => `
+                            <tr>
+                                <td class="small">${t.tx_type === 'send' ? 'OUT' : 'IN'}</td>
+                                <td>${t.coin}</td>
+                                <td>${t.amount.toFixed(8)}</td>
+                                <td><span class="badge ${t.category === 'ADMIN_WALLET' ? 'bg-info' : 'bg-secondary'}">${t.category} ${t.purpose ? '('+t.purpose+')' : ''}</span></td>
+                            </tr>
+                        `).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        document.getElementById('reconcile-tables').innerHTML = tablesHtml || '<div class="muted small p-4 text-center">All transactions accounted for!</div>';
+    }
+
     let currentActionData = null;
     const actionModal = new bootstrap.Modal(document.getElementById('actionModal'));
 
-    function openActionModal(type, txid, coin, amount) {
-      currentActionData = { type, txid, coin, amount };
+    function openActionModal(type, txid, coin, amount, swap_id = null) {
+      currentActionData = { type, txid, coin, amount, swap_id };
       
       document.getElementById('actionModalTitle').textContent = type.toUpperCase() + ' Transaction';
       document.getElementById('action-display-type').value = type;
@@ -778,7 +927,7 @@
     document.getElementById('confirm-action-btn').addEventListener('click', async () => {
       if (!currentActionData) return;
       
-      const { type, txid, coin, amount } = currentActionData;
+      const { type, txid, coin, amount, swap_id } = currentActionData;
       const address = document.getElementById('action-target-address').value.trim();
       const details = document.getElementById('action-details').value.trim();
       
@@ -796,7 +945,7 @@
         const resp = await fetchWithAuth(API_BASE + endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ txid, coin, amount, address, details })
+          body: JSON.stringify({ txid, coin, amount, address, details, swap_id })
         });
         
         if (!resp.ok) {
@@ -806,13 +955,8 @@
 
         alert('Transaction processed successfully.');
         actionModal.hide();
-        // Refresh whatever is visible
-        if (!document.getElementById('unaccounted-container').classList.contains('d-none')) {
-          document.getElementById('scan-transactions-btn').click();
-        }
-        if (!document.getElementById('reconciliation-results').classList.contains('d-none')) {
-          document.getElementById('run-reconcile-btn').click();
-        }
+        // Refresh reconciliation results
+        document.getElementById('run-reconcile-btn').click();
       } catch (err) {
         alert(err.message);
       } finally {

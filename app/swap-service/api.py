@@ -478,7 +478,7 @@ def admin_reconcile_audit():
     if not swap_engine:
         return json_error("Swap engine not available", 500)
     
-    count = request.args.get("count", 1000, type=int)
+    count = request.args.get("count", 100, type=int)
     try:
         results = swap_engine.reconcile_full_history(count=count)
         admin_service.log_audit(
@@ -544,6 +544,7 @@ def admin_settle_orphaned():
     coin = data.get("coin")
     amount = data.get("amount")
     user_address = data.get("address")
+    swap_id = data.get("swap_id")
 
     if not all([txid, coin, amount, user_address]):
         return json_error("Missing required fields (txid, coin, amount, address)", 400)
@@ -555,7 +556,8 @@ def admin_settle_orphaned():
             coin=coin,
             amount=amount,
             user_address=user_address,
-            username=g.admin_username
+            username=g.admin_username,
+            swap_id=swap_id
         )
         
         admin_service.log_audit(

@@ -14,7 +14,7 @@
 
 ### High Priority
 
-1. **Notifications System**
+**Notifications System**
    - Email/push notifications for:
      - Large swaps
      - Delayed swaps
@@ -22,141 +22,107 @@
      - Service issues
 
 
-3. **API Authentication for Public Endpoints**
+**API Authentication for Public Endpoints**
    - Optional API key for rate limiting per user
 
 ### Medium Priority
 
-4. **Historical Price Data Export**
+**Historical Price Data Export**
    - Export price history as CSV/JSON
 
-5. **Multi-language Support**
+**Multi-language Support**
    - Frontend only supports English
    - Add i18n framework
 
-6. **Dashboard Charts**
+**Dashboard Charts**
    - Better visualization of swap volume, fees collected
    - Price charts with more timeframe options
 
-7. **User Transaction History**
+**User Transaction History**
    - Allow users to track their own swaps by email/address
 
-8. **Webhook Notifications**
+**Webhook Notifications**
    - Webhook for swap status changes
 
 ### Lower Priority
 
-9. **Referral System**
+**Referral System**
    - Track referrals, reward users
 
-10. **Mobile App**
+**Mobile App**
     - React Native / Flutter app
 
-11. **Hardware Wallet Support**
+**Hardware Wallet Support**
     - Integration with hardware wallets for signing
 
-12. **Slippage Protection**
+**Slippage Protection**
     - Configurable slippage tolerance (currently 2% hardcoded)
 
-13. **Circuit Breaker**
+**Circuit Breaker**
     - Pause swaps automatically if something goes wrong
 
 ---
 
 ## Infrastructure & Operations
 
-1. **Health Check Enhancement**
+**Health Check Enhancement**
    - Include more metrics in health check (wallet connectivity, database, etc.)
 
-2. **Metrics & Monitoring**
+**Metrics & Monitoring**
    - Add Prometheus metrics
    - Integration with Grafana
 
-3. **Log Aggregation**
+**Log Aggregation**
    - Centralized logging (ELK stack or similar)
 
-4. **Container Health Checks**
+**Container Health Checks**
    - Improve Docker healthcheck beyond `/health`
 
-5. **Automated Testing in CI/CD**
+**Automated Testing in CI/CD**
    - Add GitHub Actions or similar for automated tests
 
 ---
 
 ## Data & Storage
 
-1. **Database Indexing**
+**Database Indexing**
    - Add indexes on frequently queried columns (swap_id, status, created_at)
 
-2. **Data Retention Policy**
+**Data Retention Policy**
    - Auto-delete old swap records after X days
    - Configurable retention period
 
-3. **Price History Cleanup**
+**Price History Cleanup**
    - Auto-cleanup old price history (currently keeps 1000 entries)
 
-4. **Database Backup Encryption**
+**Database Backup Encryption**
    - Encrypt backup files with a key
 
 ---
 
 ## Frontend Improvements
 
-1. **Loading States**
+**Loading States**
    - Better loading indicators
 
-2. **Mobile Responsiveness**
+**Mobile Responsiveness**
    - Improve mobile layout
 
-3. **PWA Support**
+**PWA Support**
    - Make installable, offline-capable
 
-4. **Theme Support**
+**Theme Support**
    - Dark/light mode toggle
 
 ---
 
 ## Testing
 
-1. **More Unit Test Coverage**
+**More Unit Test Coverage**
    - Target 80%+ coverage
 
-2. **Load Testing**
+**Load Testing**
    - Stress test with tools like k6
 
-3. **Security Testing**
+**Security Testing**
    - Add security-focused test suite
-
----
-
----
-
-## Recently Completed
-
-1. **Transaction Auditing System**
-   - Added `swap_audit_log` to track all status transitions.
-   - Every swap now has a full trace of its state history.
-
-2. **Full Blockchain Reconciliation**
-   - Implemented `reconcile_full_history` to scan wallet history against database.
-   - Detects missing deposits and amount mismatches.
-
-3. **User Transaction Search**
-   - Added `/api/v1/swaps/search` to find swaps by address.
-
-4. **Fixed Late Deposit Bugs**
-   - Resolved `KeyError` and logic issues in late deposit settlement.
-   - Improved robustness of recalculation logic.
-
----
-
-## Quick Wins (Low Effort)
-
-| Issue | Location | Status | Fix |
-|-------|----------|--------|-----|
-| Failing tests | `test_late_deposit_settle.py` | FIXED | Resolved KeyErrors |
-| Audit trail | `swap_engine.py` | DONE | Added `swap_audit_log` |
-| Magic number 15 | `swap_engine.py` | DONE | Using config value |
-| Hardcoded ports | `daemon_manager.py` | TODO | Make configurable |
-
-(End of file - total 135 lines)

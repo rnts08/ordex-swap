@@ -478,17 +478,31 @@ class SwapEngine:
 
     def reconcile_full_history(self, count: int = 1000) -> Dict[str, Any]:
         """
-        Deep-scans the wallet transaction history and compares it against recorded swaps.
-        Identifies missing deposits, mismatched amounts, or unaccounted funds.
-        Excludes known liquidity topups and acknowledged transactions.
+        - [x] Data Layer: Refactor `reconcile_full_history` to include `send` movements
+        - [x] Data Layer: Enhance `reconcile_full_history` with LATE/MISMATCHED categorization
+        - [x] Logic: Implement `settle_mismatched` in `SwapEngine`
+        - [/] API: Update `/api/v1/admin/audit/reconcile` and add reaction endpoints
+        - [ ] UI: Update `admin.html` with unified Audit & Activity report
+        - [ ] UI: Add targeted action buttons (Roll to Liquidity, Refund Mismatched)
+        - [ ] Script: Create `tools/audit_checksum.py` for parity checks
+        - [ ] Verification: Test full parity scan and manual discrepancy resolution
+        Deep-scans the wallet transaction history (incoming and outgoing) 
+        and compares it against recorded swaps and administrative actions.
+        Identifies missing deposits, mismatched amounts, late arrivals, 
+        and unaccounted manual withdrawals.
         """
         results = {
             "scanned_count": 0,
-            "missing_swaps": [],
-            "mismatched_amounts": [],
-            "unaccounted_deposits": [],
-            "acknowledged_deposits": [],
-            "coin_stats": {"OXC": {"total_received": 0.0}, "OXG": {"total_received": 0.0}}
+            "unaccounted_deposits": [],    # Incoming that don't match anything
+            "unaccounted_withdrawals": [], # Outgoing that don't match anything
+            "mismatched_amounts": [],      # Amount != swap quote
+            "late_deposits": [],           # Successive deposit for expired/cancelled swap
+            "acknowledged_deposits": [],   # Acknowledged/Liquidity/Handled
+            "matched_swaps_count": 0,
+            "coin_stats": {
+                "OXC": {"total_received": 0.0, "total_sent": 0.0},
+                "OXG": {"total_received": 0.0, "total_sent": 0.0}
+            }
         }
 
         # Fetch admin-controlled addresses
@@ -500,73 +514,98 @@ class SwapEngine:
                 if addr:
                     admin_addrs[addr] = (c, purpose)
 
-        for coin in ["OXC", "OXG"]:
+        for coin in SUPPORTED_COINS:
             wallet = self.oxc_wallet if coin == "OXC" else self.oxg_wallet
             try:
+                # Get history from RPC
                 txs = wallet.rpc.list_transactions(count=count)
                 results["scanned_count"] += len(txs)
                 
                 for tx in txs:
-                    if tx.get("category") != "receive":
-                        continue
-                    
                     txid = tx.get("txid")
+                    category = tx.get("category")
                     address = tx.get("address")
-                    amount = float(tx.get("amount", 0))
+                    amount = abs(float(tx.get("amount", 0)))
                     
-                    results["coin_stats"][coin]["total_received"] += amount
-                    
-                    # 1. Is it an admin address (Liquidity/Fees)?
+                    if category == "receive":
+                        results["coin_stats"][coin]["total_received"] += amount
+                    elif category == "send":
+                        results["coin_stats"][coin]["total_sent"] += amount
+                    else: continue # Skip 'move', etc. if not relevant
+
+                    # 1. Check Acknowledged Transactions (Incoming and Outgoing)
+                    if self.admin and self.admin.is_transaction_acknowledged(txid):
+                        results["acknowledged_deposits"].append({
+                            "txid": txid, "address": address, "amount": amount,
+                            "coin": coin, "category": "ACKNOWLEDGED", "tx_type": category
+                        })
+                        continue
+
+                    # 2. Check Admin Portfolios (Liquidity/Fees)
                     if address in admin_addrs:
                         c, purpose = admin_addrs[address]
                         results["acknowledged_deposits"].append({
-                            "txid": txid,
-                            "address": address,
-                            "amount": amount,
-                            "coin": coin,
-                            "category": "LIQUIDITY_TOPUP",
-                            "purpose": purpose
+                            "txid": txid, "address": address, "amount": amount,
+                            "coin": coin, "category": "ADMIN_WALLET", "purpose": purpose, "tx_type": category
                         })
                         continue
 
-                    # 2. Is it in the acknowledged_transactions table?
-                    if self.admin and self.admin.is_transaction_acknowledged(txid):
-                        results["acknowledged_deposits"].append({
-                            "txid": txid,
-                            "address": address,
-                            "amount": amount,
-                            "coin": coin,
-                            "category": "ACKNOWLEDGED"
-                        })
-                        continue
-
-                    # 3. Search for swap by address or txid
-                    swap = self.history.get_swap_by_address(address)
-                    if not swap:
-                        # Search by txid just in case
-                        swaps_by_tx = self.history.search_swaps(txid, field="deposit_txid")
-                        if swaps_by_tx:
-                            swap = swaps_by_tx[0]
-                    
-                    if not swap:
-                        results["unaccounted_deposits"].append({
-                            "txid": txid,
-                            "address": address,
-                            "amount": amount,
-                            "coin": coin,
-                            "reason": "No swap found for this address/txid"
-                        })
-                        continue
+                    # 3. Match against Swaps
+                    if category == "receive":
+                        # Match by address or txid
+                        swap = self.history.get_swap_by_address(address)
+                        if not swap:
+                            swaps_by_tx = self.history.search_swaps(txid, field="deposit_txid")
+                            if swaps_by_tx: swap = swaps_by_tx[0]
                         
-                    # Check amount
-                    expected_amount = float(swap.get("from_amount", 0))
-                    if abs(amount - expected_amount) > 1e-8:
-                        results["mismatched_amounts"].append({
-                            "swap_id": swap.get("swap_id"),
-                            "txid": txid,
-                            "expected": expected_amount,
-                            "actual": amount,
-                            "coin": coin
+                        if swap:
+                            results["matched_swaps_count"] += 1
+                            status = swap.get("status")
+                            expected = float(swap.get("from_amount", 0))
+                            
+                            # Check for Late Deposit (Swap is already terminal)
+                            if status in [SwapStatus.EXPIRED.value, SwapStatus.CANCELLED.value, SwapStatus.TIMED_OUT.value]:
+                                results["late_deposits"].append({
+                                    "swap_id": swap.get("swap_id"), "txid": txid, "address": address, 
+                                    "amount": amount, "coin": coin, "status": status
+                                })
+                            # Check for Mismatched Amount
+                            elif abs(amount - expected) > 1e-8:
+                                type = "SURPLUS" if amount > expected else "INSUFFICIENT"
+                                results["mismatched_amounts"].append({
+                                    "swap_id": swap.get("swap_id"), "txid": txid, "expected": expected,
+                                    "actual": amount, "coin": coin, "type": type
+                                })
+                            continue
+                        else:
+                            # Totally Unaccounted Inbound
+                            results["unaccounted_deposits"].append({
+                                "txid": txid, "address": address, "amount": amount, "coin": coin,
+                                "reason": "No swap found for this address/txid"
+                            })
+
+                    elif category == "send":
+                        # Match against withdrawal_txid in swaps
+                        swaps_by_withdrawal = self.history.search_swaps(txid, field="withdrawal_txid")
+                        if swaps_by_withdrawal:
+                            results["matched_swaps_count"] += 1
+                            continue
+                        
+                        # Match against wallet_actions (Admin movements)
+                        # We need to query wallet_actions table in AdminService
+                        is_logged_action = False
+                        if self.admin:
+                            actions = self.admin.get_wallet_actions(limit=50) # Recent actions
+                            if any(a.get("txid") == txid for a in actions):
+                                is_logged_action = True
+                        
+                        if is_logged_action:
+                            continue
+                        
+                        # Totally Unaccounted Outbound (Manual/Out-of-band)
+                        results["unaccounted_withdrawals"].append({
+                            "txid": txid, "address": address, "amount": amount, "coin": coin,
+                            "reason": "Manual withdrawal not recorded in system"
                         })
                         
             except Exception as e:
@@ -575,11 +614,12 @@ class SwapEngine:
         return results
 
     def settle_orphaned_transaction(
-        self, txid: str, coin: str, amount: float, user_address: str, username: str
+        self, txid: str, coin: str, amount: float, user_address: str, username: str, swap_id: str = None
     ) -> Dict[str, Any]:
         """
-        Manually settle an orphaned transaction to a user address.
+        Manually settle an orphaned or late transaction to a user address.
         Applies standard fees and performs the withdrawal.
+        If swap_id is provided, it marks that swap as completed.
         """
         if not self.admin:
             raise SwapError("Admin service not available for settlement")
@@ -587,35 +627,54 @@ class SwapEngine:
         if self.admin.is_transaction_acknowledged(txid):
             raise SwapError(f"Transaction {txid} has already been acknowledged/processed")
 
-        # Calculate conversion (simulated swap for fee calculation)
-        # We assume the user wants the "other" coin, or just a settlement of the same? 
-        # Usually settlement means fulfilling the intended swap. 
-        # For simplicity, we'll ask for the target coin in the future, 
-        # but for now let's assume they want the base conversion if they didn't specify.
-        # However, the user request says "settle to the user (minus fees etc)".
+        # Check for strict policy: Insufficient deposits cannot be settled.
+        if swap_id:
+            swap = self.history.get_swap(swap_id)
+            if swap:
+                expected = float(swap.get("from_amount", 0))
+                if amount < expected - 1e-8:
+                    raise SwapError("Strict Policy: Insufficient deposits cannot be settled. Please Refund or Roll to Liquidity.")
+
+        # Determine target coin
+        target_coin = None
+        if swap_id:
+            swap = self.history.get_swap(swap_id)
+            if swap:
+                target_coin = swap.get("to_coin")
         
-        # Let's assume for now they want to settle the SAME coin or a flip.
-        # Actually, let's just do a direct send of the same coin minus a processing fee.
-        # Or better, let's treat it as a manual swap.
-        
-        target_coin = "OXG" if coin == "OXC" else "OXC"
+        if not target_coin:
+            target_coin = "OXG" if coin == "OXC" else "OXC"
+
+        # Calculate conversion
         conversion, _, _ = self._calculate_conversion(coin, target_coin, amount)
-        
         net_amount = conversion["net_amount"]
+        
         if net_amount <= 0:
             raise InvalidAmountError(f"Amount {amount} too small after fees")
 
         # Perform withdrawal
         wallet = self.oxc_wallet if target_coin == "OXC" else self.oxg_wallet
-        
         if TESTING_MODE:
             settle_txid = f"tx_manual_settle_{txid[:8]}"
         else:
             settle_txid = wallet.send(user_address, net_amount)
 
+        # Update swap if exists
+        if swap_id:
+            self.history.update_swap(swap_id, {
+                "status": SwapStatus.COMPLETED.value,
+                "withdrawal_txid": settle_txid,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "actual_from_amount": amount,
+                "actual_to_amount": conversion["to_amount"],
+                "actual_fee_amount": conversion["fee_amount"],
+                "actual_net_amount": net_amount
+            })
+
         # Acknowledge in DB
         details = {
             "source_txid": txid,
+            "swap_id": swap_id,
             "target_address": user_address,
             "target_coin": target_coin,
             "net_amount": net_amount,
@@ -623,20 +682,11 @@ class SwapEngine:
             "type": "manual_settlement"
         }
         self.admin.acknowledge_transaction(
-            txid=txid,
-            coin=coin,
-            amount=amount,
-            action="settled",
-            performed_by=username,
-            address=user_address,
-            details=json.dumps(details)
+            txid=txid, coin=coin, amount=amount, action="settled",
+            performed_by=username, address=user_address, details=json.dumps(details)
         )
 
-        return {
-            "txid": settle_txid,
-            "net_amount": net_amount,
-            "target_coin": target_coin
-        }
+        return {"txid": settle_txid, "net_amount": net_amount, "target_coin": target_coin}
 
     def refund_orphaned_transaction(
         self, txid: str, coin: str, amount: float, target_address: str, username: str
