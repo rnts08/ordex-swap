@@ -1,19 +1,43 @@
 # OrdexSwap Release Roadmap
 
-**Last Updated**: March 31, 2026  
-**Current Status**: v0.9.0-dev (9 uncommitted files ready for pre-release staging)  
+**Last Updated**: March 31, 2026 (Ongoing Development Session)  
+**Current Status**: v0.9.0-dev → v0.9.0-rc1 (In Progress)  
 **Target**: v1.0.0 GA with security hardening & CI/CD
+
+---
+
+## Recent Work Completed (This Session)
+
+✅ **Test Suite Expansion**
+- Fixed: `test_recalculates_late_deposit_on_settle` (expects RECONCILED status for late deposits)
+- Added: 18 comprehensive security tests (test_security.py)
+- Security coverage: Input validation, error handling, auth, rate limiting, debug mode, credential masking
+- Test pass rate: **124 passed, 1 skipped** (up from 106)
+- Overall code coverage: **53%** (target: 75%+)
+
+✅ **Critical Issues Addressed**
+- ✓ Tests now match new RECONCILED swap status
+- ✓ Input validation working (rejects negative amounts, SQL injection, XSS)
+- ✓ Error handling verified (no file path leaks, generic 500 responses)
+- ✓ Rate limiting configured and working
+- ✓ Debug mode verified disabled
+
+🔄 **Next Steps (This Week)**
+- [ ] Expand API endpoint tests (api.py: 46% → 75%)
+- [ ] Create load testing script (k6)
+- [ ] Implement CSRF middleware + tests
+- [ ] Create SECURITY.md documentation
 
 ---
 
 ## Release Status Overview
 
-| Milestone | Status | Target Date | Blockers |
-|-----------|--------|-------------|----------|
-| **v0.9.0-rc1** | 🟡 Staging | Week of Apr 7 | Commit & security review |
-| **v1.0.0 GA** | 🔴 Blocked | Week of Apr 21 | CSRF fixes, CI/CD, security audit |
-| **v1.1.0** | 🟢 Planned | Week of May 19 | Features: notifications, webhooks, monitoring |
-| **v2.0.0** | 🟢 Future | Q3 2026 | Multi-coin, sidecar architecture, scaling |
+| Milestone | Status | Target Date | Progress | Blockers |
+|-----------|--------|-------------|----------|----------|
+| **v0.9.0-rc1** | 🟢 In Progress | Week of Apr 7 | 60% | Test expansion |
+| **v1.0.0 GA** | 🟡 Queued | Week of Apr 21 | 0% | Security fixes, docs |
+| **v1.1.0** | 🟢 Planned | Week of May 19 | 0% | Features: notifications, webhooks, monitoring |
+| **v2.0.0** | 🟢 Future | Q3 2026 | 0% | Multi-coin, sidecar architecture, scaling |
 
 ---
 
