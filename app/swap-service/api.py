@@ -361,6 +361,27 @@ def list_swaps():
     return json_success({"swaps": swaps[:limit], "count": len(swaps)})
 
 
+@app.route("/api/v1/swaps/search", methods=["GET"])
+@limiter.limit("60 per hour")
+def search_swaps():
+    address = request.args.get("address", "").strip()
+    if not address:
+        return json_error("Missing address parameter", 400, "MISSING_PARAMS")
+    
+    # Search in history
+    if not swap_history:
+        return json_error("History service unavailable", 503)
+    
+    # We search by address in the swap data
+    results = swap_history.search_swaps(address, field="user_address")
+    # Also search by deposit address
+    deposit_results = swap_history.search_swaps(address, field="deposit_address")
+    
+    # Combine and unique
+    combined = {s["swap_id"]: s for s in results + deposit_results}
+    return json_success({"swaps": list(combined.values()), "count": len(combined)})
+
+
 @app.route("/api/v1/swaps/stats", methods=["GET"])
 @limiter.limit("600 per hour")
 def get_swap_stats():
@@ -424,6 +445,10 @@ def admin_dashboard():
 @app.route("/api/v1/admin/swaps", methods=["GET"])
 @require_admin_auth
 def admin_swaps():
+    status = request.args.get("status")
+    limit = int(request.args.get("limit", 100))
+    # By default, admin sees all swaps including cancelled/timed_out/expired
+    include_inactive = status is None
     swaps = swap_engine.list_swaps(status, include_inactive=include_inactive)
     return json_success({"swaps": swaps[:limit], "count": len(swaps)})
 
@@ -447,6 +472,38 @@ def admin_scan_transactions():
         return json_error(str(e), 500)
 
 
+@app.route("/api/v1/admin/audit/reconcile", methods=["POST"])
+@require_admin_auth
+def admin_reconcile_audit():
+    if not swap_engine:
+        return json_error("Swap engine not available", 500)
+    
+    count = request.args.get("count", 1000, type=int)
+    try:
+        results = swap_engine.reconcile_full_history(count=count)
+        admin_service.log_audit(
+            g.admin_username, 
+            "full_reconciliation", 
+            "success", 
+            g.admin_ip, 
+            f"Scanned {results['scanned_count']} transactions"
+        )
+        return json_success(results)
+    except Exception as e:
+        logger.error(f"Reconciliation trigger failed: {e}")
+        return json_error(str(e), 500)
+
+
+@app.route("/api/v1/admin/swaps/<swap_id>/audit", methods=["GET"])
+@require_admin_auth
+def admin_get_swap_audit(swap_id):
+    if not admin_service:
+        return json_error("Admin service not available", 500)
+    
+    audit_trail = admin_service.get_swap_audit_log(swap_id)
+    return json_success({"swap_id": swap_id, "audit_trail": audit_trail})
+
+
 @app.route("/api/v1/admin/swaps/<swap_id>/action", methods=["POST"])
 @require_admin_auth
 def admin_action_swap(swap_id):
@@ -463,8 +520,12 @@ def admin_action_swap(swap_id):
         else:
             swap = swap_engine.cancel_swap(swap_id)
         return json_success({"swap": swap, "action": action})
-    except Exception as e:
+    except InvalidAmountError as e:
+        logger.warning(f"Invalid amount for swap {swap_id} action {action}: {e}")
         return json_error(str(e), 400)
+    except Exception as e:
+        logger.error(f"Failed to perform {action} on swap {swap_id}: {e}")
+        return json_error(str(e), 500)
 
 
 @app.route("/api/v1/admin/queues/process", methods=["POST"])

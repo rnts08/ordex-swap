@@ -1,35 +1,14 @@
 # Improvements, Features, and Security Analysis
 
+- admin info about swap.
+- multi selection about orphaned swaps
+
+
 ## Security Issues
 
-### Critical
-
-1. **RPC Credentials in Environment**
-   - RPC passwords passed as command-line arguments in `daemon_manager.py` (`-rpcpassword=`)
-   - Visible in process list
-   - **Fix**: Use config file or environment variables for RPC credentials
-
-### Medium
-
-4. **No CSRF Protection**
-   - Flask app doesn't have CSRF tokens
-   - **Fix**: Implement Flask-WTF CSRF protection
-
-### Low
-
-5. **Debug Mode Potential**
-   - No explicit check for debug mode in production
-   - **Fix**: Ensure debug=False in production config
-
----
-
-## Code Quality Issues
-
-1. **Error Handling Inconsistency**
-   - Some places catch broad `Exception`, others specific
-   - **Fix**: Standardize error handling
-
----
+**No CSRF Protection**
+**Debug Mode Potential**
+**Error Handling Inconsistency**
 
 ## Features to Consider
 
@@ -42,8 +21,6 @@
      - Wallet balance low
      - Service issues
 
-2. **Swap Expiry Configuration**
-   - Make swap expiry time configurable (currently hardcoded to 15 min)
 
 3. **API Authentication for Public Endpoints**
    - Optional API key for rate limiting per user
@@ -152,11 +129,34 @@
 
 ---
 
+---
+
+## Recently Completed
+
+1. **Transaction Auditing System**
+   - Added `swap_audit_log` to track all status transitions.
+   - Every swap now has a full trace of its state history.
+
+2. **Full Blockchain Reconciliation**
+   - Implemented `reconcile_full_history` to scan wallet history against database.
+   - Detects missing deposits and amount mismatches.
+
+3. **User Transaction Search**
+   - Added `/api/v1/swaps/search` to find swaps by address.
+
+4. **Fixed Late Deposit Bugs**
+   - Resolved `KeyError` and logic issues in late deposit settlement.
+   - Improved robustness of recalculation logic.
+
+---
+
 ## Quick Wins (Low Effort)
 
-| Issue | Location | Fix |
-|-------|----------|-----|
-| Magic number 15 | `swap_engine.py` | Move to config |
-| Hardcoded ports | `daemon_manager.py` | Make configurable |
+| Issue | Location | Status | Fix |
+|-------|----------|--------|-----|
+| Failing tests | `test_late_deposit_settle.py` | FIXED | Resolved KeyErrors |
+| Audit trail | `swap_engine.py` | DONE | Added `swap_audit_log` |
+| Magic number 15 | `swap_engine.py` | DONE | Using config value |
+| Hardcoded ports | `daemon_manager.py` | TODO | Make configurable |
 
 (End of file - total 135 lines)

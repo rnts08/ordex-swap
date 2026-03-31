@@ -5,7 +5,7 @@ import sqlite3
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from config import DATA_DIR, DB_PATH, DEFAULT_LIMIT
+from config import DATA_DIR, DB_PATH, DEFAULT_LIMIT, STAT_INCLUDED_STATUSES
 from db_pool import get_pool
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,28 @@ class SwapHistoryService:
 
         os.makedirs(self.data_dir, exist_ok=True)
         self._init_db()
+
+    def _log_audit(
+        self,
+        swap_id: str,
+        new_status: str,
+        old_status: str = None,
+        details: str = None,
+        performed_by: str = "system",
+    ) -> None:
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO swap_audit_log (swap_id, old_status, new_status, details, performed_by, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (swap_id, old_status, new_status, details, performed_by, now),
+                )
+        except sqlite3.Error as e:
+            # We don't want to crash the main flow if auditing fails, but we should log it
+            logger.error(f"Failed to log swap audit for {swap_id}: {e}")
 
     def _init_db(self) -> None:
         try:
@@ -75,6 +97,8 @@ class SwapHistoryService:
                     )
             except sqlite3.Error as e:
                 logger.error(f"Failed to add swap: {e}")
+            
+            self._log_audit(swap_id, "pending", details="Initial swap creation")
             logger.info(f"Added swap to history: {swap_id}")
 
     def update_swap(self, swap_id: str, updates: Dict[str, Any]) -> None:
@@ -110,6 +134,9 @@ class SwapHistoryService:
                 )
         except sqlite3.Error as e:
             logger.error(f"Failed to update swap: {e}")
+        
+        if existing.get("status") != status:
+            self._log_audit(swap_id, status, old_status=existing.get("status"), details="Swap status update")
 
     def complete_swap(self, swap_id: str) -> None:
         swap = self.get_swap(swap_id)
@@ -136,6 +163,8 @@ class SwapHistoryService:
             logger.info(f"Completed swap: {swap_id}")
         except sqlite3.Error as e:
             logger.error(f"Failed to complete swap: {e}")
+        
+        self._log_audit(swap_id, "completed", old_status=swap.get("status"), details="Swap settlement complete")
 
     def get_swap(self, swap_id: str) -> Optional[Dict[str, Any]]:
         try:
@@ -264,12 +293,21 @@ class SwapHistoryService:
             .replace(hour=0, minute=0, second=0, microsecond=0)
             .isoformat()
         )
+        statuses = STAT_INCLUDED_STATUSES
+        placeholders = ", ".join("?" for _ in statuses)
+
         try:
             with self._pool.get_connection() as conn:
-                total_swaps = conn.execute("SELECT COUNT(*) FROM swaps").fetchone()[0]
+                # Count "funded" swaps based on configured statuses
+                total_swaps = conn.execute(
+                    f"SELECT COUNT(*) FROM swaps WHERE status IN ({placeholders})", 
+                    statuses
+                ).fetchone()[0]
+                
                 pending_swaps = conn.execute(
                     "SELECT COUNT(*) FROM swaps WHERE status = ?", ("pending",)
                 ).fetchone()[0]
+                
                 completed_today = conn.execute(
                     """
                     SELECT COUNT(*) FROM swaps
@@ -277,20 +315,23 @@ class SwapHistoryService:
                     """,
                     ("completed", today_start),
                 ).fetchone()[0]
+                
                 total_volume_oxc = conn.execute(
-                    """
+                    f"""
                     SELECT COALESCE(SUM(from_amount), 0) FROM swaps
-                    WHERE from_coin = ?
+                    WHERE from_coin = ? AND status IN ({placeholders})
                     """,
-                    ("OXC",),
+                    ("OXC", *statuses),
                 ).fetchone()[0]
+                
                 total_volume_oxg = conn.execute(
-                    """
+                    f"""
                     SELECT COALESCE(SUM(from_amount), 0) FROM swaps
-                    WHERE from_coin = ?
+                    WHERE from_coin = ? AND status IN ({placeholders})
                     """,
-                    ("OXG",),
+                    ("OXG", *statuses),
                 ).fetchone()[0]
+            
             return {
                 "total_swaps": total_swaps,
                 "pending_swaps": pending_swaps,
@@ -314,11 +355,14 @@ class SwapHistoryService:
             "total_in": {"OXC": 0.0, "OXG": 0.0},
             "total_out": {"OXC": 0.0, "OXG": 0.0},
         }
+        statuses = STAT_INCLUDED_STATUSES
+        placeholders = ", ".join("?" for _ in statuses)
+
         try:
             with self._pool.get_connection() as conn:
                 rows = conn.execute(
-                    "SELECT data_json FROM swaps WHERE status = ?",
-                    ("completed",),
+                    f"SELECT data_json FROM swaps WHERE status IN ({placeholders})",
+                    statuses,
                 ).fetchall()
             for row in rows:
                 swap = json.loads(row[0])

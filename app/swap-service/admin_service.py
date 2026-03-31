@@ -184,6 +184,19 @@ class AdminService:
                     )
                     """
                 )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS swap_audit_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        swap_id TEXT NOT NULL,
+                        old_status TEXT,
+                        new_status TEXT NOT NULL,
+                        details TEXT,
+                        performed_by TEXT,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
         except sqlite3.Error as e:
             logger.error("Failed to initialize admin db", error=str(e))
 
@@ -200,6 +213,53 @@ class AdminService:
         if not self.has_admin_users():
             return self.create_admin(username, password)
         return False
+
+    def log_swap_audit(
+        self,
+        swap_id: str,
+        new_status: str,
+        old_status: str = None,
+        details: str = None,
+        performed_by: str = "system",
+    ) -> None:
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO swap_audit_log (swap_id, old_status, new_status, details, performed_by, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (swap_id, old_status, new_status, details, performed_by, now),
+                )
+        except sqlite3.Error as e:
+            logger.error("Failed to log swap audit", error=str(e))
+
+    def get_swap_audit_log(self, swap_id: str) -> List[Dict[str, Any]]:
+        try:
+            with self._pool.get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT old_status, new_status, details, performed_by, created_at
+                    FROM swap_audit_log
+                    WHERE swap_id = ?
+                    ORDER BY created_at DESC
+                    """,
+                    (swap_id,),
+                ).fetchall()
+            return [
+                {
+                    "old_status": row[0],
+                    "new_status": row[1],
+                    "details": row[2],
+                    "performed_by": row[3],
+                    "created_at": row[4],
+                }
+                for row in rows
+            ]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to fetch swap audit log for {swap_id}", error=str(e))
+            return []
 
     def log_audit(
         self,

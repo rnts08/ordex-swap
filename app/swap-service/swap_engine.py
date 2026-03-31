@@ -300,7 +300,22 @@ class SwapEngine:
             if not swap:
                 raise SwapError(f"Swap not found: {swap_id}")
             if swap["status"] in [SwapStatus.EXPIRED.value, SwapStatus.CANCELLED.value, SwapStatus.TIMED_OUT.value]:
+                # Determine actual amount received for this deposit
+                actual_amount = swap.get("from_amount", 0.0)
+                try:
+                    from_coin = swap["from_coin"]
+                    wallet = self.oxc_wallet if from_coin == "OXC" else self.oxg_wallet
+                    tx_info = wallet.get_transaction(deposit_txid)
+                    if tx_info and "details" in tx_info:
+                        for detail in tx_info["details"]:
+                            if detail.get("category") == "receive" and detail.get("address") == swap.get("deposit_address"):
+                                actual_amount = float(detail.get("amount", actual_amount))
+                                break
+                except Exception as e:
+                    logger.warning(f"Failed to fetch actual deposit amount for {deposit_txid}: {e}")
+
                 swap["deposit_txid"] = deposit_txid
+                swap["from_amount"] = actual_amount
                 swap["status"] = SwapStatus.LATE_DEPOSIT.value
                 swap["updated_at"] = datetime.now(timezone.utc).isoformat()
                 self.history.update_swap(swap_id, swap)
@@ -315,7 +330,22 @@ class SwapEngine:
             SwapStatus.AWAITING_DEPOSIT.value,
         ]:
             if swap["status"] in [SwapStatus.EXPIRED.value, SwapStatus.CANCELLED.value, SwapStatus.TIMED_OUT.value]:
+                # Determine actual amount received for this deposit
+                actual_amount = swap.get("from_amount", 0.0)
+                try:
+                    from_coin = swap["from_coin"]
+                    wallet = self.oxc_wallet if from_coin == "OXC" else self.oxg_wallet
+                    tx_info = wallet.get_transaction(deposit_txid)
+                    if tx_info and "details" in tx_info:
+                        for detail in tx_info["details"]:
+                            if detail.get("category") == "receive" and detail.get("address") == swap.get("deposit_address"):
+                                actual_amount = float(detail.get("amount", actual_amount))
+                                break
+                except Exception as e:
+                    logger.warning(f"Failed to fetch actual deposit amount for {deposit_txid}: {e}")
+
                 swap["deposit_txid"] = deposit_txid
+                swap["from_amount"] = actual_amount
                 swap["status"] = SwapStatus.LATE_DEPOSIT.value
                 swap["updated_at"] = datetime.now(timezone.utc).isoformat()
                 self.history.update_swap(swap_id, swap)
@@ -444,6 +474,69 @@ class SwapEngine:
         
         return unaccounted
 
+    def reconcile_full_history(self, count: int = 1000) -> Dict[str, Any]:
+        """
+        Deep-scans the wallet transaction history and compares it against recorded swaps.
+        Identifies missing deposits, mismatched amounts, or unaccounted funds.
+        """
+        results = {
+            "scanned_count": 0,
+            "missing_swaps": [],
+            "mismatched_amounts": [],
+            "unaccounted_deposits": [],
+            "coin_stats": {"OXC": {"total_received": 0.0}, "OXG": {"total_received": 0.0}}
+        }
+
+        for coin in ["OXC", "OXG"]:
+            wallet = self.oxc_wallet if coin == "OXC" else self.oxg_wallet
+            try:
+                txs = wallet.rpc.list_transactions(count=count)
+                results["scanned_count"] += len(txs)
+                
+                for tx in txs:
+                    if tx.get("category") != "receive":
+                        continue
+                    
+                    txid = tx.get("txid")
+                    address = tx.get("address")
+                    amount = float(tx.get("amount", 0))
+                    
+                    results["coin_stats"][coin]["total_received"] += amount
+                    
+                    # Search for swap by address or txid
+                    swap = self.history.get_swap_by_address(address)
+                    if not swap:
+                        # Search by txid just in case
+                        swaps_by_tx = self.history.search_swaps(txid, field="deposit_txid")
+                        if swaps_by_tx:
+                            swap = swaps_by_tx[0]
+                    
+                    if not swap:
+                        results["unaccounted_deposits"].append({
+                            "txid": txid,
+                            "address": address,
+                            "amount": amount,
+                            "coin": coin,
+                            "reason": "No swap found for this address/txid"
+                        })
+                        continue
+                        
+                    # Check amount
+                    expected_amount = float(swap.get("from_amount", 0))
+                    if abs(amount - expected_amount) > 1e-8:
+                        results["mismatched_amounts"].append({
+                            "swap_id": swap.get("swap_id"),
+                            "txid": txid,
+                            "expected": expected_amount,
+                            "actual": amount,
+                            "coin": coin
+                        })
+                        
+            except Exception as e:
+                logger.error(f"Reconciliation error for {coin}: {e}")
+        
+        return results
+
     def _settle_swap(self, swap_id: str) -> Dict[str, Any]:
         swap = self._pending_swaps.get(swap_id)
         if not swap:
@@ -456,6 +549,21 @@ class SwapEngine:
             from_coin = swap["from_coin"]
             to_coin = swap["to_coin"]
             user_address = swap["user_address"]
+            
+            # Re-calculate for LATE_DEPOSIT to make sure it respects current fees and actual amount
+            if swap.get("status") == SwapStatus.LATE_DEPOSIT.value:
+                try:
+                    conversion, _, _ = self._calculate_conversion(from_coin, to_coin, swap["from_amount"])
+                    if conversion["net_amount"] <= 0:
+                        raise InvalidAmountError(f"Fee would result in zero or negative output: {conversion['net_amount']}")
+                    swap["to_amount"] = conversion["to_amount"]
+                    swap["fee_amount"] = conversion["fee_amount"]
+                    swap["net_amount"] = conversion["net_amount"]
+                    swap["rate"] = conversion["rate"]
+                except InvalidAmountError as e:
+                    logger.error(f"Failed to recalculate late deposit {swap_id}: {e}")
+                    raise InvalidAmountError(f"Calculation failed for received amount: {e}")
+
             net_amount = swap["net_amount"]
 
             if TESTING_MODE:

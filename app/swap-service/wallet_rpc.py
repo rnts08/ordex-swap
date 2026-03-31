@@ -107,6 +107,15 @@ class WalletRPC:
         params = [minconf, maxconf]
         return self._call("listunspent", params)
 
+    def list_transactions(
+        self, label: str = "*", count: int = 100, skip: int = 0, include_watchonly: bool = False
+    ) -> List[Dict[str, Any]]:
+        params = [label, count, skip, include_watchonly]
+        return self._call("listtransactions", params)
+
+    def list_address_groupings(self) -> List[List[List[Any]]]:
+        return self._call("listaddressgroupings")
+
     def send_to_address(self, address: str, amount: float, comment: str = "") -> str:
         params = [address, amount]
         if comment:
