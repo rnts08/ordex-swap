@@ -61,4 +61,4 @@ BACKUP_ENABLED = os.getenv("BACKUP_ENABLED", "true").lower() == "true"
 PRICE_HISTORY_MAX_ENTRIES = 1000
 
 SUPPORTED_COINS = ["OXC", "OXG"]
-STAT_INCLUDED_STATUSES = ["completed", "late_deposit", "pending", "processing", "delayed"]
+STAT_INCLUDED_STATUSES = ["completed", "reconciled", "late_deposit", "pending", "processing", "delayed"]

@@ -26,13 +26,24 @@ class SQLiteConnectionPool:
         self._local = threading.local()
 
     def _create_connection(self) -> sqlite3.Connection:
-        """Create a new SQLite connection."""
+        """Create a new SQLite connection with concurrency-optimized pragmas."""
         conn = sqlite3.connect(
             self.db_path,
             check_same_thread=self.check_same_thread,
             timeout=30.0,
         )
         conn.row_factory = sqlite3.Row
+        
+        # Concurrency optimizations for Gunicorn/Background threads
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA busy_timeout=30000")
+        except sqlite3.Error as e:
+            # We log but continue, as the basic connection is still open.
+            import logging
+            logging.getLogger("db_pool").warning(f"Failed to set WAL pragmas on {self.db_path}: {e}")
+            
         return conn
 
     @property

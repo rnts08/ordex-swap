@@ -972,9 +972,10 @@ class AdminService:
         """Fetch unified list of manual actions from both wallet_actions and acknowledged_transactions."""
         limit = limit or DEFAULT_LIMIT
         actions = []
+
+        # 1. Fetch from wallet_actions (Withdrawals, Rotations)
         try:
             with self._pool.get_connection() as conn:
-                # 1. Fetch from wallet_actions (Withdrawals, Rotations)
                 rows = conn.execute(
                     """
                     SELECT action_type, coin, purpose, amount, address, txid, performed_by, ip_address, created_at, details
@@ -998,8 +999,12 @@ class AdminService:
                         "details": row[9],
                         "source_table": "wallet_actions"
                     })
+        except sqlite3.Error as e:
+            logger.error(f"Failed to fetch wallet_actions: {e}")
 
-                # 2. Fetch from acknowledged_transactions (Settlements, Refunds, Audits)
+        # 2. Fetch from acknowledged_transactions (Settlements, Refunds, Audits)
+        try:
+            with self._pool.get_connection() as conn:
                 rows_ack = conn.execute(
                     """
                     SELECT action, coin, amount, address, txid, performed_by, created_at, details
@@ -1011,8 +1016,9 @@ class AdminService:
                 ).fetchall()
                 for row in rows_ack:
                     actions.append({
-                        "action_type": row[0], # Map 'action' to 'action_type'
+                        "action_type": row[0],
                         "coin": row[1],
+                        "purpose": "RECONCILIATION",
                         "amount": row[2],
                         "address": row[3],
                         "txid": row[4],
@@ -1021,11 +1027,9 @@ class AdminService:
                         "details": row[7],
                         "source_table": "acknowledged_transactions"
                     })
-
-            # 3. Sort Combined List and Truncate
-            actions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-            return actions[:limit]
-            
         except sqlite3.Error as e:
-            logger.error("Failed to fetch unified wallet actions", error=str(e))
-            return actions
+            logger.error(f"Failed to fetch acknowledged_transactions: {e}")
+
+        # 3. Sort Combined List and Truncate
+        actions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return actions[:limit]

@@ -613,6 +613,18 @@ def admin_refund_orphaned():
         return json_error("Internal server error during refund", 500)
 
 
+@app.route("/api/v1/admin/swaps/<swap_id>", methods=["GET"])
+@require_admin_auth
+def admin_get_swap(swap_id):
+    if not swap_history:
+        return json_error("Swap history not available", 500)
+    swap = swap_history.get_swap(swap_id)
+    if not swap:
+        return json_error("Swap not found", 404)
+    audit = admin_service.get_swap_audit_log(swap_id) if admin_service else []
+    return json_success({"swap": swap, "audit": audit})
+
+
 @app.route("/api/v1/admin/swaps/<swap_id>/audit", methods=["GET"])
 @require_admin_auth
 def admin_get_swap_audit(swap_id):
@@ -754,8 +766,59 @@ def admin_withdraw():
 @require_admin_auth
 def admin_wallet_actions():
     limit = int(request.args.get("limit", 100))
+    
+    # 1. Fetch DB logs
     actions = admin_service.get_wallet_actions(limit)
-    return json_success({"actions": actions})
+    logged_txids = {a.get("txid") for a in actions if a.get("txid")}
+    
+    # 2. Perform quick RPC discovery (last 50 transactions per wallet)
+    # This catches manual RPC/Console actions that were never logged in DB.
+    try:
+        discovery = swap_engine.reconcile_full_history(count=50)
+        
+        # Unaccounted Withdrawals are manual/external sends
+        for w in discovery.get("unaccounted_withdrawals", []):
+            if w["txid"] not in logged_txids:
+                actions.append({
+                    "action_type": "EXTERNAL_SEND",
+                    "coin": w["coin"],
+                    "purpose": "MANUAL / RPC",
+                    "amount": w["amount"],
+                    "address": w["address"],
+                    "txid": w["txid"],
+                    "performed_by": "EXTERNAL / CONSOLE",
+                    "created_at": datetime.now(timezone.utc).isoformat(), # We don't have block time here easily
+                    "details": "Manual transaction discovered via RPC scan",
+                    "source_table": "rpc_discovery"
+                })
+                logged_txids.add(w["txid"])
+
+        # Unaccounted Deposits are manual/external receives (topups)
+        for d in discovery.get("unaccounted_deposits", []):
+            if d["txid"] not in logged_txids:
+                # Filter out standard swap deposits (those aren't 'wallet actions' in the manual sense)
+                # But if they are 'UNACCOUNTED' in discovery, they ARE manual topups or orphaned funds.
+                actions.append({
+                    "action_type": "EXTERNAL_RECEIVE",
+                    "coin": d["coin"],
+                    "purpose": "LIQUIDITY TOPUP",
+                    "amount": d["amount"],
+                    "address": d["address"],
+                    "txid": d["txid"],
+                    "performed_by": "EXTERNAL / CONSOLE",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "details": f"External deposit discovered: {d.get('reason', 'Unknown reason')}",
+                    "source_table": "rpc_discovery"
+                })
+                logged_txids.add(d["txid"])
+
+    except Exception as e:
+        logger.error("Failed RPC discovery in wallet actions", error=str(e))
+        # We still return the DB actions even if RPC scan fails
+
+    # 3. Final Sort
+    actions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return json_success({"actions": actions[:limit]})
 
 
 @app.route("/api/v1/admin/users", methods=["GET"])

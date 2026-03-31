@@ -15,7 +15,7 @@ from swap_engine import SwapEngine
 from swap_history import SwapHistoryService
 from price_history import PriceHistoryService
 from admin_service import AdminService
-from api import init_app
+from api import app, init_app
 from daemon_manager import DaemonManager
 from swap_cleanup import SwapCleanupJob
 import backup as backup_module
@@ -231,6 +231,7 @@ def initialize_services():
 
     initialized = True
     logger.info("All services initialized")
+    return app
 
 
 def shutdown_handler(signum, frame):

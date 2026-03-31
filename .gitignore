@@ -35,5 +35,10 @@ data/bin/
 .agent/
 .opencode
 
+# Don't commit agent data
+AGENTS.md
+.agent.md
+agents/
+
 # Test results
 test-results/

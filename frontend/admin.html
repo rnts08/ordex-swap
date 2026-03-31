@@ -30,6 +30,7 @@
         <div class="fw-bold logo-text" style="font-size: 1.25rem; letter-spacing: -0.04em;">ORDEX<span class="text-warning" style="-webkit-text-fill-color: #dca747;">ADMIN</span></div>
       </div>
       <div class="d-flex flex-wrap align-items-center gap-3">
+        <a class="text-decoration-none text-light small" href="#background">Background</a>
         <a class="text-decoration-none text-light small" href="#stats">Stats</a>
         <a class="text-decoration-none text-light small" href="#graphs">Graphs</a>
         <a class="text-decoration-none text-light small" href="#wallets">Wallets</a>
@@ -37,10 +38,9 @@
         <a class="text-decoration-none text-light small" href="#queue">Queue</a>
         <a class="text-decoration-none text-light small" href="#swaps">Swaps</a>
         <a class="text-decoration-none text-light small" href="#unaccounted">Scan</a>
-        <a class="text-decoration-none text-light small" href="#background">Background</a>
-        <a class="text-decoration-none text-light small" href="#password">Password</a>
-        <a class="text-decoration-none text-light small" href="#swapcontrol">Swap Control</a>
         <a class="text-decoration-none text-light small fw-bold text-warning" href="#reconciliation">Reconciliation</a>
+        <a class="text-decoration-none text-light small" href="#swapcontrol">Swap Control</a>
+        <a class="text-decoration-none text-light small" href="#password">Password</a>
         <button class="btn btn-sm btn-outline-light" id="logout-btn" type="button">Logout</button>
       </div>
     </div>
@@ -93,6 +93,14 @@
             <div class="small fw-bold text-white" id="latest-price">--</div>
           </div>
         </div>
+      </div>
+
+      <div class="card p-3 mb-4" id="background">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0 fw-bold text-white">Background Status</h2>
+          <button class="btn btn-outline-light btn-sm" id="refresh-background">Refresh</button>
+        </div>
+        <div class="small mt-2 muted" id="background-status">Loading...</div>
       </div>
 
       <div class="row g-3 mb-4" id="graphs">
@@ -224,14 +232,6 @@
         </div>
       </div>
 
-      <div class="card p-3 mb-4" id="background">
-        <div class="d-flex justify-content-between align-items-center">
-          <h2 class="h5 mb-0 fw-bold text-white">Background Status</h2>
-          <button class="btn btn-outline-light btn-sm" id="refresh-background">Refresh</button>
-        </div>
-        <div class="small mt-2 muted" id="background-status">Loading...</div>
-      </div>
-
       <div class="card p-3 mb-4" id="unaccounted">
         <div class="d-flex justify-content-between align-items-center">
           <h2 class="h5 mb-0 fw-bold text-white">Scan for Late/Unaccounted Transactions</h2>
@@ -266,11 +266,32 @@
         </div>
         
         <div id="reconciliation-results" class="d-none mt-3">
-          <div id="reconcile-summary"></div>
+          <div id="reconcile-summary">
+            <div class="row text-center mb-3">
+              <div class="col"><div class="small muted">Scanned</div><div class="h5 mb-0" id="recon-scanned">-</div></div>
+              <div class="col text-danger"><div class="small muted">Unaccounted</div><div class="h5 mb-0" id="recon-unaccounted">-</div></div>
+              <div class="col text-warning"><div class="small muted">Mismatched</div><div class="h5 mb-0" id="recon-mismatched">-</div></div>
+            </div>
+            <div class="row g-2 mb-3" id="recon-coin-stats"></div>
+          </div>
           <div id="reconcile-tables"></div>
         </div>
         <div class="small mt-2 muted" id="reconcile-message"></div>
       </div>
+
+      <div class="card p-3 mb-4" id="swapcontrol">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0 fw-bold text-white">Swap Control</h2>
+          <span class="badge" id="swap-status-badge">Loading...</span>
+        </div>
+        <div class="mt-3">
+          <p class="muted small">Enable or disable swap functionality globally. When disabled, users cannot create new swaps or quotes.</p>
+          <button class="btn btn-success" id="enable-swaps">Enable Swaps</button>
+          <button class="btn btn-danger" id="disable-swaps">Disable Swaps</button>
+          <div class="small mt-2 muted" id="swap-control-message"></div>
+        </div>
+      </div>
+
 
       <div class="card p-3 mb-4" id="password">
         <div class="d-flex justify-content-between align-items-center">
@@ -292,19 +313,6 @@
         </div>
         <button class="btn btn-outline-warning mt-3" id="change-password">Update Password</button>
         <div class="small mt-2 muted" id="pw-message"></div>
-      </div>
-
-      <div class="card p-3 mb-4" id="swapcontrol">
-        <div class="d-flex justify-content-between align-items-center">
-          <h2 class="h5 mb-0 fw-bold text-white">Swap Control</h2>
-          <span class="badge" id="swap-status-badge">Loading...</span>
-        </div>
-        <div class="mt-3">
-          <p class="muted small">Enable or disable swap functionality globally. When disabled, users cannot create new swaps or quotes.</p>
-          <button class="btn btn-success" id="enable-swaps">Enable Swaps</button>
-          <button class="btn btn-danger" id="disable-swaps">Disable Swaps</button>
-          <div class="small mt-2 muted" id="swap-control-message"></div>
-        </div>
       </div>
 
       <div class="card p-3 mb-4" id="feeconfig">
@@ -394,14 +402,32 @@
             <input type="text" class="form-control bg-secondary text-white" id="action-display-type" readonly>
           </div>
           <div class="mb-3">
-            <label class="form-label text-white small">Transaction ID</label>
-            <div class="mono small muted text-break" id="action-display-txid"></div>
+            <label class="form-label small muted fw-bold">Incoming TXID</label>
+            <div id="action-display-txid" class="mono bg-dark p-2 border border-secondary rounded small break-all">-</div>
           </div>
           <div class="mb-3">
-            <label class="form-label text-white small">Amount</label>
-            <div class="fw-bold text-warning" id="action-display-amount"></div>
+            <label class="form-label small muted fw-bold">Amount</label>
+            <div id="action-display-amount" class="fw-bold text-warning">-</div>
           </div>
-          <div id="address-input-group" class="mb-3 d-none">
+          
+          <div id="settle-info-group" class="mb-3 d-none">
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label small muted fw-bold">Received</label>
+                <div id="action-display-received" class="p-2 bg-dark rounded small">-</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label small muted fw-bold">Swap Fee</label>
+                <div id="action-display-fee" class="p-2 bg-dark rounded small">-</div>
+              </div>
+            </div>
+            <div class="mt-2">
+              <label class="form-label small muted fw-bold">Expected Net Out</label>
+              <div id="action-display-net" class="p-2 bg-dark rounded fw-bold text-success">-</div>
+            </div>
+          </div>
+
+          <div class="mb-3" id="address-input-group">
             <label class="form-label text-white small" id="address-label">Target Address</label>
             <input type="text" class="form-control" id="action-target-address" placeholder="Enter recipient address">
             <div class="form-text muted small mt-1" id="address-help">Funds will be sent to this address after fees.</div>
@@ -565,7 +591,7 @@
         let statusHtml = s.status;
         if (s.status === 'late_deposit') {
           statusHtml = `<span class="text-warning fw-bold me-2">late_deposit</span>
-            <button class="btn btn-sm btn-success py-0 px-1 me-1" onclick="adminActionSwap('${s.swap_id}', 'settle')">Settle</button>
+            <button class="btn btn-sm btn-success py-0 px-1 me-1" onclick="initiateSettleSwap('${s.swap_id}')">Settle</button>
             <button class="btn btn-sm btn-danger py-0 px-1" onclick="adminActionSwap('${s.swap_id}', 'cancel')">Cancel</button>`;
         }
         return `
@@ -625,15 +651,17 @@
       const actionsTable = document.getElementById('wallet-actions-table');
       actionsTable.innerHTML = data.data.actions.map(a => {
         let badgeColor = 'bg-secondary';
-        if (a.action_type === 'withdrawal') badgeColor = 'bg-danger';
-        if (a.action_type === 'settled') badgeColor = 'bg-success';
-        if (a.action_type === 'refunded') badgeColor = 'bg-info';
+        const type = (a.action_type || '').toLowerCase();
+        if (type === 'withdrawal' || type === 'external_send') badgeColor = 'bg-danger';
+        if (type === 'settled' || type === 'external_receive') badgeColor = 'bg-success';
+        if (type === 'refunded') badgeColor = 'bg-info';
         
         return `
         <tr>
           <td class="small text-nowrap">${new Date(a.created_at).toLocaleString()}</td>
           <td><span class="badge ${badgeColor}">${a.action_type.toUpperCase()}</span></td>
           <td>${a.coin}</td>
+          <td><span class="small muted">${a.purpose || '-'}</span></td>
           <td>${a.amount ? a.amount.toFixed(8) : '-'}</td>
           <td class="mono small text-break">
             ${a.address ? `To: ${a.address.substring(0, 16)}...` : ''}
@@ -641,7 +669,7 @@
           </td>
           <td>${a.performed_by || '-'}</td>
         </tr>
-      `}).join('') || '<tr><td colspan="6" class="muted">No wallet actions</td></tr>';
+      `}).join('') || '<tr><td colspan="7" class="muted">No wallet actions</td></tr>';
     }
 
     document.getElementById('withdraw-btn').addEventListener('click', async () => {
@@ -687,105 +715,96 @@
     document.getElementById('process-queue').addEventListener('click', processQueue);
     refreshBackgroundBtn.addEventListener('click', loadBackgroundStatus);
 
-    document.getElementById('scan-transactions-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('scan-transactions-btn');
-      const container = document.getElementById('unaccounted-container');
-      const table = document.getElementById('unaccounted-table');
-      const msg = document.getElementById('scan-message');
-      
-      btn.disabled = true;
-      msg.textContent = 'Scanning...';
-      container.classList.add('d-none');
-
-      try {
-        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/audit/reconcile?count=50`, { method: 'POST' });
-        if (!resp.ok) throw new Error('Scan failed');
-        const data = await resp.json();
-        const txs = data.data.unaccounted_deposits;
-        
-        btn.disabled = false;
-        msg.textContent = txs.length === 0 ? 'No unaccounted transactions found.' : `Found ${txs.length} items.`;
-        
-        if (txs.length > 0) {
-          container.classList.remove('d-none');
-          table.innerHTML = txs.map(t => {
-            const actions = `
-              <div class="d-flex gap-1">
-                <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">Acknowledge</button>
-                <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.amount})">Settle</button>
-                <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.amount})">Refund</button>
-              </div>
-            `;
-
-            return `
-              <tr>
-                <td>${t.coin}</td>
-                <td><span class="badge bg-warning">UNACCOUNTED</span></td>
-                <td>${t.amount.toFixed(8)}</td>
-                <td class="small mono">${t.txid}<br><span class="muted">${t.address}</span></td>
-                <td>${actions}</td>
-              </tr>
-            `;
-          }).join('');
-        }
-      } catch (err) {
-        btn.disabled = false;
-        msg.textContent = 'Error: ' + err.message;
-      }
-    });
-
     document.getElementById('run-reconcile-btn').addEventListener('click', async () => {
       const btn = document.getElementById('run-reconcile-btn');
-      const count = document.getElementById('reconcile-count').value || 100;
       const msg = document.getElementById('reconcile-message');
-      const results = document.getElementById('reconciliation-results');
+      const resultsContainer = document.getElementById('reconciliation-results');
+      const count = document.getElementById('reconcile-count').value || 100;
       
       btn.disabled = true;
-      msg.textContent = 'Performing deep audit scan...';
-      results.classList.add('d-none');
+      msg.textContent = 'Running deep reconciliation scan...';
+      resultsContainer.classList.add('d-none');
 
       try {
-        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/audit/reconcile?count=${count}`, { method: 'POST' });
+        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/audit/reconcile?count=${count}`, {
+            method: 'POST'
+        });
         if (!resp.ok) throw new Error('Reconciliation failed');
         const data = await resp.json();
+        const r = data.data;
+
+        btn.disabled = false;
+        msg.textContent = `Scan complete. Scanned ${r.scanned_count} items.`;
+        resultsContainer.classList.remove('d-none');
         
-        btn.disabled = false;
-        msg.textContent = `Deep audit complete. Scanned ${data.data.scanned_count} items.`;
-        results.classList.remove('d-none');
-        renderReconciliationResults(data.data);
-      } catch (err) {
-        btn.disabled = false;
-        msg.textContent = 'Error: ' + err.message;
-      }
-    });
+        // Update summary counters
+        document.getElementById('recon-scanned').textContent = r.scanned_count;
+        document.getElementById('recon-unaccounted').textContent = r.unaccounted_deposits.length + r.unaccounted_withdrawals.length;
+        document.getElementById('recon-mismatched').textContent = r.mismatched_amounts.length;
 
-    function renderReconciliationResults(r) {
-        const stats = document.getElementById('reconcile-summary');
-        stats.innerHTML = `
-            <div class="row text-center mb-3">
-                <div class="col"><div class="small muted">Matched Swaps</div><div class="h5 mb-0">${r.matched_swaps_count}</div></div>
-                <div class="col text-danger"><div class="small muted">Unaccounted Tx</div><div class="h5 mb-0">${r.unaccounted_deposits.length + r.unaccounted_withdrawals.length}</div></div>
-                <div class="col text-warning"><div class="small muted">Mismatched</div><div class="h5 mb-0">${r.mismatched_amounts.length}</div></div>
-                <div class="col text-info"><div class="small muted">Late</div><div class="h5 mb-0">${r.late_deposits.length}</div></div>
+        // Render Coin Stats
+        const statsHtml = Object.entries(r.coin_stats).map(([coin, s]) => `
+          <div class="col-6">
+            <div class="p-2 border border-secondary rounded">
+              <div class="small muted">${coin} Balance</div>
+              <div class="small">In: <span class="text-success">${s.total_received.toFixed(4)}</span> | Out: ${s.total_sent.toFixed(4)}</div>
             </div>
-            <div class="row g-2 mb-3">
-              <div class="col-6">
-                <div class="p-2 border border-secondary rounded">
-                  <div class="small muted">OXC Balance Check</div>
-                  <div class="small">In: <span class="text-success">${r.coin_stats.OXC.total_received.toFixed(4)}</span> | Out: ${r.coin_stats.OXC.total_sent.toFixed(4)}</div>
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="p-2 border border-secondary rounded">
-                  <div class="small muted">OXG Balance Check</div>
-                  <div class="small">In: <span class="text-success">${r.coin_stats.OXG.total_received.toFixed(4)}</span> | Out: ${r.coin_stats.OXG.total_sent.toFixed(4)}</div>
-                </div>
-              </div>
-            </div>
-        `;
+          </div>
+        `).join('');
+        document.getElementById('recon-coin-stats').innerHTML = statsHtml;
 
+        // Render Tables
         let tablesHtml = '';
         
+        if (r.late_deposits.length > 0) {
+            tablesHtml += `
+                <h6 class="text-info mt-3 fw-bold small">LATE DEPOSITS (EXPIRED SWAPS)</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm">
+                        <thead><tr><th>Coin</th><th>Amount</th><th>Swap ID</th><th>Actions</th></tr></thead>
+                        <tbody>${r.late_deposits.map(t => `
+                            <tr>
+                                <td>${t.coin}</td>
+                                <td>${t.amount.toFixed(8)}</td>
+                                <td class="small">${t.swap_id}<br><span class="badge bg-secondary">${t.status}</span></td>
+                                <td>
+                                  <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.amount}, '${t.swap_id}', {target_address: '${t.user_address || ''}'})">Settle</button>
+                                  <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">To Liq</button>
+                                  <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.amount}, null, {target_address: '${t.user_address || ''}'})">Refund</button>
+                                </td>
+                            </tr>
+                        `).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        if (r.mismatched_amounts.length > 0) {
+            tablesHtml += `
+                <h6 class="text-warning mt-3 fw-bold small">MISMATCHED DISCREPANCIES</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm">
+                        <thead><tr><th>Coin</th><th>Diff</th><th>Swap ID</th><th>Actions</th></tr></thead>
+                        <tbody>${r.mismatched_amounts.map(t => {
+                            const isSurplus = t.type === 'SURPLUS';
+                            const diff = (t.actual - t.expected).toFixed(8);
+                            return `
+                            <tr>
+                                <td>${t.coin}</td>
+                                <td class="${isSurplus ? 'text-success' : 'text-danger'}">${isSurplus ? '+' : ''}${diff}</td>
+                                <td class="small">${t.swap_id}<br><span class="muted">Exp: ${t.expected} / Act: ${t.actual}</span></td>
+                                <td>
+                                  ${isSurplus ? `<button class="btn btn-sm btn-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.actual}, '${t.swap_id}', {target_address: '${t.user_address || ''}'})">Settle All</button>` : ''}
+                                  <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.actual})">To Liq</button>
+                                  <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.actual}, null, {target_address: '${t.user_address || ''}'})">Refund</button>
+                                </td>
+                            </tr>
+                        `}).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
         // 1. Unaccounted Deposits (Inbound)
         if (r.unaccounted_deposits.length > 0) {
             tablesHtml += `
@@ -832,57 +851,6 @@
             `;
         }
 
-        // 3. Late Deposits
-        if (r.late_deposits.length > 0) {
-            tablesHtml += `
-                <h6 class="text-info mt-3 fw-bold small">LATE DEPOSITS (EXPIRED SWAPS)</h6>
-                <div class="table-responsive">
-                    <table class="table table-dark table-sm">
-                        <thead><tr><th>Coin</th><th>Amount</th><th>Swap ID</th><th>Actions</th></tr></thead>
-                        <tbody>${r.late_deposits.map(t => `
-                            <tr>
-                                <td>${t.coin}</td>
-                                <td>${t.amount.toFixed(8)}</td>
-                                <td class="small">${t.swap_id}<br><span class="badge bg-secondary">${t.status}</span></td>
-                                <td>
-                                  <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.amount}, '${t.swap_id}')">Settle</button>
-                                  <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">To Liq</button>
-                                  <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.amount})">Refund</button>
-                                </td>
-                            </tr>
-                        `).join('')}</tbody>
-                    </table>
-                </div>
-            `;
-        }
-
-        // 4. Mismatched Amounts
-        if (r.mismatched_amounts.length > 0) {
-            tablesHtml += `
-                <h6 class="text-warning mt-3 fw-bold small">MISMATCHED DISCREPANCIES</h6>
-                <div class="table-responsive">
-                    <table class="table table-dark table-sm">
-                        <thead><tr><th>Coin</th><th>Diff</th><th>Swap ID</th><th>Actions</th></tr></thead>
-                        <tbody>${r.mismatched_amounts.map(t => {
-                            const isSurplus = t.type === 'SURPLUS';
-                            const diff = (t.actual - t.expected).toFixed(8);
-                            return `
-                            <tr>
-                                <td>${t.coin}</td>
-                                <td class="${isSurplus ? 'text-success' : 'text-danger'}">${isSurplus ? '+' : ''}${diff}</td>
-                                <td class="small">${t.swap_id}<br><span class="muted">Exp: ${t.expected} / Act: ${t.actual}</span></td>
-                                <td>
-                                  ${isSurplus ? `<button class="btn btn-sm btn-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.actual}, '${t.swap_id}')">Settle All</button>` : ''}
-                                  <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.actual})">To Liq</button>
-                                  <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.actual})">Refund</button>
-                                </td>
-                            </tr>
-                        `}).join('')}</tbody>
-                    </table>
-                </div>
-            `;
-        }
-
         if (r.acknowledged_deposits && r.acknowledged_deposits.length > 0) {
             tablesHtml += `
                 <h6 class="text-muted mt-3 fw-bold small">HANDLED / ADMIN MOVEMENTS</h6>
@@ -903,21 +871,40 @@
         }
 
         document.getElementById('reconcile-tables').innerHTML = tablesHtml || '<div class="muted small p-4 text-center">All transactions accounted for!</div>';
-    }
+
+      } catch (err) {
+        btn.disabled = false;
+        msg.textContent = 'Error: ' + err.message;
+        msg.className = 'small mt-2 text-danger';
+      }
+    });
 
     let currentActionData = null;
     const actionModal = new bootstrap.Modal(document.getElementById('actionModal'));
 
-    function openActionModal(type, txid, coin, amount, swap_id = null) {
+    function openActionModal(type, txid, coin, amount, swap_id = null, metadata = {}) {
       currentActionData = { type, txid, coin, amount, swap_id };
       
       document.getElementById('actionModalTitle').textContent = type.toUpperCase() + ' Transaction';
       document.getElementById('action-display-type').value = type;
-      document.getElementById('action-display-txid').textContent = txid;
-      document.getElementById('action-display-amount').textContent = `${amount.toFixed(8)} ${coin}`;
-      document.getElementById('action-target-address').value = '';
+      document.getElementById('action-display-txid').textContent = txid || (swap_id ? `Swap: ${swap_id}` : 'Manual');
+      document.getElementById('action-display-amount').textContent = `${(amount || 0).toFixed ? amount.toFixed(8) : amount} ${coin}`;
+      
+      // Prefill user address from metadata or from swap_id lookup
+      const prefillAddress = metadata.target_address || '';
+      document.getElementById('action-target-address').value = prefillAddress;
       document.getElementById('action-details').value = '';
       
+      const settleInfo = document.getElementById('settle-info-group');
+      if (type === 'settle' && metadata.is_swap) {
+          settleInfo.classList.remove('d-none');
+          document.getElementById('action-display-received').textContent = `${metadata.from_amount} ${metadata.from_coin}`;
+          document.getElementById('action-display-fee').textContent = `${metadata.fee_amount} ${metadata.to_coin}`;
+          document.getElementById('action-display-net').textContent = `${metadata.net_amount} ${metadata.to_coin}`;
+      } else {
+          settleInfo.classList.add('d-none');
+      }
+
       const addrGroup = document.getElementById('address-input-group');
       if (type === 'settle' || type === 'refund') {
         addrGroup.classList.remove('d-none');
@@ -932,153 +919,66 @@
       actionModal.show();
     }
 
+    async function initiateSettleSwap(swap_id) {
+        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps/${swap_id}`);
+        if (!resp.ok) {
+            alert('Failed to fetch swap details.');
+            return;
+        }
+        const data = await resp.json();
+        const s = data.data.swap;
+        
+        openActionModal('settle', s.deposit_txid, s.from_coin, s.from_amount, swap_id, {
+            is_swap: true,
+            from_amount: s.from_amount,
+            from_coin: s.from_coin,
+            to_coin: s.to_coin,
+            fee_amount: s.fee_amount,
+            net_amount: s.net_amount,
+            target_address: s.to_address
+        });
+    }
+
     document.getElementById('confirm-action-btn').addEventListener('click', async () => {
       if (!currentActionData) return;
       
       const { type, txid, coin, amount, swap_id } = currentActionData;
-      const address = document.getElementById('action-target-address').value.trim();
-      const details = document.getElementById('action-details').value.trim();
+      const targetAddress = document.getElementById('action-target-address').value.trim();
+      const details = document.getElementById('action-details').value;
       
-      if ((type === 'settle' || type === 'refund') && !address) {
-        alert('Please enter a target address.');
+      let endpoint = '';
+      let payload = {};
+      
+      if (type === 'settle') {
+        endpoint = `${API_BASE}/api/v1/admin/audit/settle`;
+        payload = { txid, coin, amount, address: targetAddress, swap_id };
+      } else if (type === 'refund') {
+        endpoint = `${API_BASE}/api/v1/admin/audit/refund`;
+        payload = { txid, coin, amount, address: targetAddress };
+      } else if (type === 'acknowledge') {
+        endpoint = `${API_BASE}/api/v1/admin/audit/acknowledge`;
+        payload = { txid, coin, amount, action: 'liquidity', details };
+      } else {
+        alert('Unknown action type');
         return;
       }
 
-      const btn = document.getElementById('confirm-action-btn');
-      btn.disabled = true;
-      btn.textContent = 'Executing...';
-
       try {
-        let endpoint = `/api/v1/admin/audit/${type}`;
-        const resp = await fetchWithAuth(API_BASE + endpoint, {
+        const resp = await fetchWithAuth(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ txid, coin, amount, address, details, swap_id })
+          headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+          body: JSON.stringify(payload)
         });
         
-        if (!resp.ok) {
-          const err = await resp.json();
-          throw new Error(err.error || 'Action failed');
+        if (resp.ok) {
+          actionModal.hide();
+          loadDashboard();
+        } else {
+          const data = await resp.json().catch(() => ({}));
+          alert(data.error || 'Action failed');
         }
-
-        alert('Transaction processed successfully.');
-        actionModal.hide();
-        // Refresh reconciliation results
-        document.getElementById('run-reconcile-btn').click();
       } catch (err) {
-        alert(err.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Confirm & Execute';
-      }
-    });
-
-    document.getElementById('run-reconcile-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('run-reconcile-btn');
-      const msg = document.getElementById('reconcile-message');
-      const resultsContainer = document.getElementById('reconciliation-results');
-      const count = document.getElementById('recon-count').value;
-      
-      btn.disabled = true;
-      msg.textContent = 'Running deep reconciliation scan...';
-      resultsContainer.classList.add('d-none');
-
-      try {
-        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/audit/reconcile?count=${count}`, {
-            method: 'POST'
-        });
-        if (!resp.ok) throw new Error('Reconciliation failed');
-        const data = await resp.json();
-        const r = data.data;
-
-        btn.disabled = false;
-        msg.textContent = 'Scan complete.';
-        resultsContainer.classList.remove('d-none');
-        
-        document.getElementById('recon-scanned').textContent = r.scanned_count;
-        document.getElementById('recon-unaccounted').textContent = r.unaccounted_deposits.length;
-        document.getElementById('recon-mismatched').textContent = r.mismatched_amounts.length;
-
-        // Render Coin Stats
-        const statsHtml = Object.entries(r.coin_stats).map(([coin, s]) => `
-          <div class="col-md-6">
-            <div class="card bg-dark p-2 border-light">
-              <div class="small fw-bold text-light">${coin} Discovered Volume</div>
-              <div class="text-white">${s.total_received.toFixed(8)}</div>
-            </div>
-          </div>
-        `).join('');
-        document.getElementById('recon-coin-stats').innerHTML = statsHtml;
-
-        // Render Tables
-        let tablesHtml = '';
-        if (r.unaccounted_deposits.length > 0) {
-            tablesHtml += `
-                <h6 class="text-danger mt-3 fw-bold">Unaccounted Deposits</h6>
-                <div class="table-responsive">
-                    <table class="table table-dark table-sm">
-                        <thead><tr><th>Coin</th><th>Amount</th><th>TXID/Addr</th><th>Reason</th><th>Actions</th></tr></thead>
-                        <tbody>${r.unaccounted_deposits.map(t => `
-                            <tr>
-                                <td>${t.coin}</td>
-                                <td>${t.amount.toFixed(8)}</td>
-                                <td class="mono small">${t.txid}<br><span class="muted">${t.address}</span></td>
-                                <td class="small">${t.reason}</td>
-                                <td>
-                                  <div class="d-flex gap-1">
-                                    <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">Ack</button>
-                                    <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.amount})">Settle</button>
-                                    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.amount})">Refund</button>
-                                  </div>
-                                </td>
-                            </tr>
-                        `).join('')}</tbody>
-                    </table>
-                </div>
-            `;
-        }
-        if (r.acknowledged_deposits && r.acknowledged_deposits.length > 0) {
-            tablesHtml += `
-                <h6 class="text-info mt-3 fw-bold">Liquidity / Acknowledged Deposits</h6>
-                <div class="table-responsive">
-                    <table class="table table-dark table-sm">
-                        <thead><tr><th>Coin</th><th>Amount</th><th>Category</th><th>TXID/Addr</th></tr></thead>
-                        <tbody>${r.acknowledged_deposits.map(t => `
-                            <tr>
-                                <td>${t.coin}</td>
-                                <td>${t.amount.toFixed(8)}</td>
-                                <td><span class="badge ${t.category === 'LIQUIDITY_TOPUP' ? 'bg-info' : 'bg-secondary'}">${t.category} ${t.purpose ? '('+t.purpose+')' : ''}</span></td>
-                                <td class="mono small">${t.txid}<br><span class="muted">${t.address}</span></td>
-                            </tr>
-                        `).join('')}</tbody>
-                    </table>
-                </div>
-            `;
-        }
-        if (r.mismatched_amounts.length > 0) {
-            tablesHtml += `
-                <h6 class="text-warning mt-3 fw-bold">Mismatched Amounts</h6>
-                <div class="table-responsive">
-                    <table class="table table-dark table-sm">
-                        <thead><tr><th>Swap ID</th><th>Expected</th><th>Actual</th><th>TXID</th></tr></thead>
-                        <tbody>${r.mismatched_amounts.map(t => `
-                            <tr>
-                                <td class="mono small"><a href="javascript:void(0)" class="text-warning" onclick="showAuditHistory('${t.swap_id}')">${t.swap_id}</a></td>
-                                <td>${t.expected.toFixed(8)}</td>
-                                <td>${t.actual.toFixed(8)}</td>
-                                <td class="mono small">${t.txid}</td>
-                            </tr>
-                        `).join('')}</tbody>
-                    </table>
-                </div>
-            `;
-        }
-        document.getElementById('recon-tables-container').innerHTML = tablesHtml || '<div class="muted small mt-2">No discrepancies found in the sampled window.</div>';
-
-      } catch (err) {
-        btn.disabled = false;
-        msg.textContent = 'Error: ' + err.message;
-        msg.className = 'small mt-2 text-danger';
+        alert('Error: ' + err.message);
       }
     });
 
