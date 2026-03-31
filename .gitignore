@@ -42,3 +42,4 @@ agents/
 
 # Test results
 test-results/
+htmlcov/

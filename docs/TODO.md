@@ -3,7 +3,6 @@
 - admin info about swap.
 - multi selection about orphaned swaps
 
-
 ## Security Issues
 
 **No CSRF Protection**
@@ -20,7 +19,6 @@
      - Delayed swaps
      - Wallet balance low
      - Service issues
-
 
 **API Authentication for Public Endpoints**
    - Optional API key for rate limiting per user
@@ -39,7 +37,7 @@
    - Price charts with more timeframe options
 
 **User Transaction History**
-   - Allow users to track their own swaps by email/address
+   - Allow users to track their own swaps by address
 
 **Webhook Notifications**
    - Webhook for swap status changes
@@ -51,9 +49,6 @@
 
 **Mobile App**
     - React Native / Flutter app
-
-**Hardware Wallet Support**
-    - Integration with hardware wallets for signing
 
 **Slippage Protection**
     - Configurable slippage tolerance (currently 2% hardcoded)
@@ -91,12 +86,12 @@
 **Data Retention Policy**
    - Auto-delete old swap records after X days
    - Configurable retention period
+   - Keep swap records and audit records for archival purpose in long term. 
+   - Long term storage should not be an issue with indexing.
 
 **Price History Cleanup**
    - Auto-cleanup old price history (currently keeps 1000 entries)
-
-**Database Backup Encryption**
-   - Encrypt backup files with a key
+   - Price history should be kept for 30 days to cover late arrivals and reconcillation
 
 ---
 
@@ -107,9 +102,6 @@
 
 **Mobile Responsiveness**
    - Improve mobile layout
-
-**PWA Support**
-   - Make installable, offline-capable
 
 **Theme Support**
    - Dark/light mode toggle

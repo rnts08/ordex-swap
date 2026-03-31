@@ -416,11 +416,15 @@
 
       <div class="col-lg-7 order-2 order-lg-1">
 
-        <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+        <div class="d-flex align-items-center gap-3 mb-4 flex-wrap justify-content-between">
           <div class="d-flex align-items-center gap-2">
             <h2 class="fs-3 fw-bold m-0 text-white">OXC/OXG</h2>
             <span class="badge bg-white/10 text-brand-muted rounded-pill fs-6 px-3 py-1"
               id="current-rate">Loading...</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-brand-muted small">Fee</span>
+            <span class="badge bg-white/5 text-brand-accent rounded-pill fs-6 px-3 py-1" id="fee-display">1.0%</span>
           </div>
         </div>
 
@@ -506,7 +510,6 @@
                 <input type="number" class="form-control dex-input" id="from-amount" placeholder="0.00" step="any"
                   title="Min: 1 | Max: 10000">
                 <div class="coin-selector-pill w-auto px-2 py-1 shadow-inner bg-white/5">
-                  <img src="oxc.png" id="from-coin-img" class="coin-icon shadow-lg" alt="Coin">
                   <select class="dex-select" id="from-coin">
                     <option value="OXC" selected>OXC</option>
                     <option value="OXG">OXG</option>
@@ -528,7 +531,6 @@
               <div class="d-flex align-items-center gap-3">
                 <input type="text" class="form-control dex-input opacity-80" id="to-amount" placeholder="0.00" readonly>
                 <div class="coin-selector-pill w-auto px-2 py-1 shadow-inner bg-white/5">
-                  <img src="oxg.png" id="to-coin-img" class="coin-icon shadow-lg" alt="Coin">
                   <select class="dex-select" id="to-coin">
                     <option value="OXG" selected>OXG</option>
                     <option value="OXC">OXC</option>
@@ -554,6 +556,7 @@
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <span class="text-brand-muted text-[10px] uppercase font-bold tracking-widest">
                   Protocol Fee <span id="fee-percent-label" class="opacity-50"></span>
+                  <i class="fas fa-info-circle text-brand-muted" style="cursor: help; font-size: 0.7em; margin-left: 4px;" title="Minimum fee of 1 OXG or 1 OXC applies"></i>
                 </span>
                 <div class="d-flex gap-2 align-items-center">
                   <span class="text-white text-xs fw-black font-mono" id="quote-fee">--</span>
@@ -658,12 +661,9 @@
     const statHigh = document.getElementById('stat-high');
     const statLow = document.getElementById('stat-low');
 
-    // Función para actualizar los logos basado en el select
+    // Placeholder for coin image update (images not currently provided)
     function updateCoinImages() {
-      const fromImg = document.getElementById('from-coin-img');
-      const toImg = document.getElementById('to-coin-img');
-      if (fromImg) fromImg.src = `${fromCoin.value.toLowerCase()}.png`;
-      if (toImg) toImg.src = `${toCoin.value.toLowerCase()}.png`;
+      // Image files (oxc.png, oxg.png) not included - placeholder for future use
     }
 
     function startSwapCountdown(swapId) {
@@ -716,7 +716,6 @@
     // Initialize
     async function init() {
       resetForm();
-      updateCoinImages(); // Establecer imágenes iniciales
       await checkStatus();
       fetchCoinPrices();
       fetchPrice();
