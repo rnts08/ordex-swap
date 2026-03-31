@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/swap-service/ ./swap-service/
 COPY app/main.py .
+COPY app/wsgi.py .
 COPY app/first_startup.py .
 COPY app/first-run.sh .
 COPY app/migrate_settings.py .
@@ -33,4 +34,4 @@ ENV API_PORT=8000
 
 EXPOSE 8000
 
-CMD ["python", "main.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--threads", "4", "--preload", "--access-logfile", "-", "--error-logfile", "-", "wsgi:app"]

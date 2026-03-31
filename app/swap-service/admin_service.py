@@ -969,9 +969,12 @@ class AdminService:
             return False
 
     def get_wallet_actions(self, limit: int = None) -> list:
+        """Fetch unified list of manual actions from both wallet_actions and acknowledged_transactions."""
         limit = limit or DEFAULT_LIMIT
+        actions = []
         try:
             with self._pool.get_connection() as conn:
+                # 1. Fetch from wallet_actions (Withdrawals, Rotations)
                 rows = conn.execute(
                     """
                     SELECT action_type, coin, purpose, amount, address, txid, performed_by, ip_address, created_at, details
@@ -981,22 +984,48 @@ class AdminService:
                     """,
                     (limit,),
                 ).fetchall()
-            return [
-                {
-                    "action_type": row[0],
-                    "coin": row[1],
-                    "purpose": row[2],
-                    "amount": row[3],
-                    "address": row[4],
-                    "txid": row[5],
-                    "performed_by": row[6],
-                    "ip_address": row[7],
-                    "created_at": row[8],
-                    "details": row[9],
-                }
-                for row in rows
-            ]
+                for row in rows:
+                    actions.append({
+                        "action_type": row[0],
+                        "coin": row[1],
+                        "purpose": row[2],
+                        "amount": row[3],
+                        "address": row[4],
+                        "txid": row[5],
+                        "performed_by": row[6],
+                        "ip_address": row[7],
+                        "created_at": row[8],
+                        "details": row[9],
+                        "source_table": "wallet_actions"
+                    })
+
+                # 2. Fetch from acknowledged_transactions (Settlements, Refunds, Audits)
+                rows_ack = conn.execute(
+                    """
+                    SELECT action, coin, amount, address, txid, performed_by, created_at, details
+                    FROM acknowledged_transactions
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+                for row in rows_ack:
+                    actions.append({
+                        "action_type": row[0], # Map 'action' to 'action_type'
+                        "coin": row[1],
+                        "amount": row[2],
+                        "address": row[3],
+                        "txid": row[4],
+                        "performed_by": row[5],
+                        "created_at": row[6],
+                        "details": row[7],
+                        "source_table": "acknowledged_transactions"
+                    })
+
+            # 3. Sort Combined List and Truncate
+            actions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+            return actions[:limit]
+            
         except sqlite3.Error as e:
-            # Wallet actions table may not be populated yet, which is fine
-            logger.debug("Unable to fetch wallet actions", error=str(e))
-            return []
+            logger.error("Failed to fetch unified wallet actions", error=str(e))
+            return actions

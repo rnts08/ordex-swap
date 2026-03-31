@@ -623,17 +623,25 @@
       if (!resp.ok) return;
       const data = await resp.json();
       const actionsTable = document.getElementById('wallet-actions-table');
-      actionsTable.innerHTML = data.data.actions.map(a => `
+      actionsTable.innerHTML = data.data.actions.map(a => {
+        let badgeColor = 'bg-secondary';
+        if (a.action_type === 'withdrawal') badgeColor = 'bg-danger';
+        if (a.action_type === 'settled') badgeColor = 'bg-success';
+        if (a.action_type === 'refunded') badgeColor = 'bg-info';
+        
+        return `
         <tr>
-          <td class="small">${new Date(a.created_at).toLocaleString()}</td>
-          <td>${a.action_type}</td>
+          <td class="small text-nowrap">${new Date(a.created_at).toLocaleString()}</td>
+          <td><span class="badge ${badgeColor}">${a.action_type.toUpperCase()}</span></td>
           <td>${a.coin}</td>
-          <td>${a.purpose || '-'}</td>
           <td>${a.amount ? a.amount.toFixed(8) : '-'}</td>
-          <td class="mono small">${a.address || a.txid || '-'}</td>
+          <td class="mono small text-break">
+            ${a.address ? `To: ${a.address.substring(0, 16)}...` : ''}
+            ${a.txid ? `<br><small class="muted">TX: ${a.txid.substring(0, 16)}...</small>` : ''}
+          </td>
           <td>${a.performed_by || '-'}</td>
         </tr>
-      `).join('') || '<tr><td colspan="7" class="muted">No wallet actions</td></tr>';
+      `}).join('') || '<tr><td colspan="6" class="muted">No wallet actions</td></tr>';
     }
 
     document.getElementById('withdraw-btn').addEventListener('click', async () => {
