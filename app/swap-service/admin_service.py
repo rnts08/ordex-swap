@@ -9,6 +9,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from config import DB_PATH, DEFAULT_LIMIT, SWAP_EXPIRE_MINUTES
 from db_pool import get_pool
 from structured_logging import StructuredLogger
+from database_pool import DatabasePool
+from migrations import run_migrations
 
 logger = StructuredLogger(__name__)
 
@@ -58,147 +60,111 @@ class AdminService:
         self._init_db()
 
     def _init_db(self) -> None:
+        migrations = [
+            (
+                "001_initial_admin_tables",
+                """
+                CREATE TABLE IF NOT EXISTS admin_users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT,
+                    created_by TEXT,
+                    last_login TEXT,
+                    last_ip TEXT,
+                    is_active INTEGER DEFAULT 1
+                )
+                """,
+            ),
+            (
+                "002_admin_wallets",
+                """
+                CREATE TABLE IF NOT EXISTS admin_wallets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    coin TEXT NOT NULL,
+                    purpose TEXT NOT NULL,
+                    address TEXT NOT NULL,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    UNIQUE(coin, purpose)
+                )
+                """,
+            ),
+            (
+                "003_app_settings",
+                """
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT
+                )
+                """,
+            ),
+            (
+                "004_default_settings",
+                f"""
+                INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES 
+                ('swaps_enabled', 'true', '{datetime.now(timezone.utc).isoformat()}'),
+                ('swap_fee_percent', '1.0', '{datetime.now(timezone.utc).isoformat()}'),
+                ('swap_confirmations_required', '1', '{datetime.now(timezone.utc).isoformat()}'),
+                ('swap_min_fee_OXC', '1.0', '{datetime.now(timezone.utc).isoformat()}'),
+                ('swap_min_fee_OXG', '1.0', '{datetime.now(timezone.utc).isoformat()}'),
+                ('swap_min_amount', '0.0001', '{datetime.now(timezone.utc).isoformat()}'),
+                ('swap_max_amount', '10000.0', '{datetime.now(timezone.utc).isoformat()}'),
+                ('swap_expire_minutes', '{SWAP_EXPIRE_MINUTES}', '{datetime.now(timezone.utc).isoformat()}')
+                """
+            ),
+            (
+                "005_wallet_actions",
+                """
+                CREATE TABLE IF NOT EXISTS wallet_actions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action_type TEXT NOT NULL,
+                    coin TEXT NOT NULL,
+                    purpose TEXT,
+                    amount REAL,
+                    address TEXT,
+                    txid TEXT,
+                    performed_by TEXT,
+                    ip_address TEXT,
+                    created_at TEXT,
+                    details TEXT
+                )
+                """,
+            ),
+            (
+                "006_admin_audit_log",
+                """
+                CREATE TABLE IF NOT EXISTS admin_audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    ip_address TEXT,
+                    action TEXT NOT NULL,
+                    result TEXT NOT NULL,
+                    details TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """,
+            ),
+            (
+                "007_wallet_configs",
+                """
+                CREATE TABLE IF NOT EXISTS wallet_configs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    coin TEXT UNIQUE NOT NULL,
+                    wallet_path TEXT NOT NULL,
+                    wallet_name TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """,
+            ),
+        ]
         try:
             with self._pool.get_connection() as conn:
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS admin_users (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        username TEXT UNIQUE NOT NULL,
-                        password_hash TEXT NOT NULL,
-                        created_at TEXT,
-                        updated_at TEXT,
-                        last_login_at TEXT
-                    )
-                    """
-                )
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS admin_wallets (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        coin TEXT NOT NULL,
-                        purpose TEXT NOT NULL,
-                        address TEXT NOT NULL,
-                        created_at TEXT,
-                        updated_at TEXT,
-                        UNIQUE(coin, purpose)
-                    )
-                    """
-                )
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS app_settings (
-                        key TEXT PRIMARY KEY,
-                        value TEXT NOT NULL,
-                        updated_at TEXT
-                    )
-                    """
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    ("swaps_enabled", "true", datetime.now(timezone.utc).isoformat()),
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    ("swap_fee_percent", "1.0", datetime.now(timezone.utc).isoformat()),
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    (
-                        "swap_confirmations_required",
-                        "1",
-                        datetime.now(timezone.utc).isoformat(),
-                    ),
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    ("swap_min_fee_OXC", "1.0", datetime.now(timezone.utc).isoformat()),
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    ("swap_min_fee_OXG", "1.0", datetime.now(timezone.utc).isoformat()),
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    (
-                        "swap_min_amount",
-                        "0.0001",
-                        datetime.now(timezone.utc).isoformat(),
-                    ),
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    (
-                        "swap_max_amount",
-                        "10000.0",
-                        datetime.now(timezone.utc).isoformat(),
-                    ),
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                    (
-                        "swap_expire_minutes",
-                        str(SWAP_EXPIRE_MINUTES),
-                        datetime.now(timezone.utc).isoformat(),
-                    ),
-                )
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS wallet_actions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        action_type TEXT NOT NULL,
-                        coin TEXT NOT NULL,
-                        purpose TEXT,
-                        amount REAL,
-                        address TEXT,
-                        txid TEXT,
-                        performed_by TEXT,
-                        ip_address TEXT,
-                        created_at TEXT,
-                        details TEXT
-                    )
-                    """
-                )
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS admin_audit_log (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        username TEXT NOT NULL,
-                        ip_address TEXT,
-                        action TEXT NOT NULL,
-                        result TEXT NOT NULL,
-                        details TEXT,
-                        created_at TEXT NOT NULL
-                    )
-                    """
-                )
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS wallet_configs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        coin TEXT UNIQUE NOT NULL,
-                        wallet_path TEXT NOT NULL,
-                        wallet_name TEXT,
-                        created_at TEXT,
-                        updated_at TEXT
-                    )
-                    """
-                )
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS swap_audit_log (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        swap_id TEXT NOT NULL,
-                        old_status TEXT,
-                        new_status TEXT NOT NULL,
-                        details TEXT,
-                        performed_by TEXT,
-                        created_at TEXT NOT NULL
-                    )
-                    """
-                )
-        except sqlite3.Error as e:
-            logger.error("Failed to initialize admin db", error=str(e))
+                run_migrations(conn, migrations)
+        except Exception as e:
+            logger.error("Failed to initialize admin db migrations", error=str(e))
 
     def has_admin_users(self) -> bool:
         try:

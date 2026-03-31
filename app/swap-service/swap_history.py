@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from config import DATA_DIR, DB_PATH, DEFAULT_LIMIT, STAT_INCLUDED_STATUSES
 from db_pool import get_pool
+from migrations import run_migrations
 
 logger = logging.getLogger(__name__)
 
@@ -43,24 +44,42 @@ class SwapHistoryService:
             logger.error(f"Failed to log swap audit for {swap_id}: {e}")
 
     def _init_db(self) -> None:
+        migrations = [
+            (
+                "001_initial_swaps_table",
+                """
+                CREATE TABLE IF NOT EXISTS swaps (
+                    swap_id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL,
+                    data_json TEXT NOT NULL,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    completed_at TEXT,
+                    from_coin TEXT,
+                    from_amount REAL
+                )
+                """,
+            ),
+            (
+                "002_swap_audit_log",
+                """
+                CREATE TABLE IF NOT EXISTS swap_audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    swap_id TEXT NOT NULL,
+                    old_status TEXT,
+                    new_status TEXT NOT NULL,
+                    details TEXT,
+                    performed_by TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """,
+            ),
+        ]
         try:
             with self._pool.get_connection() as conn:
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS swaps (
-                        swap_id TEXT PRIMARY KEY,
-                        status TEXT NOT NULL,
-                        data_json TEXT NOT NULL,
-                        created_at TEXT,
-                        updated_at TEXT,
-                        completed_at TEXT,
-                        from_coin TEXT,
-                        from_amount REAL
-                    )
-                    """
-                )
-        except sqlite3.Error as e:
-            logger.error(f"Failed to initialize swap history db: {e}")
+                run_migrations(conn, migrations)
+        except Exception as e:
+            logger.error(f"Failed to initialize swap history migrations: {e}")
 
     def add_swap(self, swap: Dict[str, Any]) -> None:
         swap_id = swap.get("swap_id")

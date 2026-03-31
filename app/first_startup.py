@@ -74,8 +74,13 @@ def main() -> int:
     logger.info("Base wallets initialized.")
 
     from admin_service import AdminService, validate_password
+    from swap_history import SwapHistoryService
 
+    logger.info("Running database migrations...")
     admin_service = AdminService()
+    swap_history = SwapHistoryService()
+    logger.info("Database migrations complete.")
+
     if not admin_service.has_admin_users():
         if not ADMIN_PASSWORD:
             logger.error(
