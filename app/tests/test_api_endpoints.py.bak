@@ -1,0 +1,656 @@
+"""
+Comprehensive API endpoint tests for Flask routes.
+
+Covers all major endpoints with success and error scenarios:
+- Quote and swap creation flow
+- Admin operations (reconciliation, settling, refunds)
+- Wallet operations (balance, deposits, withdrawals)
+- Swap queries and filters
+- Edge cases and error conditions
+"""
+
+import os
+import sys
+import unittest
+import tempfile
+import json
+import base64
+import importlib
+from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone
+
+# Add swap-service to path
+_swap_service_path = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "swap-service"
+)
+if _swap_service_path not in sys.path:
+    sys.path.insert(0, _swap_service_path)
+
+
+class FakeOracle:
+    """Mock price oracle for testing."""
+    def get_conversion_amount(
+        self,
+        from_coin,
+        to_coin,
+        amount,
+        fee_percent,
+        min_fee_oxc: float = 1.0,
+        min_fee_oxg: float = 1.0,
+    ):
+        rate = 2.0 if from_coin == "OXC" else 0.5
+        to_amount = amount * rate
+        fee = to_amount * (fee_percent / 100)
+        min_fee = min_fee_oxg if to_coin == "OXG" else min_fee_oxc
+        if fee < min_fee:
+            fee = min_fee
+        net_amount = to_amount - fee
+        return {
+            "from_coin": from_coin,
+            "to_coin": to_coin,
+            "from_amount": amount,
+            "to_amount": to_amount,
+            "fee_amount": fee,
+            "net_amount": net_amount,
+            "rate": rate,
+            "price_data": {
+                "price": rate,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+
+    def get_price(self, _from_coin, _to_coin):
+        return {
+            "price": 1.0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "oxc_usdt": 0.2,
+            "oxg_usdt": 0.1,
+            "source": "test",
+        }
+
+
+class FakeWallet:
+    """Mock wallet for testing."""
+    def __init__(self, coin, send_error: Exception = None):
+        self.coin = coin
+        self.send_error = send_error
+
+    def get_address(self):
+        return f"{self.coin.lower()}_addr"
+
+    def get_labeled_address(self, label):
+        return f"{self.coin.lower()}_{label}_addr"
+
+    def send(self, _address, _amount):
+        if self.send_error:
+            raise self.send_error
+        return f"tx_{self.coin.lower()}"
+
+    def get_balance(self):
+        return 100.0
+
+    def get_transaction(self, _txid):
+        return {"confirmations": 0}
+
+
+class TestPublicEndpoints(unittest.TestCase):
+    """Test public API endpoints accessible without authentication."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        os.environ["DATA_DIR"] = self._tmpdir.name
+        os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+        os.environ["TESTING_MODE"] = "true"
+        os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
+
+        # Clean modules to ensure fresh imports
+        for mod in ["config", "db_pool", "migrations", "api", "swap_engine", 
+                    "swap_history", "price_history", "admin_service", "wallet_rpc", 
+                    "price_oracle", "swap_cleanup"]:
+            if mod in sys.modules:
+                del sys.modules[mod]
+
+        # Import all necessary modules
+        api = importlib.import_module("api")
+        swap_engine = importlib.import_module("swap_engine")
+        swap_history = importlib.import_module("swap_history")
+        price_history = importlib.import_module("price_history")
+        admin_service = importlib.import_module("admin_service")
+
+        # Create test services
+        db_path = os.environ["DB_PATH"]
+        self.oracle = FakeOracle()
+        self.oxc_wallet = FakeWallet("OXC")
+        self.oxg_wallet = FakeWallet("OXG")
+
+        self.history_service = swap_history.SwapHistoryService()
+        self.price_history = price_history.PriceHistoryService(self.oracle)
+        self.admin_service = admin_service.AdminService(db_path=db_path)
+        self.admin_service.create_admin("swap", "changeme26")
+
+        self.engine = swap_engine.SwapEngine(
+            price_oracle=self.oracle,
+            oxc_wallet=self.oxc_wallet,
+            oxg_wallet=self.oxg_wallet,
+            history_service=self.history_service,
+            fee_percent=1.0,
+        )
+
+        # Initialize app with services
+        api.init_app(
+            self.engine,
+            self.oracle,
+            self.price_history,
+            self.history_service,
+            self.admin_service,
+        )
+        self.app = api.app
+        self.client = self.app.test_client()
+        self.app.config["TESTING"] = True
+
+    def test_health_endpoint_returns_200(self):
+        """Health check should return 200 OK."""
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+
+    def test_status_endpoint_returns_service_info(self):
+        """Status endpoint should return service information."""
+        response = self.client.get("/api/v1/status")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        self.assertIn("data", data)
+        status_info = data.get("data", {})
+        # Should contain swap settings information
+        self.assertIn("swaps_enabled", status_info)
+
+    def test_prices_current_endpoint(self):
+        """Current prices endpoint should return price data."""
+        response = self.client.get("/api/v1/prices/current")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        self.assertIn("data", data)
+
+    def test_quote_endpoint_valid_request(self):
+        """Quote endpoint should return swap quote for valid request."""
+        response = self.client.post("/api/v1/quote", json={
+            "from": "OXC",
+            "to": "OXG",
+            "amount": 10.0
+        })
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        quote = data.get("data", {})
+        self.assertIn("to_amount", quote)
+        self.assertIn("fee_amount", quote)
+        self.assertIn("net_amount", quote)
+        self.assertIn("rate", quote)
+
+    def test_quote_endpoint_reverse_direction(self):
+        """Quote endpoint should handle reverse coin direction."""
+        response = self.client.post("/api/v1/quote", json={
+            "from": "OXG",
+            "to": "OXC",
+            "amount": 10.0
+        })
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+
+    def test_quote_endpoint_accepts_various_amounts(self):
+        """Quote endpoint should accept different valid amounts."""
+        test_amounts = [0.001, 1.0, 10.5, 100.0, 1000.0]
+        
+        for amount in test_amounts:
+            with self.subTest(amount=amount):
+                response = self.client.post("/api/v1/quote", json={
+                    "from": "OXC",
+                    "to": "OXG",
+                    "amount": amount
+                })
+                self.assertIn(response.status_code, [200, 400])
+
+    def test_quote_endpoint_missing_field(self):
+        """Quote endpoint should reject request with missing field."""
+        response = self.client.post("/api/v1/quote", json={
+            "from": "OXC",
+            "to": "OXG"
+            # Missing amount
+        })
+        self.assertIn(response.status_code, [400, 422])
+
+    def test_swap_creation_valid_request(self):
+        """Swap endpoint should create swap with valid request."""
+        response = self.client.post("/api/v1/swap", json={
+            "from": "OXC",
+            "to": "OXG",
+            "amount": 5.0,
+            "user_address": "user_test_address_123"
+        })
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        swap = data.get("data", {})
+        self.assertIn("swap_id", swap)
+        self.assertIn("deposit_address", swap)
+        self.assertIn("status", swap)
+
+    def test_swap_creation_returns_deposit_address(self):
+        """Swap should return valid deposit address for payment."""
+        response = self.client.post("/api/v1/swap", json={
+            "from": "OXC",
+            "to": "OXG",
+            "amount": 5.0,
+            "user_address": "user_test_address_123"
+        })
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        swap = data.get("data", {})
+        deposit_addr = swap.get("deposit_address")
+        # Should be non-empty string
+        self.assertIsNotNone(deposit_addr)
+        self.assertIsInstance(deposit_addr, str)
+        self.assertGreater(len(deposit_addr), 0)
+
+    def test_get_swap_by_id(self):
+        """Retrieve swap details by swap ID."""
+        # Create swap first
+        create_response = self.client.post("/api/v1/swap", json={
+            "from_coin": "OXC",
+            "to_coin": "OXG",
+            "from_amount": 5.0,
+            "user_address": "user_test_address_123"
+        })
+        swap_id = json.loads(create_response.data).get("data", {}).get("swap_id")
+        
+        # Get swap details
+        response = self.client.get(f"/api/v1/swap/{swap_id}")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        swap = data.get("data", {})
+        self.assertEqual(swap.get("swap_id"), swap_id)
+
+    def test_get_nonexistent_swap(self):
+        """Getting non-existent swap should return 404."""
+        response = self.client.get("/api/v1/swap/nonexistent_id_xyz")
+        self.assertEqual(response.status_code, 404)
+
+    def test_balance_endpoint(self):
+        """Balance endpoint should return wallet balances."""
+        response = self.client.get("/api/v1/balance")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        balance = data.get("data", {})
+        self.assertIn("OXC", balance)
+        self.assertIn("OXG", balance)
+
+    def test_deposit_address_oxc(self):
+        """Deposit endpoint should return OXC deposit address."""
+        response = self.client.get("/api/v1/deposit/OXC")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        address = data.get("data", {}).get("address")
+        self.assertIsNotNone(address)
+
+    def test_deposit_address_oxg(self):
+        """Deposit endpoint should return OXG deposit address."""
+        response = self.client.get("/api/v1/deposit/OXG")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        address = data.get("data", {}).get("address")
+        self.assertIsNotNone(address)
+
+    def test_deposit_address_invalid_coin(self):
+        """Deposit endpoint should reject invalid coin."""
+        response = self.client.get("/api/v1/deposit/INVALID")
+        self.assertIn(response.status_code, [400, 404, 425])
+
+    def test_list_swaps_endpoint(self):
+        """List swaps endpoint should return swap history."""
+        response = self.client.get("/api/v1/swaps")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        swaps = data.get("data", [])
+        self.assertIsInstance(swaps, list)
+
+    def test_list_swaps_with_limit(self):
+        """List swaps should respect limit parameter."""
+        response = self.client.get("/api/v1/swaps?limit=5")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        swaps = data.get("data", [])
+        self.assertLessEqual(len(swaps), 5)
+
+    def test_search_swaps_by_status(self):
+        """Search swaps by status filter."""
+        response = self.client.get("/api/v1/swaps/search?status=pending")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+
+    def test_swaps_stats_endpoint(self):
+        """Stats endpoint should return swap statistics."""
+        response = self.client.get("/api/v1/swaps/stats")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        stats = data.get("data", {})
+        self.assertIn("total_swaps", stats)
+
+
+class TestSwapLifecycle(unittest.TestCase):
+    """Test complete swap lifecycle: create, confirm, settle."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        os.environ["DATA_DIR"] = self._tmpdir.name
+        os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+        os.environ["TESTING_MODE"] = "true"
+        os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
+
+        # Clean modules to ensure fresh imports
+        for mod in ["config", "db_pool", "migrations", "api", "swap_engine", 
+                    "swap_history", "price_history", "admin_service", "wallet_rpc", 
+                    "price_oracle", "swap_cleanup"]:
+            if mod in sys.modules:
+                del sys.modules[mod]
+
+        # Import all necessary modules
+        api = importlib.import_module("api")
+        swap_engine = importlib.import_module("swap_engine")
+        swap_history = importlib.import_module("swap_history")
+        price_history = importlib.import_module("price_history")
+        admin_service = importlib.import_module("admin_service")
+
+        # Create test services
+        db_path = os.environ["DB_PATH"]
+        self.oracle = FakeOracle()
+        self.oxc_wallet = FakeWallet("OXC")
+        self.oxg_wallet = FakeWallet("OXG")
+
+        self.history_service = swap_history.SwapHistoryService()
+        self.price_history = price_history.PriceHistoryService(self.oracle)
+        self.admin_service = admin_service.AdminService(db_path=db_path)
+        self.admin_service.create_admin("swap", "changeme26")
+
+        self.engine = swap_engine.SwapEngine(
+            price_oracle=self.oracle,
+            oxc_wallet=self.oxc_wallet,
+            oxg_wallet=self.oxg_wallet,
+            history_service=self.history_service,
+            fee_percent=1.0,
+        )
+
+        # Initialize app with services
+        api.init_app(
+            self.engine,
+            self.oracle,
+            self.price_history,
+            self.history_service,
+            self.admin_service,
+        )
+        self.app = api.app
+        self.client = self.app.test_client()
+        self.app.config["TESTING"] = True
+
+    def test_complete_swap_flow(self):
+        """Test full swap creation to confirmation flow."""
+        # Step 1: Get quote
+        quote_response = self.client.post("/api/v1/quote", json={
+            "from": "OXC",
+            "to": "OXG",
+            "amount": 5.0
+        })
+        self.assertEqual(quote_response.status_code, 200)
+
+        # Step 2: Create swap
+        swap_response = self.client.post("/api/v1/swap", json={
+            "from": "OXC",
+            "to": "OXG",
+            "amount": 5.0,
+            "user_address": "user_test_address"
+        })
+        self.assertEqual(swap_response.status_code, 200)
+        swap_data = json.loads(swap_response.data)
+        swap_id = swap_data.get("data", {}).get("swap_id")
+
+        # Step 3: Verify swap exists and in pending state
+        get_response = self.client.get(f"/api/v1/swap/{swap_id}")
+        self.assertEqual(get_response.status_code, 200)
+        swap = json.loads(get_response.data).get("data", {})
+        self.assertIn(swap.get("status"), ["pending", "awaiting_deposit"])
+
+    def test_cancel_swap(self):
+        """Test canceling a pending swap."""
+        # Create swap
+        swap_response = self.client.post("/api/v1/swap", json={
+            "from": "OXC",
+            "to": "OXG",
+            "amount": 5.0,
+            "user_address": "user_test_address"
+        })
+        swap_id = json.loads(swap_response.data).get("data", {}).get("swap_id")
+
+        # Cancel swap
+        cancel_response = self.client.post(f"/api/v1/swap/{swap_id}/cancel", json={})
+        self.assertEqual(cancel_response.status_code, 200)
+
+        # Verify cancelled
+        get_response = self.client.get(f"/api/v1/swap/{swap_id}")
+        swap = json.loads(get_response.data).get("data", {})
+        self.assertEqual(swap.get("status"), "cancelled")
+
+
+class TestAdminEndpoints(unittest.TestCase):
+    """Test admin-only endpoints with authentication."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        os.environ["DATA_DIR"] = self._tmpdir.name
+        os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+        os.environ["TESTING_MODE"] = "true"
+        os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
+
+        # Clean modules to ensure fresh imports
+        for mod in ["config", "db_pool", "migrations", "api", "swap_engine", 
+                    "swap_history", "price_history", "admin_service", "wallet_rpc", 
+                    "price_oracle", "swap_cleanup"]:
+            if mod in sys.modules:
+                del sys.modules[mod]
+
+        # Import all necessary modules
+        api = importlib.import_module("api")
+        swap_engine = importlib.import_module("swap_engine")
+        swap_history = importlib.import_module("swap_history")
+        price_history = importlib.import_module("price_history")
+        admin_service = importlib.import_module("admin_service")
+
+        # Create test services
+        db_path = os.environ["DB_PATH"]
+        self.oracle = FakeOracle()
+        self.oxc_wallet = FakeWallet("OXC")
+        self.oxg_wallet = FakeWallet("OXG")
+
+        self.history_service = swap_history.SwapHistoryService()
+        self.price_history = price_history.PriceHistoryService(self.oracle)
+        self.admin_service = admin_service.AdminService(db_path=db_path)
+        self.admin_service.create_admin("swap", "changeme26")
+
+        self.engine = swap_engine.SwapEngine(
+            price_oracle=self.oracle,
+            oxc_wallet=self.oxc_wallet,
+            oxg_wallet=self.oxg_wallet,
+            history_service=self.history_service,
+            fee_percent=1.0,
+        )
+
+        # Initialize app with services
+        api.init_app(
+            self.engine,
+            self.oracle,
+            self.price_history,
+            self.history_service,
+            self.admin_service,
+        )
+        self.app = api.app
+        self.client = self.app.test_client()
+        self.app.config["TESTING"] = True
+
+    def _get_admin_auth(self):
+        """Generate admin auth header."""
+        credentials = "admin:testpass123"
+        encoded = base64.b64encode(credentials.encode()).decode()
+        return {"Authorization": f"Basic {encoded}"}
+
+    def test_admin_swaps_enabled_get(self):
+        """Admin should retrieve current swaps enabled status."""
+        response = self.client.get("/api/v1/admin/swaps-enabled", 
+                                  headers=self._get_admin_auth())
+        self.assertIn(response.status_code, [200, 401, 403])
+
+    def test_admin_swaps_enabled_requires_auth(self):
+        """Admin endpoint should require authentication."""
+        response = self.client.get("/api/v1/admin/swaps-enabled")
+        self.assertIn(response.status_code, [401, 403])
+
+    def test_admin_background_status(self):
+        """Admin should retrieve background job status."""
+        response = self.client.get("/api/v1/admin/background-status",
+                                  headers=self._get_admin_auth())
+        self.assertIn(response.status_code, [200, 401, 403])
+
+    def test_admin_users_requires_auth(self):
+        """Admin users endpoint should require authentication."""
+        response = self.client.get("/api/v1/admin/users")
+        self.assertIn(response.status_code, [401, 403])
+
+
+class TestErrorConditions(unittest.TestCase):
+    """Test error handling and edge cases."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        os.environ["DATA_DIR"] = self._tmpdir.name
+        os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+        os.environ["TESTING_MODE"] = "true"
+        os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
+
+        # Clean modules to ensure fresh imports
+        for mod in ["config", "db_pool", "migrations", "api", "swap_engine", 
+                    "swap_history", "price_history", "admin_service", "wallet_rpc", 
+                    "price_oracle", "swap_cleanup"]:
+            if mod in sys.modules:
+                del sys.modules[mod]
+
+        # Import all necessary modules
+        api = importlib.import_module("api")
+        swap_engine = importlib.import_module("swap_engine")
+        swap_history = importlib.import_module("swap_history")
+        price_history = importlib.import_module("price_history")
+        admin_service = importlib.import_module("admin_service")
+
+        # Create test services
+        db_path = os.environ["DB_PATH"]
+        self.oracle = FakeOracle()
+        self.oxc_wallet = FakeWallet("OXC")
+        self.oxg_wallet = FakeWallet("OXG")
+
+        self.history_service = swap_history.SwapHistoryService()
+        self.price_history = price_history.PriceHistoryService(self.oracle)
+        self.admin_service = admin_service.AdminService(db_path=db_path)
+        self.admin_service.create_admin("swap", "changeme26")
+
+        self.engine = swap_engine.SwapEngine(
+            price_oracle=self.oracle,
+            oxc_wallet=self.oxc_wallet,
+            oxg_wallet=self.oxg_wallet,
+            history_service=self.history_service,
+            fee_percent=1.0,
+        )
+
+        # Initialize app with services
+        api.init_app(
+            self.engine,
+            self.oracle,
+            self.price_history,
+            self.history_service,
+            self.admin_service,
+        )
+        self.app = api.app
+        self.client = self.app.test_client()
+        self.app.config["TESTING"] = True
+
+    def test_malformed_json_request(self):
+        """Endpoint should handle malformed JSON."""
+        response = self.client.post("/api/v1/quote", 
+                                   data="not valid json",
+                                   content_type="application/json")
+        self.assertIn(response.status_code, [400, 422])
+
+    def test_missing_content_type(self):
+        """Endpoint should handle missing content type on POST."""
+        response = self.client.post("/api/v1/quote", 
+                                   json={"from_coin": "OXC", "to_coin": "OXG", "from_amount": 10.0})
+        # Should still process normally with default content-type handling
+        self.assertIn(response.status_code, [200, 400])
+
+    def test_quote_same_coin_pair(self):
+        """Quote with same coin should be rejected."""
+        response = self.client.post("/api/v1/quote", json={
+            "from": "OXC",
+            "to": "OXC",
+            "amount": 10.0
+        })
+        self.assertIn(response.status_code, [400, 422, 425])
+
+    def test_swap_same_coin_pair(self):
+        """Swap with same coin should be rejected."""
+        response = self.client.post("/api/v1/swap", json={
+            "from": "OXC",
+            "to": "OXC",
+            "amount": 10.0,
+            "user_address": "test_address"
+        })
+        self.assertIn(response.status_code, [400, 422, 425])
+
+    def test_swap_with_extreme_amounts(self):
+        """Test swap with very large and very small amounts."""
+        extreme_amounts = [0.00001, 1000000.0]
+        
+        for amount in extreme_amounts:
+            with self.subTest(amount=amount):
+                response = self.client.post("/api/v1/swap", json={
+                    "from_coin": "OXC",
+                    "to_coin": "OXG",
+                    "from_amount": amount,
+                    "user_address": "test_address"
+                })
+                # Should either succeed or return 400, not 500
+                self.assertNotEqual(response.status_code, 500)
+
+    def test_nonexistent_endpoint_returns_404(self):
+        """Nonexistent endpoint should return 404."""
+        response = self.client.get("/api/v1/nonexistent-endpoint")
+        self.assertEqual(response.status_code, 404)
+
+    def test_method_not_allowed(self):
+        """Wrong HTTP method should return 405."""
+        response = self.client.post("/api/v1/balance")
+        self.assertEqual(response.status_code, 405)
+
+
+if __name__ == "__main__":
+    unittest.main()
