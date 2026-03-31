@@ -209,6 +209,7 @@ def main():
         confirmations_required=SWAP_CONFIRMATIONS_REQUIRED,
         min_fee_oxc=SWAP_MIN_FEE_OXC,
         min_fee_oxg=SWAP_MIN_FEE_OXG,
+        admin_service=admin_service,
     )
     engine.start_background_settlement()
 

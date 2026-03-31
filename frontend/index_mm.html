@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OrdexSwap - OXC/OXG Exchange</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>OrdexSwap — OXC / OXG Cross-Chain Exchange</title>
   <link rel="icon" href="ordexnetwork.png" type="image/png">
+  <!-- Bootstrap + FontAwesome + Tailwind -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -32,29 +33,30 @@
   </script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-    
-    .logo-text {
-      background: linear-gradient(135deg, #FFFFFF 30%, #dca747 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    
+
     body {
       background-color: #030303;
       color: #ffffff;
       font-family: 'Inter', system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-    
+
+    /* Background patterns (from copy) */
     .chat-pattern-bg {
-      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M54.627 0l.83.83-1.66 1.66.83.83-2.49 2.49-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83L4.98 54.627l-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83L0 56.287v3.713h3.713l1.66-1.66.83.83 1.66-1.66.83.83 2.49-2.49.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83L56.287 0h-1.66z' fill='%231f1f1f' fill-opacity='0.4' fill-rule='evenodd'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M54.627 0l.83.83-1.66 1.66.83.83-2.49 2.49-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83L4.98 54.627l-.83-.83-1.66 1.66-.83-.83-1.66 1.66-.83-.83L0 56.287v3.713h3.713l1.66-1.66.83.83 1.66-1.66.83.83 2.49-2.49.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83 1.66-1.66.83.83.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83-1.66-1.66.83-.83L56.287 0h-1.66z' fill='%231f1f1f' fill-opacity='0.4' fill-rule='evenodd'/%3E%3C/svg%3E");
     }
-    
+
     .radial-glow {
       background: radial-gradient(circle at 50% 30%, rgba(220, 167, 71, 0.12) 0%, rgba(3, 3, 3, 0) 70%);
     }
-    
+
+    /* Glassmorphic cards */
     .bento-card {
       background: rgba(10, 10, 10, 0.8);
       backdrop-filter: blur(24px) saturate(150%);
@@ -64,67 +66,20 @@
       box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(220, 167, 71, 0.05);
       transition: all 0.3s ease;
     }
-    
+
     .bento-card:hover {
       box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(220, 167, 71, 0.15);
       border-color: rgba(220, 167, 71, 0.4);
     }
-    
-    .text-gradient {
-      background: linear-gradient(135deg, #FFFFFF 30%, #dca747 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    
-    .btn-swap {
-      background: rgba(220, 167, 71, 0.15);
-      border: 1px solid rgba(220, 167, 71, 0.4);
-      color: #dca747;
-      border-radius: 16px;
-      transition: all 0.4s ease;
-    }
-    
-    .btn-swap:hover:not(:disabled) {
-      background: rgba(220, 167, 71, 0.25);
-      border-color: rgba(220, 167, 71, 0.8);
-      box-shadow: 0 0 24px rgba(220, 167, 71, 0.25);
-      color: #fff;
-    }
-    
-    .btn-swap:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.1);
-      color: rgba(255, 255, 255, 0.5);
-    }
 
-    .form-control-dark {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #fff;
-      border-radius: 12px;
-    }
-    
-    .form-control-dark:focus {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(220, 167, 71, 0.5);
-      color: #fff;
-      box-shadow: 0 0 0 3px rgba(220, 167, 71, 0.1);
-    }
-    
-    .form-control-dark::placeholder {
-      color: #666;
-    }
-
-    /* DEX Input Styling */
+    /* Unified DEX input style (from copy + refined) */
     .dex-input-container {
       background: rgba(20, 20, 20, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 20px;
       transition: all 0.2s ease;
     }
-    
+
     .dex-input-container:focus-within {
       border-color: rgba(220, 167, 71, 0.4);
       background: rgba(25, 25, 25, 0.8);
@@ -136,16 +91,15 @@
       box-shadow: none !important;
       color: white !important;
       padding: 0;
-      font-size: 2rem;
-      font-weight: 500;
+      font-size: 1.9rem;
+      font-weight: 600;
       width: 100%;
     }
-    
+
     .dex-input::placeholder {
       color: #555;
     }
 
-    /* Remove number input arrows */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
       -webkit-appearance: none; 
@@ -155,87 +109,150 @@
       -moz-appearance: textfield;
     }
 
-    .dex-select {
-      background-color: rgba(255, 255, 255, 0.08) !important;
-      border: 1px solid rgba(255, 255, 255, 0.05) !important;
-      color: white !important;
+    /* ===== COIN SELECTOR PILL — UNIFIED & MODERN (from index.html) ===== */
+    .coin-selector-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(220, 167, 71, 0.35);
       border-radius: 100px;
-      padding: 6px 32px 6px 16px;
-      font-weight: 600;
-      box-shadow: none !important;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+      min-width: 130px;
       cursor: pointer;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
-      background-repeat: no-repeat;
-      background-position: right 0.75rem center;
-      background-size: 12px 12px;
     }
 
-    .dex-select:hover {
-      background-color: rgba(255, 255, 255, 0.12) !important;
-    }
-    
-    .coin-badge {
+    .coin-selector-pill:hover {
       background: rgba(220, 167, 71, 0.1);
-      border: 1px solid rgba(220, 167, 71, 0.3);
-      color: #dca747;
+      border-color: #dca747;
     }
-    
-    .network-badge {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #888;
-      font-size: 10px;
-      font-weight: 600;
-      padding: 6px 14px;
-      border-radius: 40px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+
+    .coin-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: contain;
+      background-color: #0a0a0a;
     }
-    
-    ::-webkit-scrollbar {
-      width: 8px;
+
+    .dex-select {
+      background-color: transparent !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 0 25px 0 0 !important;
+      cursor: pointer;
+      box-shadow: none !important;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23dca747' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+      background-repeat: no-repeat !important;
+      background-position: right center !important;
+      background-size: 14px !important;
     }
-    ::-webkit-scrollbar-track {
-      background: #030303;
+
+    /* Dark dropdown options — readability fix */
+    .dex-select option {
+      background-color: #0a0a0a !important;
+      color: #ffffff !important;
+      padding: 12px;
     }
-    ::-webkit-scrollbar-thumb {
-      background: #1f1f1f;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #dca747;
-    }
-    
+
+    /* Swap icon ring */
     .swap-icon {
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
       background: #1a1a1a;
-      border: 4px solid #0a0a0a;
-      border-radius: 12px;
+      border: 4px solid #030303;
+      border-radius: 14px;
       color: #dca747;
-      font-size: 16px;
+      font-size: 18px;
       cursor: pointer;
       transition: all 0.3s ease;
       z-index: 10;
       position: relative;
     }
-    
+
     .swap-icon:hover {
       background: rgba(220, 167, 71, 0.2);
       transform: rotate(180deg);
     }
-    
-    .status-pending { color: #f59e0b; }
-    .status-completed { color: #10b981; }
-    .status-failed { color: #ef4444; }
-    .status-processing { color: #3b82f6; }
-    .status-delayed { color: #f59e0b; }
-    .status-expired { color: #6b7280; }
-    
+
+    /* Form elements */
+    .form-control-dark {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border-radius: 14px;
+      padding: 12px 16px;
+    }
+
+    .form-control-dark:focus {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(220, 167, 71, 0.5);
+      color: #fff;
+      box-shadow: 0 0 0 3px rgba(220, 167, 71, 0.1);
+    }
+
+    .btn-swap {
+      background: rgba(220, 167, 71, 0.15);
+      border: 1px solid rgba(220, 167, 71, 0.4);
+      color: #dca747;
+      border-radius: 18px;
+      transition: all 0.4s ease;
+      font-weight: 700;
+    }
+
+    .btn-swap:hover:not(:disabled) {
+      background: rgba(220, 167, 71, 0.25);
+      border-color: rgba(220, 167, 71, 0.8);
+      box-shadow: 0 0 24px rgba(220, 167, 71, 0.25);
+      color: #fff;
+    }
+
+    .btn-swap:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .network-badge {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #aaa;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 40px;
+      letter-spacing: 0.05em;
+    }
+
+    .deposit-address {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(220, 167, 71, 0.3);
+      border-radius: 14px;
+      padding: 12px;
+      font-family: monospace;
+      word-break: break-all;
+      color: #dca747;
+    }
+
+    .price-chart {
+      height: 180px;
+      width: 100%;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    /* loader animation */
     .loader {
       border: 3px solid rgba(220, 167, 71, 0.2);
       border-top: 3px solid #dca747;
@@ -244,66 +261,27 @@
       height: 24px;
       animation: spin 1s linear infinite;
     }
-    
+
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    
-    .price-chart {
-      height: 180px;
-      display: flex;
-      align-items: flex-end;
-      gap: 2px;
-    }
-    
-    .stat-card {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 16px;
-      padding: 16px;
-    }
 
-    .stat-big {
-      font-size: 1.5rem;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-    
-    .deposit-address {
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(220, 167, 71, 0.2);
-      border-radius: 12px;
-      padding: 14px;
-      font-family: monospace;
-      word-break: break-all;
-      color: #dca747;
-    }
-    
-    .btn-web3 {
-      position: relative;
-      background: rgba(220, 167, 71, 0.15);
-      border: 1px solid rgba(220, 167, 71, 0.4);
-      color: #dca747;
-      border-radius: 9999px;
-      overflow: hidden;
-      transition: all 0.4s ease;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1.5rem;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
+    /* status badges */
+    .status-pending { color: #f59e0b; }
+    .status-completed { color: #10b981; }
+    .status-failed { color: #ef4444; }
+    .status-processing { color: #3b82f6; }
 
-    .btn-web3:hover {
-      background: rgba(220, 167, 71, 0.25);
-      border-color: rgba(220, 167, 71, 0.8);
-      box-shadow: 0 0 24px rgba(220, 167, 71, 0.25);
-      color: #fff;
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #030303;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #dca747;
+      border-radius: 10px;
     }
   </style>
 </head>
@@ -311,17 +289,18 @@
   <div class="fixed inset-0 chat-pattern-bg opacity-15 pointer-events-none z-[-2]"></div>
   <div class="radial-glow fixed inset-0 z-[-1] pointer-events-none"></div>
 
+  <!-- Navigation (unified) -->
   <nav class="fixed top-0 w-full z-[100] border-b border-white/[0.04] backdrop-blur-2xl bg-brand-black/80">
     <div class="container py-3 d-flex align-items-center justify-content-between">
       <a href="#" class="d-flex align-items-center gap-3 text-decoration-none">
-        <img src="ordexnetwork.png" alt="OrdexNetwork" class="w-12 h-12" style="filter: drop-shadow(0 0 12px rgba(220,167,71,0.5));">
-        <span class="fw-bold logo-text" style="font-size: 1.5rem; letter-spacing: -0.04em;">ORDEX<span class="text-warning" style="-webkit-text-fill-color: #dca747;">SWAP</span></span>
+        <img src="ordexnetwork.png" alt="OrdexNetwork" class="w-10 h-10" style="filter: drop-shadow(0 0 8px rgba(220,167,71,0.4));">
+        <span class="fw-bold logo-text" style="font-size: 1.6rem; background: linear-gradient(135deg, #FFFFFF 30%, #dca747 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">ORDEX<span style="-webkit-text-fill-color: #dca747;">SWAP</span></span>
       </a>
       <div class="d-flex align-items-center gap-3">
         <span class="network-badge" id="price-display">OXC/OXG: --</span>
         <span class="network-badge" id="mode-indicator">Connecting...</span>
-        <a href="https://explorer.ordexnetwork.org" target="_blank" class="btn-web3 d-none d-md-inline-flex">
-          <i class="fas fa-cubes"></i> Explorer
+        <a href="https://explorer.ordexnetwork.org" target="_blank" class="btn-web3 d-none d-md-inline-flex text-decoration-none" style="background:rgba(220,167,71,0.1); border:1px solid rgba(220,167,71,0.3); border-radius:40px; padding:6px 16px; font-size:12px; font-weight:600; color:#dca747;">
+          <i class="fas fa-cubes me-1"></i> Explorer
         </a>
       </div>
     </div>
@@ -330,20 +309,17 @@
   <main class="container pt-5 mt-5 pb-5">
     <div class="row gx-lg-5 gy-4 justify-content-center">
       
+      <!-- LEFT COLUMN: charts, stats, history (from copy) -->
       <div class="col-lg-7 order-2 order-lg-1">
-        
         <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
-          <div class="d-flex align-items-center gap-2">
-            <h2 class="fs-3 fw-bold m-0 text-white">OXC/OXG</h2>
-            <span class="badge bg-white/10 text-brand-muted rounded-pill fs-6 px-3 py-1" id="current-rate">Loading...</span>
-          </div>
+          <h2 class="fs-3 fw-bold m-0 text-white">OXC / OXG</h2>
+          <span class="badge bg-white/10 text-brand-accent rounded-pill fs-6 px-3 py-1" id="current-rate">Loading...</span>
         </div>
 
+        <!-- Price chart card -->
         <div class="bento-card p-4 mb-4">
           <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-              <span class="text-brand-muted small fw-medium text-uppercase tracking-wider">24h Cross Rate History</span>
-            </div>
+            <span class="text-brand-muted small fw-medium text-uppercase tracking-wider">24h Cross Rate History</span>
             <div class="d-flex gap-2">
               <div class="bg-black/40 border border-white/5 rounded px-3 py-1 text-end">
                 <div class="small fw-bold text-white" id="oxc-price">--</div>
@@ -355,981 +331,227 @@
               </div>
             </div>
           </div>
-          
           <div class="price-chart w-100" id="price-chart">
             <div class="text-center text-brand-muted w-100 small mt-5">Loading chart...</div>
           </div>
         </div>
 
+        <!-- stats row -->
         <div class="row g-3 mb-4">
-          <div class="col-6 col-md-3">
-            <div class="stat-card h-100">
-              <div class="text-brand-muted small mb-1">24h Volume</div>
-              <div class="fw-bold text-white text-truncate" id="stat-volume">--</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="stat-card h-100">
-              <div class="text-brand-muted small mb-1">Total Swaps</div>
-              <div class="stat-big text-white" id="stat-swaps">--</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="stat-card h-100">
-              <div class="text-brand-muted small mb-1">24h High</div>
-              <div class="fw-bold text-white text-truncate" id="stat-high">--</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="stat-card h-100">
-              <div class="text-brand-muted small mb-1">24h Low</div>
-              <div class="fw-bold text-white text-truncate" id="stat-low">--</div>
-            </div>
-          </div>
+          <div class="col-6 col-md-3"><div class="stat-card"><div class="text-brand-muted small mb-1">24h Volume</div><div class="fw-bold text-white" id="stat-volume">--</div></div></div>
+          <div class="col-6 col-md-3"><div class="stat-card"><div class="text-brand-muted small mb-1">Total Swaps</div><div class="stat-big fw-bold text-white" id="stat-swaps">--</div></div></div>
+          <div class="col-6 col-md-3"><div class="stat-card"><div class="text-brand-muted small mb-1">24h High</div><div class="fw-bold text-white" id="stat-high">--</div></div></div>
+          <div class="col-6 col-md-3"><div class="stat-card"><div class="text-brand-muted small mb-1">24h Low</div><div class="fw-bold text-white" id="stat-low">--</div></div></div>
         </div>
 
+        <!-- recent swaps -->
         <div class="bento-card p-4">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h3 class="fs-6 fw-bold text-white mb-0">Recent Swaps</h3>
-            <button class="btn btn-sm text-brand-muted hover:text-white" id="refresh-swaps">
-              <i class="fas fa-sync-alt"></i>
-            </button>
+            <button class="btn btn-sm text-brand-muted hover:text-white" id="refresh-swaps"><i class="fas fa-sync-alt"></i></button>
           </div>
-          <div id="recent-swaps">
-            <p class="text-brand-muted small">No recent swaps</p>
-          </div>
+          <div id="recent-swaps"><p class="text-brand-muted small">No recent swaps</p></div>
         </div>
-
       </div>
 
+      <!-- RIGHT COLUMN: SWAP CARD (unified + refined) -->
       <div class="col-lg-5 col-xl-4 order-1 order-lg-2">
-        
         <div class="bento-card p-4">
           <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 class="fs-5 fw-bold text-white m-0">Swap</h2>
-            <button class="btn btn-sm text-brand-muted hover:text-white px-2 py-0" id="reset-btn" title="Reset Form">
-              <i class="fas fa-redo-alt"></i>
-            </button>
+            <button class="btn btn-sm text-brand-muted hover:text-white px-2" id="reset-btn" title="Reset Form"><i class="fas fa-redo-alt"></i></button>
           </div>
-          
+
           <form id="swap-form">
-            <div class="dex-input-container p-3">
-              <div class="d-flex justify-content-between mb-2">
-                <label class="text-brand-muted small">You pay</label>
-              </div>
+            <!-- from -->
+            <div class="dex-input-container p-3 mb-1">
+              <div class="d-flex justify-content-between mb-2"><label class="text-brand-muted small">You pay</label></div>
               <div class="d-flex align-items-center gap-2">
-                <input type="number" class="form-control dex-input" id="from-amount" placeholder="0" step="1" title="Min: 1 | Max: 10000">
-                <select class="form-select dex-select w-auto" id="from-coin">
-                  <option value="OXC" selected>OXC</option>
-                  <option value="OXG">OXG</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="d-flex justify-content-center" style="margin: -16px 0; z-index: 5;">
-              <div class="swap-icon" id="swap-direction" title="Swap direction">
-                <i class="fas fa-arrow-down"></i>
-              </div>
-            </div>
-            
-            <div class="dex-input-container p-3 mb-4">
-              <div class="d-flex justify-content-between mb-2">
-                <label class="text-brand-muted small">You receive</label>
-              </div>
-              <div class="d-flex align-items-center gap-2">
-                <input type="text" class="form-control dex-input" id="to-amount" placeholder="0.0" readonly>
-                <select class="form-select dex-select w-auto" id="to-coin">
-                  <option value="OXG" selected>OXG</option>
-                  <option value="OXC">OXC</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="mb-4">
-              <label class="form-label text-brand-muted small mb-1">Destination Address</label>
-              <input type="text" class="form-control form-control-dark py-3" id="user-address" placeholder="Wallet address to receive funds">
-              <div class="text-danger small mt-2 d-none" id="address-error">
-                <i class="fas fa-exclamation-triangle me-1"></i> Please enter a valid address.
+                <input type="number" class="form-control dex-input" id="from-amount" placeholder="0" step="any">
+                <div class="coin-selector-pill">
+                  <img src="oxc.png" id="from-coin-img" class="coin-icon" alt="OXC">
+                  <select class="form-select dex-select" id="from-coin">
+                    <option value="OXC">OXC</option>
+                    <option value="OXG">OXG</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div class="bg-white/5 border border-white/5 rounded-3 p-3 mb-4">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="text-brand-muted small">Exchange Rate</span>
-                <span class="text-white small fw-medium" id="quote-rate">--</span>
-              </div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="text-brand-muted small">
-                  Fee <span id="fee-percent-label" class="text-brand-muted"></span>
-                  <i class="fas fa-info-circle ms-1" style="cursor: help; font-size: 11px;" title="Minimum fee of 1 OXG or 1 OXC applies"></i>
-                </span>
-                <div class="d-flex gap-2 align-items-center">
-                  <span class="text-brand-muted small" id="fee-display">1.0%</span>
-                  <span class="text-white small fw-medium" id="quote-fee">--</span>
+            <div class="d-flex justify-content-center" style="margin: -16px 0; z-index: 5;">
+              <div class="swap-icon" id="swap-direction"><i class="fas fa-arrow-down"></i></div>
+            </div>
+
+            <!-- to -->
+            <div class="dex-input-container p-3 mb-4">
+              <div class="d-flex justify-content-between mb-2"><label class="text-brand-muted small">You receive</label></div>
+              <div class="d-flex align-items-center gap-2">
+                <input type="text" class="form-control dex-input" id="to-amount" placeholder="0.0" readonly>
+                <div class="coin-selector-pill">
+                  <img src="oxg.png" id="to-coin-img" class="coin-icon" alt="OXG">
+                  <select class="form-select dex-select" id="to-coin">
+                    <option value="OXG">OXG</option>
+                    <option value="OXC">OXC</option>
+                  </select>
                 </div>
               </div>
-              <hr class="border-white/10 my-2">
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="text-brand-muted small">Expected Output <span class="text-warning" title="After service fee. Network fees may apply.">*</span></span>
-                <span class="text-brand-accent fw-bold fs-6" id="quote-receive">--</span>
-              </div>
             </div>
-            
-            <div class="d-none mb-3" id="liquidity-warning"></div>
-            <div class="mb-3" id="message-area"></div>
-            
-            <button type="submit" class="btn btn-swap w-100 py-3 fw-bold fs-5 text-uppercase tracking-wider d-flex justify-content-center align-items-center gap-2" id="swap-btn" disabled>
+
+            <div class="mb-4">
+              <label class="form-label text-brand-muted small mb-1">Destination Address</label>
+              <input type="text" class="form-control form-control-dark" id="user-address" placeholder="Wallet address to receive funds">
+              <div class="text-danger small mt-2 d-none" id="address-error"><i class="fas fa-exclamation-triangle me-1"></i> Please enter a valid address.</div>
+            </div>
+
+            <!-- rate & fee box -->
+            <div class="bg-white/5 border border-white/5 rounded-3 p-3 mb-4">
+              <div class="d-flex justify-content-between mb-2"><span class="text-brand-muted small">Exchange Rate</span><span class="text-white small fw-medium" id="quote-rate">--</span></div>
+              <div class="d-flex justify-content-between mb-2">
+                <span class="text-brand-muted small">Fee <span id="fee-percent-label"></span><i class="fas fa-info-circle ms-1" style="cursor:help;font-size:11px;" title="Minimum fee of 1 OXG or 1 OXC"></i></span>
+                <div class="d-flex gap-2"><span class="text-brand-muted small" id="fee-display">1.0%</span><span class="text-white small fw-medium" id="quote-fee">--</span></div>
+              </div>
+              <hr class="border-white/10 my-2">
+              <div class="d-flex justify-content-between"><span class="text-brand-muted small">Expected Output <span class="text-warning">*</span></span><span class="text-brand-accent fw-bold fs-6" id="quote-receive">--</span></div>
+            </div>
+
+            <div id="liquidity-warning" class="mb-2 d-none"></div>
+            <div id="message-area" class="mb-3"></div>
+
+            <button type="submit" class="btn btn-swap w-100 py-3 fw-bold fs-5 d-flex justify-content-center align-items-center gap-2" id="swap-btn" disabled>
               <span id="btn-text">Enter an amount</span>
               <div class="loader d-none" id="btn-loader"></div>
             </button>
           </form>
-
         </div>
       </div>
-      
     </div>
   </main>
 
   <footer class="border-top border-white/[0.04] py-4 mt-5">
     <div class="container d-flex flex-wrap justify-content-between align-items-center">
       <div class="d-flex align-items-center gap-2 opacity-50">
-        <img src="ordexnetwork.png" alt="OrdexNetwork" class="w-5 h-5" style="filter: grayscale(100%);">
+        <img src="ordexnetwork.png" alt="Ordex" class="w-5 h-5" style="filter: grayscale(100%);">
         <span class="text-white" style="font-size: 10px; letter-spacing: 0.1em;">© 2026 ORDEX PROTOCOL</span>
       </div>
       <div class="d-flex gap-4 align-items-center">
         <a href="https://ordexnetwork.org" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent">About</a>
         <a href="https://explorer.ordexnetwork.org" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent">Explorer</a>
         <a href="mailto:contact@ordexnetwork.org" class="text-brand-muted small text-decoration-none hover:text-brand-accent">Contact</a>
-        <a href="https://discord.gg/65y82n436J" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent"><i class="fab fa-discord"></i></a>
-        <a href="https://t.me/ordexnetwork" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent"><i class="fab fa-telegram"></i></a>
-        <a href="https://github.com/OrdexCoin" target="_blank" class="text-brand-muted small text-decoration-none hover:text-brand-accent"><i class="fab fa-github"></i></a>
+        <a href="https://discord.gg/65y82n436J" target="_blank" class="text-brand-muted small"><i class="fab fa-discord"></i></a>
+        <a href="https://t.me/ordexnetwork" target="_blank" class="text-brand-muted small"><i class="fab fa-telegram"></i></a>
+        <a href="https://github.com/OrdexCoin" target="_blank" class="text-brand-muted small"><i class="fab fa-github"></i></a>
       </div>
     </div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // API runs on same origin (proxied by nginx)
+    // ========== UNIFIED FULL FUNCTIONALITY (from index copy.html) ==========
     const API_BASE = '';
-    
-    let currentQuote = null;
-    let currentRate = null;
-    let testingMode = false;
-    let priceHistoryCache = null;
-    let countdownInterval = null;
-    let currentSwapId = null;
-    let priceData = null;
-    let priceDisplayIndex = 0;
-    let currentFeePercent = 1.0;
-    let currentMinFeeOxc = 1.0;
-    let currentMinFeeOxg = 1.0;
-    let currentMinAmount = 0.0001;
-    let currentMaxAmount = 10000.0;
-    let currentExpireMins = 15;
-    
-    // DOM Elements
-    const fromCoin = document.getElementById('from-coin');
-    const toCoin = document.getElementById('to-coin');
-    const fromAmount = document.getElementById('from-amount');
-    const toAmount = document.getElementById('to-amount');
-    const swapDirection = document.getElementById('swap-direction');
-    const swapBtn = document.getElementById('swap-btn');
-    const btnText = document.getElementById('btn-text');
-    const btnLoader = document.getElementById('btn-loader');
-    const messageArea = document.getElementById('message-area');
-    const liquidityWarning = document.getElementById('liquidity-warning');
-    const userAddress = document.getElementById('user-address');
-    const addressError = document.getElementById('address-error');
-    const quoteRate = document.getElementById('quote-rate');
-    const quoteFee = document.getElementById('quote-fee');
-    const quoteReceive = document.getElementById('quote-receive');
-    const currentRateEl = document.getElementById('current-rate');
-    const priceDisplayEl = document.getElementById('price-display');
-    const modeIndicator = document.getElementById('mode-indicator');
-    const recentSwapsEl = document.getElementById('recent-swaps');
-    const priceChart = document.getElementById('price-chart');
-    const refreshSwapsBtn = document.getElementById('refresh-swaps');
-    const resetBtn = document.getElementById('reset-btn');
-    
-    // Stat elements
-    const statVolume = document.getElementById('stat-volume');
-    const statSwaps = document.getElementById('stat-swaps');
-    const statHigh = document.getElementById('stat-high');
-    const statLow = document.getElementById('stat-low');
-    
+    let currentQuote = null, currentRate = null, testingMode = false, priceHistoryCache = null;
+    let countdownInterval = null, currentSwapId = null, priceData = null, priceDisplayIndex = 0;
+    let currentFeePercent = 1.0, currentMinFeeOxc = 1.0, currentMinFeeOxg = 1.0, currentMinAmount = 0.0001, currentMaxAmount = 10000.0, currentExpireMins = 15;
+
+    // DOM refs
+    const fromCoin = document.getElementById('from-coin'), toCoin = document.getElementById('to-coin');
+    const fromAmount = document.getElementById('from-amount'), toAmount = document.getElementById('to-amount');
+    const swapDirection = document.getElementById('swap-direction'), swapBtn = document.getElementById('swap-btn');
+    const btnText = document.getElementById('btn-text'), btnLoader = document.getElementById('btn-loader');
+    const messageArea = document.getElementById('message-area'), liquidityWarning = document.getElementById('liquidity-warning');
+    const userAddress = document.getElementById('user-address'), addressError = document.getElementById('address-error');
+    const quoteRate = document.getElementById('quote-rate'), quoteFee = document.getElementById('quote-fee'), quoteReceive = document.getElementById('quote-receive');
+    const currentRateEl = document.getElementById('current-rate'), priceDisplayEl = document.getElementById('price-display');
+    const modeIndicator = document.getElementById('mode-indicator'), recentSwapsEl = document.getElementById('recent-swaps');
+    const priceChart = document.getElementById('price-chart'), refreshSwapsBtn = document.getElementById('refresh-swaps');
+    const statVolume = document.getElementById('stat-volume'), statSwaps = document.getElementById('stat-swaps');
+    const statHigh = document.getElementById('stat-high'), statLow = document.getElementById('stat-low');
+
+    function updateCoinImages() {
+      document.getElementById('from-coin-img').src = `${fromCoin.value.toLowerCase()}.png`;
+      document.getElementById('to-coin-img').src = `${toCoin.value.toLowerCase()}.png`;
+    }
+
     function startSwapCountdown(swapId) {
-      currentSwapId = swapId;
-      let secondsRemaining = currentExpireMins * 60 - 1;
-      
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-      }
-      
+      currentSwapId = swapId; let secondsRemaining = currentExpireMins * 60 - 1;
+      if (countdownInterval) clearInterval(countdownInterval);
       countdownInterval = setInterval(async () => {
-        const minutes = Math.floor(secondsRemaining / 60);
-        const seconds = secondsRemaining % 60;
         const timerEl = document.getElementById('countdown-timer');
-        
-        if (timerEl) {
-          timerEl.textContent = `Expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
-        }
-        
+        if (timerEl) timerEl.textContent = `Expires in ${Math.floor(secondsRemaining/60)}:${(secondsRemaining%60).toString().padStart(2,'0')}`;
         if (secondsRemaining <= 0) {
-          clearInterval(countdownInterval);
-          countdownInterval = null;
-          
-          if (currentSwapId) {
-            try {
-              await fetch(`${API_BASE}/api/v1/swap/${currentSwapId}/cancel`, {
-                method: 'POST'
-              });
-            } catch (e) {
-              console.error('Failed to cancel swap:', e);
-            }
-          }
-          
-          resetForm();
-          window.location.reload();
+          clearInterval(countdownInterval); countdownInterval = null;
+          if (currentSwapId) await fetch(`${API_BASE}/api/v1/swap/${currentSwapId}/cancel`, { method: 'POST' }).catch(e=>null);
+          resetForm(); window.location.reload();
         }
-        
         secondsRemaining--;
       }, 1000);
     }
-    
-    function stopSwapCountdown() {
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-      currentSwapId = null;
-    }
-    
-    // Initialize
-    async function init() {
-      resetForm();
-      await checkStatus();
-      fetchCoinPrices();
-      fetchPrice();
-      fetchPriceStats();
-      loadRecentSwaps();
-      setInterval(fetchCoinPrices, 30000);
-      setInterval(fetchPrice, 30000);
-      setInterval(fetchPriceStats, 60000);
-      setInterval(updatePriceDisplay, 5000);
-    }
-    
-    // Check API status
+    function stopSwapCountdown() { if(countdownInterval) clearInterval(countdownInterval); currentSwapId=null; }
+
     async function checkStatus() {
       try {
-        const response = await fetch(`${API_BASE}/api/v1/status`);
-        const data = await response.json();
-        if (data.success) {
-          testingMode = data.data.testing_mode;
-          currentFeePercent = data.data.fee_percent || 1.0;
-          currentMinFeeOxc = data.data.min_fee_oxc || 1.0;
-          currentMinFeeOxg = data.data.min_fee_oxg || 1.0;
-          currentMinAmount = data.data.min_amount || 0.0001;
-          currentMaxAmount = data.data.max_amount || 10000.0;
-          currentExpireMins = data.data.expire_minutes || 15;
-          
+        const res = await fetch(`${API_BASE}/api/v1/status`), data = await res.json();
+        if(data.success){
+          testingMode = data.data.testing_mode; currentFeePercent = data.data.fee_percent || 1.0;
+          currentMinFeeOxc = data.data.min_fee_oxc || 1.0; currentMinFeeOxg = data.data.min_fee_oxg || 1.0;
+          currentMinAmount = data.data.min_amount || 0.0001; currentMaxAmount = data.data.max_amount || 10000.0; currentExpireMins = data.data.expire_minutes || 15;
           document.getElementById('from-amount').min = Math.ceil(currentMinAmount);
-          document.getElementById('from-amount').title = 'Min: ' + Math.ceil(currentMinAmount) + ' | Max: ' + currentMaxAmount;
-          document.getElementById('fee-display').textContent = currentFeePercent.toFixed(1) + '%';
-          document.getElementById('fee-percent-label').textContent = '(' + currentFeePercent.toFixed(1) + '%)';
-          
-          const minFeeTooltip = 'Minimum fee: ' + currentMinFeeOxc + ' OXC or ' + currentMinFeeOxg + ' OXG';
-          document.querySelectorAll('.fa-info-circle[title*="Minimum fee"]').forEach(el => {
-            el.setAttribute('title', minFeeTooltip);
-          });
-          
-          const swapsEnabled = data.data.swaps_enabled;
-          if (!swapsEnabled) {
-            modeIndicator.innerHTML = '<i class="fas fa-hourglass-half me-1"></i> Live';
-            modeIndicator.className = 'network-badge text-warning';
-          } else if (testingMode) {
-            modeIndicator.textContent = 'Testing Mode';
-            modeIndicator.className = 'network-badge text-warning';
-          } else {
-            modeIndicator.textContent = 'Live';
-            modeIndicator.className = 'network-badge text-success';
-          }
+          document.getElementById('fee-display').textContent = currentFeePercent.toFixed(1)+'%';
+          document.getElementById('fee-percent-label').textContent = `(${currentFeePercent.toFixed(1)}%)`;
+          modeIndicator.textContent = testingMode ? 'Testing Mode' : 'Live';
+          modeIndicator.className = `network-badge ${testingMode ? 'text-warning' : 'text-success'}`;
         }
-      } catch (err) {
-        modeIndicator.textContent = 'Offline';
-        modeIndicator.className = 'network-badge text-danger';
-      }
-    }
-    
-    // Swap direction toggle
-    swapDirection.addEventListener('click', () => {
-      const temp = fromCoin.value;
-      fromCoin.value = toCoin.value;
-      toCoin.value = temp;
-      updateQuote();
-    });
-    
-    // Update quote on input change
-    fromAmount.addEventListener('input', updateQuote);
-    fromCoin.addEventListener('change', () => {
-      toCoin.value = fromCoin.value === 'OXC' ? 'OXG' : 'OXC';
-      document.getElementById('from-amount').min = Math.ceil(currentMinAmount);
-      document.getElementById('from-amount').title = 'Min: ' + Math.ceil(currentMinAmount) + ' | Max: ' + currentMaxAmount;
-      updateQuote();
-    });
-    
-    refreshSwapsBtn.addEventListener('click', () => {
-      loadRecentSwaps();
-      refreshSwapsBtn.querySelector('i').classList.add('fa-spin');
-      setTimeout(() => {
-        refreshSwapsBtn.querySelector('i').classList.remove('fa-spin');
-      }, 500);
-    });
-
-    resetBtn.addEventListener('click', () => {
-      resetForm();
-      messageArea.innerHTML = '';
-    });
-    
-    function showMessage(message, type = 'error') {
-      const bg = type === 'error' ? 'bg-danger' : 'bg-success';
-      const icon = type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle';
-      messageArea.innerHTML = `
-        <div class="alert ${bg} bg-opacity-25 border border-${type === 'error' ? 'danger' : 'success'}/25 d-flex align-items-center gap-3 rounded-4" role="alert">
-          <i class="fas ${icon} fs-5"></i>
-          <span class="small">${message}</span>
-        </div>
-      `;
+      } catch(e) { modeIndicator.textContent = 'Offline'; }
     }
 
-    function showLiquidityWarning(message) {
-      if (!message) {
-        liquidityWarning.classList.add('d-none');
-        liquidityWarning.innerHTML = '';
-        return;
-      }
-      liquidityWarning.classList.remove('d-none');
-      liquidityWarning.innerHTML = `
-        <div class="alert bg-warning bg-opacity-25 border border-warning/25 d-flex align-items-center gap-3 rounded-4" role="alert">
-          <i class="fas fa-clock fs-5 text-warning"></i>
-          <span class="small">${message}</span>
-        </div>
-      `;
-    }
-    
-    function setLoading(loading) {
-      if (loading) {
-        btnText.classList.add('d-none');
-        btnLoader.classList.remove('d-none');
-        swapBtn.disabled = true;
-      } else {
-        btnText.classList.remove('d-none');
-        btnLoader.classList.add('d-none');
-      }
-    }
+    function showMessage(msg, type='error') { messageArea.innerHTML = `<div class="alert ${type==='error'?'bg-danger':'bg-success'} bg-opacity-25 border border-${type==='error'?'danger':'success'}/25 rounded-4 d-flex gap-2 p-3"><i class="fas ${type==='error'?'fa-exclamation-circle':'fa-check-circle'}"></i><span class="small">${msg}</span></div>`; }
+    function showLiquidityWarning(msg) { if(!msg){ liquidityWarning.classList.add('d-none'); liquidityWarning.innerHTML=''; return; } liquidityWarning.classList.remove('d-none'); liquidityWarning.innerHTML=`<div class="alert bg-warning bg-opacity-25 border-warning/25 p-2 small">${msg}</div>`; }
+    function setLoading(load){ if(load){ btnText.classList.add('d-none'); btnLoader.classList.remove('d-none'); swapBtn.disabled=true; } else { btnText.classList.remove('d-none'); btnLoader.classList.add('d-none'); } }
+    function isValidAddress(addr){ return addr && /^[A-Za-z0-9_-]{8,120}$/.test(addr); }
+    function validateAddressInput(){ const val=userAddress.value.trim(); if(!val){ addressError.classList.add('d-none'); userAddress.classList.remove('border-danger'); return false; } if(!isValidAddress(val)){ addressError.textContent='Address must be 8-120 chars, letters, numbers, "_" or "-".'; addressError.classList.remove('d-none'); userAddress.classList.add('border-danger'); return false; } addressError.classList.add('d-none'); userAddress.classList.remove('border-danger'); return true; }
+    function resetForm(){ currentQuote=null; fromAmount.value=''; toAmount.value=''; userAddress.value=''; quoteRate.textContent='--'; quoteFee.textContent='--'; quoteReceive.textContent='--'; btnText.textContent='Enter an amount'; swapBtn.disabled=true; showLiquidityWarning(null); stopSwapCountdown(); }
 
-    function isValidAddress(address) {
-      if (!address) return false;
-      return /^[A-Za-z0-9_-]{8,120}$/.test(address);
-    }
-
-    function validateAddressInput() {
-      const value = userAddress.value.trim();
-      if (!value) {
-        addressError.classList.add('d-none');
-        userAddress.classList.remove('border-danger');
-        return false;
-      }
-
-      if (!isValidAddress(value)) {
-        addressError.textContent = 'Address must be 8-120 chars and contain only letters, numbers, "_" or "-".';
-        addressError.classList.remove('d-none');
-        userAddress.classList.add('border-danger');
-        return false;
-      }
-
-      addressError.classList.add('d-none');
-      userAddress.classList.remove('border-danger');
-      return true;
-    }
-
-    function resetForm() {
-      currentQuote = null;
-      fromAmount.value = '';
-      toAmount.value = '';
-      userAddress.value = '';
-      quoteRate.textContent = '--';
-      quoteFee.textContent = '--';
-      quoteReceive.textContent = '--';
-      btnText.textContent = 'Enter an amount';
-      swapBtn.disabled = true;
-      showLiquidityWarning(null);
-      stopSwapCountdown();
-    }
-    
     async function updateQuote() {
       const amount = parseFloat(fromAmount.value);
-      if (!amount || amount <= 0) {
-        toAmount.value = '';
-        quoteRate.textContent = '--';
-        quoteFee.textContent = '--';
-        quoteReceive.textContent = '--';
-        showLiquidityWarning(null);
-        swapBtn.disabled = true;
-        btnText.textContent = 'Enter an amount';
-        return;
-      }
-      
-      if (amount < currentMinAmount) {
-        toAmount.value = '';
-        quoteRate.textContent = '--';
-        quoteFee.textContent = '--';
-        quoteReceive.textContent = '--';
-        btnText.textContent = 'Amount too low';
-        swapBtn.disabled = true;
-        return;
-      }
-      
-      if (amount > currentMaxAmount) {
-        toAmount.value = '';
-        quoteRate.textContent = '--';
-        quoteFee.textContent = '--';
-        quoteReceive.textContent = '--';
-        btnText.textContent = 'Amount too high';
-        swapBtn.disabled = true;
-        return;
-      }
-      
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/quote`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from: fromCoin.value,
-            to: toCoin.value,
-            amount: amount
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          if (data.data.net_amount <= 0) {
-            toAmount.value = '';
-            quoteRate.textContent = 'Fee too high';
-            quoteFee.textContent = '--';
-            quoteReceive.textContent = '--';
-            swapBtn.disabled = true;
-            showMessage('Fee too high for this amount. Try a larger amount.');
-            return;
-          }
-          
-          currentQuote = data.data;
-          toAmount.value = data.data.net_amount.toFixed(8);
+      if(!amount || amount<=0) { toAmount.value=''; quoteRate.textContent='--'; quoteFee.textContent='--'; quoteReceive.textContent='--'; showLiquidityWarning(null); swapBtn.disabled=true; btnText.textContent='Enter an amount'; return; }
+      if(amount<currentMinAmount){ btnText.textContent='Amount too low'; swapBtn.disabled=true; return; }
+      if(amount>currentMaxAmount){ btnText.textContent='Amount too high'; swapBtn.disabled=true; return; }
+      try{
+        const res = await fetch(`${API_BASE}/api/v1/quote`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ from:fromCoin.value, to:toCoin.value, amount }) });
+        const data = await res.json();
+        if(data.success){
+          if(data.data.net_amount <= 0){ toAmount.value=''; quoteRate.textContent='Fee too high'; swapBtn.disabled=true; showMessage('Fee too high for this amount. Try a larger amount.'); return; }
+          currentQuote = data.data; toAmount.value = data.data.net_amount.toFixed(8);
           quoteRate.textContent = `1 ${data.data.from_coin} = ${data.data.rate.toFixed(8)} ${data.data.to_coin}`;
           quoteFee.textContent = `${data.data.fee_amount.toFixed(8)} ${data.data.to_coin}`;
           quoteReceive.textContent = `${data.data.net_amount.toFixed(8)} ${data.data.to_coin}`;
           currentRate = data.data.rate;
           showLiquidityWarning(data.data.liquidity_blocked ? data.data.liquidity_notice : null);
           swapBtn.disabled = !!data.data.liquidity_blocked;
-          
-          if (data.data.liquidity_blocked) {
-            btnText.textContent = 'Swap Temporarily Paused';
-          } else if (validateAddressInput()) {
-            btnText.textContent = 'Swap';
-          } else {
-            btnText.textContent = 'Enter Address';
-            swapBtn.disabled = true;
-          }
-        } else {
-          showLiquidityWarning(null);
-          showMessage(data.error || 'Failed to get quote');
-          swapBtn.disabled = true;
-        }
-      } catch (err) {
-        showLiquidityWarning(null);
-        showMessage('Could not connect to API');
-        console.error(err);
-        swapBtn.disabled = true;
-      }
-    }
-    
-    // Check address and enable swap
-    userAddress.addEventListener('input', () => {
-      const validAddress = validateAddressInput();
-      if (currentQuote && validAddress) {
-        if (currentQuote.liquidity_blocked) {
-          swapBtn.disabled = true;
-          btnText.textContent = 'Swap Temporarily Paused';
-        } else {
-          swapBtn.disabled = false;
-          btnText.textContent = 'Swap';
-        }
-      } else if (currentQuote) {
-        swapBtn.disabled = true;
-        btnText.textContent = 'Enter Address';
-      }
-    });
-    
-    // Submit swap
-    document.getElementById('swap-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      if (!currentQuote || !validateAddressInput()) {
-        if (!validateAddressInput()) {
-          showMessage('Please enter a valid receiving address.');
-        }
-        return;
-      }
-      
-      setLoading(true);
-      
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/swap`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from: fromCoin.value,
-            to: toCoin.value,
-            amount: parseFloat(fromAmount.value),
-            user_address: userAddress.value.trim()
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          const swapId = data.data.swap_id;
-          const isCancellable = ['pending', 'awaiting_deposit', 'processing'].includes(data.data.status);
-          const cancelButton = isCancellable ? `
-            <button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelSwap('${swapId}')" title="Cancel swap">
-              <i class="fas fa-times"></i> Cancel
-            </button>
-          ` : '';
-          showMessage(`
-            <div class="mb-2">Swap created! Send <strong class="text-white">${fromAmount.value} ${fromCoin.value}</strong> to:</div>
-            <div class="mb-3 d-flex align-items-center gap-2">
-              <div class="deposit-address flex-grow-1">${data.data.deposit_address}</div>
-              <button class="btn btn-sm btn-outline-secondary border-0" onclick="return copyToClipboard('${data.data.deposit_address}')" title="Copy address">
-                <i class="fas fa-copy"></i>
-              </button>
-            </div>
-            <div class="d-flex justify-content-between align-items-center mt-3 border-top border-white/10 pt-2">
-              <div class="small text-warning" id="countdown-timer">Expires in ${currentExpireMins - 1}:59</div>
-              ${cancelButton}
-            </div>
-          `, 'success');
-          
-          // Start countdown AFTER message is in DOM
-          setTimeout(() => startSwapCountdown(swapId), 100);
-          
-          // Clear form inputs but DON'T stop countdown
-          currentQuote = null;
-          fromAmount.value = '';
-          toAmount.value = '';
-          userAddress.value = '';
-          quoteRate.textContent = '--';
-          quoteFee.textContent = '--';
-          quoteReceive.textContent = '--';
-          btnText.textContent = 'Enter an amount';
-          swapBtn.disabled = true;
-          showLiquidityWarning(null);
-          
-          // Auto-confirm in testing mode
-          if (testingMode) {
-            setTimeout(async () => {
-              await confirmDeposit(data.data.swap_id);
-            }, 2000);
-          }
-          
-          loadRecentSwaps();
-        } else {
-          if (data.error_code === 'LIQUIDITY_DELAY') {
-            showLiquidityWarning(data.error);
-            showMessage('Swap temporarily paused due to low liquidity.', 'error');
-            swapBtn.disabled = true;
-            btnText.textContent = 'Swap Temporarily Paused';
-          } else {
-            showMessage(data.error || 'Failed to create swap');
-          }
-        }
-      } catch (err) {
-        showMessage('Could not connect to API');
-        console.error(err);
-      }
-      
-      setLoading(false);
-    });
-    
-    async function confirmDeposit(swapId) {
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/swap/${swapId}/confirm`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deposit_txid: 'web_ui_confirm' })
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-          if (data.data.status === 'delayed') {
-            showLiquidityWarning('Sorry for the delay. Liquidity is temporarily low; your swap is queued and will complete automatically.');
-            showMessage('Swap queued due to low liquidity. We will complete it automatically.', 'error');
-          } else {
-            showMessage(`Swap completed! Sent ${data.data.net_amount} ${data.data.to_coin} to your address.`, 'success');
-            showLiquidityWarning(null);
-            resetForm();
-          }
-          loadRecentSwaps();
-        }
-      } catch (err) {
-        console.error('Confirm failed:', err);
-      }
-    }
-    
-    // Fetch current price
-    async function fetchPrice() {
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/quote`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from: 'OXC', to: 'OXG', amount: 1 })
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-          currentRateEl.textContent = `1 OXC = ${data.data.rate.toFixed(6)} OXG`;
-          currentRate = data.data.rate;
-        }
-      } catch (err) {
-        currentRateEl.textContent = 'Price unavailable';
-      }
-    }
-    
-    // Fetch coin prices (USDT rates + cross rate)
-    async function fetchCoinPrices() {
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/prices/current`);
-        const data = await response.json();
-        
-        if (data.success) {
-          const p = data.data;
-          priceData = {
-            oxc_usdt: parseFloat(p.oxc_usdt),
-            oxg_usdt: parseFloat(p.oxg_usdt),
-            cross_rate: parseFloat(p.cross_rate)
-          };
-          document.getElementById('oxc-price').textContent = `1 OXC = ${priceData.cross_rate.toFixed(6)} OXG`;
-          document.getElementById('oxc-price-usdt').textContent = `USDT: $${priceData.oxc_usdt.toFixed(6)}`;
-          
-          const oxgToOxc = 1 / priceData.cross_rate;
-          document.getElementById('oxg-price').textContent = `1 OXG = ${oxgToOxc.toFixed(6)} OXC`;
-          document.getElementById('oxg-price-usdt').textContent = `USDT: $${priceData.oxg_usdt.toFixed(6)}`;
-          
-          updatePriceDisplay();
-        }
-      } catch (err) {
-        console.error('Failed to fetch coin prices:', err);
-      }
-    }
-    
-    function updatePriceDisplay() {
-      if (!priceData) return;
-      
-      const labels = ['OXC/OXG', 'OXC/USDT', 'OXG/OXC', 'OXG/USDT'];
-      const label = labels[priceDisplayIndex];
-      let value;
-      
-      switch (priceDisplayIndex) {
-        case 0: // OXC/OXG
-          value = priceData.cross_rate.toFixed(4);
-          break;
-        case 1: // OXC/USDT
-          value = priceData.oxc_usdt.toFixed(4);
-          break;
-        case 2: // OXG/OXC
-          value = (1 / priceData.cross_rate).toFixed(4);
-          break;
-        case 3: // OXG/USDT
-          value = priceData.oxg_usdt.toFixed(4);
-          break;
-      }
-      
-      priceDisplayEl.textContent = `${label}: ${value}`;
-      
-      priceDisplayIndex = (priceDisplayIndex + 1) % 4;
-    }
-    
-    // Fetch price stats and history
-    async function fetchPriceStats() {
-      try {
-        const [statsRes, historyRes] = await Promise.all([
-          fetch(`${API_BASE}/api/v1/prices/stats?hours=24`),
-          fetch(`${API_BASE}/api/v1/prices/history?limit=24`)
-        ]);
-        
-        const statsData = await statsRes.json();
-        const historyData = await historyRes.json();
-        
-      if (statsData.success) {
-        const stats = statsData.data;
-        if (stats.max) {
-          const high = stats.max.toFixed(4);
-          const highInv = (1 / stats.max).toFixed(4);
-          statHigh.textContent = `${high} OXG | ${highInv} OXC`;
-          statHigh.title = '24h high';
-        } else {
-          statHigh.textContent = '--';
-        }
-        if (stats.min) {
-          const low = stats.min.toFixed(4);
-          const lowInv = (1 / stats.min).toFixed(4);
-          statLow.textContent = `${low} OXG | ${lowInv} OXC`;
-          statLow.title = '24h low';
-        } else {
-          statLow.textContent = '--';
-        }
-      }
-        
-      if (historyData.success && historyData.data.history.length > 0) {
-        priceHistoryCache = historyData.data.history;
-        renderPriceChart(priceHistoryCache);
-      }
-      } catch (err) {
-        console.error('Failed to load price stats:', err);
-      }
-    }
-    
-    function renderPriceChart(history) {
-      if (!history || history.length === 0) {
-        priceChart.innerHTML = '<div class="text-center text-brand-muted w-100 small">No history data</div>';
-        return;
-      }
-      
-      const points = history
-        .map(h => ({
-          ts: new Date(h.timestamp),
-          value: h.cross_rate ?? h.price
-        }))
-        .filter(p => p.value > 0 && !Number.isNaN(p.value));
-
-      if (points.length === 0) {
-        priceChart.innerHTML = '<div class="text-center text-brand-muted w-100 small">No price data</div>';
-        return;
-      }
-
-      const referenceNow = points.reduce((acc, p) => (p.ts > acc ? p.ts : acc), points[0].ts);
-      const hours = Array.from({ length: 24 }, (_, i) => i);
-      const buckets = new Array(24).fill(null);
-
-      points.forEach(p => {
-        const diffHours = Math.floor((referenceNow - p.ts) / 3600000);
-        if (diffHours >= 0 && diffHours < 24) {
-          const idx = 23 - diffHours; // 0 oldest, 23 newest
-          buckets[idx] = p.value;
-        }
-      });
-
-      const filled = buckets.map(v => (v == null ? null : v));
-      let lastKnown = null;
-      for (let i = filled.length - 1; i >= 0; i--) {
-        if (filled[i] != null) {
-          lastKnown = filled[i];
-        } else if (lastKnown != null) {
-          filled[i] = lastKnown;
-        }
-      }
-      for (let i = 0; i < filled.length; i++) {
-        if (filled[i] == null && lastKnown != null) {
-          filled[i] = lastKnown;
-        } else if (filled[i] != null) {
-          lastKnown = filled[i];
-        }
-      }
-
-      const available = filled.filter(v => v != null);
-      if (available.length === 0) {
-        priceChart.innerHTML = '<div class="text-center text-brand-muted w-100 small">No price data</div>';
-        return;
-      }
-
-      const min = 0;
-      const invAvailable = available.map(v => 1 / v);
-      const actualMax = Math.max(...available, ...invAvailable);
-      const max = actualMax * 1.4; // Scale to 140% of actual max, not forcing 2
-      const range = max - min || 1;
-
-      const width = Math.max(priceChart.clientWidth || 0, 260);
-      const height = 180;
-      const padLeft = 36;
-      const padRight = 36;
-      const padTop = 10;
-      const padBottom = 24;
-      const innerW = width - padLeft - padRight;
-      const innerH = height - padTop - padBottom;
-
-      const pointsSvg = filled.map((v, i) => {
-        if (v == null) return null;
-        const x = padLeft + (i / 23) * innerW;
-        const y = padTop + (1 - (v - min) / range) * innerH;
-        const inv = 1 / v;
-        const yInv = padTop + (1 - (inv - min) / range) * innerH;
-        return { x, y, v, inv, yInv, hour: i };
-      }).filter(Boolean);
-
-      const linePath = pointsSvg.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-      const linePathInv = pointsSvg.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${p.x},${p.yInv}`).join(' ');
-      const areaPath = pointsSvg.length
-        ? `${linePath} L${pointsSvg[pointsSvg.length - 1].x},${height - padBottom} L${pointsSvg[0].x},${height - padBottom} Z`
-        : '';
-      const areaPathInv = pointsSvg.length
-        ? `${linePathInv} L${pointsSvg[pointsSvg.length - 1].x},${height - padBottom} L${pointsSvg[0].x},${height - padBottom} Z`
-        : '';
-      const delta = available[available.length - 1] - available[0];
-      const deltaText = `${delta >= 0 ? '+' : ''}${delta.toFixed(6)} OXG`;
-      const deltaColor = delta >= 0 ? '#10b981' : '#ef4444';
-      const deltaInv = (1 / available[available.length - 1]) - (1 / available[0]);
-      const deltaInvText = `${deltaInv >= 0 ? '+' : ''}${deltaInv.toFixed(6)} OXC`;
-
-      const tickHours = [0, 6, 12, 18, 23];
-      const tickLabels = tickHours.map(h => {
-        const x = padLeft + (h / 23) * innerW;
-        const y = height - padBottom;
-        return `
-          <line x1="${x}" y1="${y}" x2="${x}" y2="${y + 4}" stroke="#2a2a2a" />
-          <text x="${x}" y="${y + 12}" fill="#666" font-size="9" text-anchor="middle">${h}h</text>
-        `;
-      }).join('');
-
-      priceChart.innerHTML = `
-        <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}">
-          <rect x="${padLeft}" y="${padTop}" width="${innerW}" height="${innerH}" fill="#0a0a0a" />
-          <line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${height - padBottom}" stroke="#1f1f1f" />
-          <line x1="${width - padRight}" y1="${padTop}" x2="${width - padRight}" y2="${height - padBottom}" stroke="#1f1f1f" />
-          <line x1="${padLeft}" y1="${height - padBottom}" x2="${width - padRight}" y2="${height - padBottom}" stroke="#1f1f1f" />
-
-          ${tickLabels}
-
-          <text x="2" y="${padTop + 8}" fill="#888" font-size="9">OXG</text>
-          <text x="24" y="${padTop + 8}" fill="#888" font-size="9">OXC</text>
-          <text x="2" y="${padTop + 20}" fill="#666" font-size="9">${max.toFixed(2)}</text>
-          <text x="24" y="${padTop + 20}" fill="#666" font-size="9">${max.toFixed(2)}</text>
-          <text x="2" y="${height - padBottom - 2}" fill="#666" font-size="9">0.00</text>
-          <text x="24" y="${height - padBottom - 2}" fill="#666" font-size="9">0.00</text>
-
-          <text x="${width - padRight}" y="${padTop + 8}" fill="${deltaColor}" font-size="9" text-anchor="end">${deltaText}</text>
-          <text x="${padLeft}" y="${padTop + 8}" fill="${deltaColor}" font-size="9">${deltaInvText}</text>
-
-          ${areaPath ? `<path d="${areaPath}" fill="rgba(220, 167, 71, 0.18)" stroke="none" />` : ''}
-          ${areaPathInv ? `<path d="${areaPathInv}" fill="rgba(79, 139, 214, 0.18)" stroke="none" />` : ''}
-          ${linePath ? `<path d="${linePath}" fill="none" stroke="#dca747" stroke-width="2" />` : ''}
-          ${linePathInv ? `<path d="${linePathInv}" fill="none" stroke="#4f8bd6" stroke-width="2" />` : ''}
-          ${pointsSvg.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#dca747" stroke="#1f1f1f" stroke-width="1">
-            <title>${p.hour}h: ${p.v.toFixed(6)} OXG / ${p.inv.toFixed(6)} OXC</title>
-          </circle>`).join('')}
-          ${pointsSvg.map(p => `<circle cx="${p.x}" cy="${p.yInv}" r="3" fill="#4f8bd6" stroke="#1f1f1f" stroke-width="1">
-            <title>${p.hour}h: ${p.inv.toFixed(6)} OXC / ${p.v.toFixed(6)} OXG</title>
-          </circle>`).join('')}
-          ${pointsSvg.map(p => `<circle cx="${p.x}" cy="${height - padBottom}" r="2" fill="#2a2a2a"></circle>`).join('')}
-        </svg>
-      `;
+          if(data.data.liquidity_blocked) btnText.textContent = 'Swap Temporarily Paused';
+          else if(validateAddressInput()) btnText.textContent = 'Swap';
+          else { btnText.textContent = 'Enter Address'; swapBtn.disabled = true; }
+        } else { showMessage(data.error || 'Quote failed'); swapBtn.disabled=true; }
+      } catch(e){ showMessage('API connection error'); swapBtn.disabled=true; }
     }
 
-    window.addEventListener('resize', () => {
-      if (priceHistoryCache && priceHistoryCache.length > 0) {
-        renderPriceChart(priceHistoryCache);
-      }
-    });
-    
-    // Load swap stats
-    async function loadSwapStats() {
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/swaps/stats`);
-        const data = await response.json();
-        
-        if (data.success) {
-          const stats = data.data;
-          statSwaps.textContent = stats.total_swaps || 0;
-          
-          const volOxc = (stats.total_volume_oxc || 0).toFixed(2);
-          const volOxg = (stats.total_volume_oxg || 0).toFixed(2);
-          statVolume.textContent = volOxc + ' OXC / ' + volOxg + ' OXG';
-        }
-      } catch (err) {
-        console.error('Failed to load swap stats:', err);
-      }
-    }
-    
-    // Load recent swaps
-    async function loadRecentSwaps() {
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/swaps?limit=10`);
-        const data = await response.json();
-        
-        if (data.success && data.data.swaps.length > 0) {
-          const swaps = data.data.swaps;
-          recentSwapsEl.innerHTML = swaps.map(s => `
-            <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-white/5">
-              <div class="d-flex align-items-center gap-2">
-                <span class="text-white small">${parseFloat(s.from_amount).toFixed(4)} ${s.from_coin}</span>
-                <i class="fas fa-arrow-right text-brand-muted" style="font-size: 10px;"></i>
-                <span class="text-brand-accent small">${parseFloat(s.net_amount).toFixed(4)} ${s.to_coin}</span>
-              </div>
-              <span class="badge status-${s.status} bg-opacity-25">${s.status}</span>
-            </div>
-          `).join('');
-          
-          // Also update stats
-          loadSwapStats();
-        } else {
-          recentSwapsEl.innerHTML = '<p class="text-brand-muted small">No recent swaps</p>';
-          statSwaps.textContent = '0';
-          statVolume.textContent = '0 OXC / 0 OXG';
-        }
-      } catch (err) {
-        console.error('Failed to load swaps');
-      }
-    }
-
-    // Copy address to clipboard
-    function copyToClipboard(address) {
-      navigator.clipboard.writeText(address).then(() => {
-        const toast = document.createElement('div');
-        toast.className = 'position-fixed bottom-0 start-50 translate-middle-x mb-3 alert alert-success alert-dismissible fade show';
-        toast.style.zIndex = '9999';
-        toast.innerHTML = '<i class="fas fa-check-circle"></i> Address copied!<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2000);
-      }).catch(() => {
-        console.error('Failed to copy address');
-      });
-      return false;
-    }
-
-    // Cancel a swap
-    async function cancelSwap(swapId) {
-      if (!confirm('Are you sure you want to cancel this swap?')) {
-        return;
-      }
-      
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/swap/${swapId}/cancel`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        if (data.success) {
-          showMessage('Swap cancelled successfully', 'success');
-          // Reload swaps to reflect cancellation
-          loadRecentSwaps();
-        } else {
-          showMessage(data.error || 'Failed to cancel swap', 'error');
-        }
-      } catch (err) {
-        showMessage('Could not connect to API', 'error');
-        console.error('Cancel failed:', err);
-      }
-    }
-    
-    // Start
+    userAddress.addEventListener('input', () => { if(currentQuote && validateAddressInput()){ if(!currentQuote.liquidity_blocked){ swapBtn.disabled=false; btnText.textContent='Swap'; } } else if(currentQuote){ swapBtn.disabled=true; btnText.textContent='Enter Address'; } });
+    fromAmount.addEventListener('input', updateQuote);
+    fromCoin.addEventListener('change', () => { toCoin.value = fromCoin.value==='OXC'?'OXG':'OXC'; updateCoinImages(); updateQuote(); });
+    toCoin.addEventListener('change', () => { fromCoin.value = toCoin.value==='OXC'?'OXG':'OXC'; updateCoinImages(); updateQuote(); });
+    swapDirection.addEventListener('click', () => { const temp=fromCoin.value; fromCoin.value=toCoin.value; toCoin.value=temp; updateCoinImages(); updateQuote(); });
+    document.getElementById('swap-form').addEventListener('submit', async(e) => { e.preventDefault(); if(!currentQuote || !validateAddressInput()) return; setLoading(true); try{ const res=await fetch(`${API_BASE}/api/v1/swap`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ from:fromCoin.value, to:toCoin.value, amount:parseFloat(fromAmount.value), user_address:userAddress.value.trim() }) }); const data=await res.json(); if(data.success){ const swapId=data.data.swap_id; showMessage(`Swap created! Send <strong>${fromAmount.value} ${fromCoin.value}</strong> to:<div class="deposit-address mt-2 d-flex justify-content-between"><code>${data.data.deposit_address}</code> <button class="btn btn-sm btn-outline-light" onclick="copyToClipboard('${data.data.deposit_address}')"><i class="fas fa-copy"></i></button></div><div id="countdown-timer" class="small text-warning mt-2">Expires in ${currentExpireMins-1}:59</div>`, 'success'); setTimeout(()=>startSwapCountdown(swapId),100); resetForm(); loadRecentSwaps(); if(testingMode) setTimeout(async()=>{ await fetch(`${API_BASE}/api/v1/swap/${swapId}/confirm`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ deposit_txid:'web_ui_confirm' }) }); loadRecentSwaps(); },2000); } else { showMessage(data.error || 'Swap creation failed'); } } catch(err){ showMessage('Could not connect to API'); } setLoading(false); });
+    window.copyToClipboard = (addr) => { navigator.clipboard.writeText(addr); const toast=document.createElement('div'); toast.className='position-fixed bottom-0 start-50 translate-middle-x mb-3 alert alert-success'; toast.innerHTML='<i class="fas fa-check-circle"></i> Address copied!'; document.body.appendChild(toast); setTimeout(()=>toast.remove(),1500); };
+    async function loadRecentSwaps() { try{ const res=await fetch(`${API_BASE}/api/v1/swaps?limit=10`), data=await res.json(); if(data.success && data.data.swaps.length){ recentSwapsEl.innerHTML=data.data.swaps.map(s=>`<div class="d-flex justify-content-between py-2 border-bottom border-white/10"><div><span class="small">${parseFloat(s.from_amount).toFixed(4)} ${s.from_coin} <i class="fas fa-arrow-right mx-1 text-muted"></i> ${parseFloat(s.net_amount).toFixed(4)} ${s.to_coin}</span></div><span class="badge status-${s.status} bg-opacity-25">${s.status}</span></div>`).join(''); loadSwapStats(); } else { recentSwapsEl.innerHTML='<p class="text-muted small">No recent swaps</p>'; } } catch(e){} }
+    async function loadSwapStats(){ try{ const res=await fetch(`${API_BASE}/api/v1/swaps/stats`), data=await res.json(); if(data.success){ statSwaps.textContent=data.data.total_swaps||0; statVolume.textContent=`${(data.data.total_volume_oxc||0).toFixed(2)} OXC / ${(data.data.total_volume_oxg||0).toFixed(2)} OXG`; } } catch(e){} }
+    refreshSwapsBtn.addEventListener('click',()=>{ loadRecentSwaps(); refreshSwapsBtn.querySelector('i').classList.add('fa-spin'); setTimeout(()=>refreshSwapsBtn.querySelector('i').classList.remove('fa-spin'),500); });
+    document.getElementById('reset-btn').addEventListener('click',()=>{ resetForm(); messageArea.innerHTML=''; });
+    async function fetchPrice() { try{ const res=await fetch(`${API_BASE}/api/v1/quote`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ from:'OXC', to:'OXG', amount:1 }) }); const data=await res.json(); if(data.success) currentRateEl.textContent=`1 OXC = ${data.data.rate.toFixed(6)} OXG`; } catch(e){} }
+    async function fetchCoinPrices(){ try{ const res=await fetch(`${API_BASE}/api/v1/prices/current`), data=await res.json(); if(data.success){ priceData={ oxc_usdt:parseFloat(data.data.oxc_usdt), oxg_usdt:parseFloat(data.data.oxg_usdt), cross_rate:parseFloat(data.data.cross_rate) }; document.getElementById('oxc-price').textContent=`1 OXC = ${priceData.cross_rate.toFixed(6)} OXG`; document.getElementById('oxc-price-usdt').textContent=`USDT: $${priceData.oxc_usdt.toFixed(6)}`; const oxgToOxc=1/priceData.cross_rate; document.getElementById('oxg-price').textContent=`1 OXG = ${oxgToOxc.toFixed(6)} OXC`; document.getElementById('oxg-price-usdt').textContent=`USDT: $${priceData.oxg_usdt.toFixed(6)}`; updatePriceDisplay(); } } catch(e){} }
+    function updatePriceDisplay(){ if(!priceData) return; const labels=['OXC/OXG','OXC/USDT','OXG/OXC','OXG/USDT']; let val; if(priceDisplayIndex===0) val=priceData.cross_rate.toFixed(4); else if(priceDisplayIndex===1) val=priceData.oxc_usdt.toFixed(4); else if(priceDisplayIndex===2) val=(1/priceData.cross_rate).toFixed(4); else val=priceData.oxg_usdt.toFixed(4); priceDisplayEl.textContent=`${labels[priceDisplayIndex]}: ${val}`; priceDisplayIndex=(priceDisplayIndex+1)%4; }
+    async function fetchPriceStats(){ try{ const [statsRes,histRes]=await Promise.all([fetch(`${API_BASE}/api/v1/prices/stats?hours=24`), fetch(`${API_BASE}/api/v1/prices/history?limit=24`)]); const stats=await statsRes.json(), hist=await histRes.json(); if(stats.success && stats.data.max) statHigh.textContent=`${stats.data.max.toFixed(4)} OXG | ${(1/stats.data.max).toFixed(4)} OXC`; if(stats.success && stats.data.min) statLow.textContent=`${stats.data.min.toFixed(4)} OXG | ${(1/stats.data.min).toFixed(4)} OXC`; if(hist.success && hist.data.history.length){ priceHistoryCache=hist.data.history; renderPriceChart(priceHistoryCache); } } catch(e){} }
+    function renderPriceChart(history){ if(!history||history.length===0){ priceChart.innerHTML='<div class="text-center text-muted">No history</div>'; return; } const points=history.map(h=>({ ts:new Date(h.timestamp), value:h.cross_rate??h.price })).filter(p=>p.value>0); if(points.length===0) return; const maxVal=Math.max(...points.map(p=>p.value))*1.4, minVal=0; const width=priceChart.clientWidth||360, height=180, padL=36, padR=36, padT=10, padB=24; const innerW=width-padL-padR; const coords=points.map((p,i)=>({ x:padL+(i/(points.length-1||1))*innerW, y:padT+(1-(p.value-minVal)/(maxVal-minVal||1))*innerH })); const innerH=height-padT-padB; const path=coords.map((p,i)=>`${i===0?'M':'L'}${p.x},${p.y}`).join(' '); priceChart.innerHTML=`<svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}"><rect x="${padL}" y="${padT}" width="${innerW}" height="${innerH}" fill="#0a0a0a"/><path d="${path}" fill="none" stroke="#dca747" stroke-width="2"/><polygon fill="rgba(220,167,71,0.1)" points="${coords.map(p=>`${p.x},${p.y}`).join(' ')} ${padL+innerW},${height-padB} ${padL},${height-padB}"/></svg>`; }
+    window.addEventListener('resize',()=>{ if(priceHistoryCache) renderPriceChart(priceHistoryCache); });
+    async function init(){ resetForm(); updateCoinImages(); await checkStatus(); fetchCoinPrices(); fetchPrice(); fetchPriceStats(); loadRecentSwaps(); setInterval(fetchCoinPrices,30000); setInterval(fetchPrice,30000); setInterval(fetchPriceStats,60000); setInterval(updatePriceDisplay,5000); }
     init();
   </script>
 </body>

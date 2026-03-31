@@ -7,16 +7,21 @@ new connections for each database operation.
 
 import sqlite3
 import threading
+import os
+import importlib
 from contextlib import contextmanager
 from typing import Optional
-from config import DB_PATH
 
 
 class SQLiteConnectionPool:
     """Thread-local SQLite connection pool."""
 
     def __init__(self, db_path: str = None, check_same_thread: bool = False):
-        self.db_path = db_path or DB_PATH
+        if db_path is None:
+            config = importlib.import_module("config")
+            db_path = config.DB_PATH
+        # Use absolute path to ensure consistent pool instance for the same file
+        self.db_path = os.path.abspath(db_path)
         self.check_same_thread = check_same_thread
         self._local = threading.local()
 
@@ -87,7 +92,10 @@ _pool_lock = threading.Lock()
 def get_pool(db_path: str = None) -> SQLiteConnectionPool:
     """Get or create a connection pool for the given db_path."""
     global _pools
-    db_path = db_path or DB_PATH
+    if db_path is None:
+        config = importlib.import_module("config")
+        db_path = config.DB_PATH
+    db_path = os.path.abspath(db_path)
     if db_path not in _pools:
         with _pool_lock:
             if db_path not in _pools:

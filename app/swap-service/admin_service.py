@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from config import DB_PATH, DEFAULT_LIMIT, SWAP_EXPIRE_MINUTES
 from db_pool import get_pool
 from structured_logging import StructuredLogger
-from database_pool import DatabasePool
+from db_pool import get_pool
 from migrations import run_migrations
 
 logger = StructuredLogger(__name__)
@@ -70,9 +70,10 @@ class AdminService:
                     password_hash TEXT NOT NULL,
                     created_at TEXT,
                     created_by TEXT,
-                    last_login TEXT,
+                    last_login_at TEXT,
                     last_ip TEXT,
-                    is_active INTEGER DEFAULT 1
+                    is_active INTEGER DEFAULT 1,
+                    updated_at TEXT
                 )
                 """,
             ),
@@ -156,6 +157,21 @@ class AdminService:
                     wallet_name TEXT,
                     created_at TEXT,
                     updated_at TEXT
+                )
+                """,
+            ),
+            (
+                "008_acknowledged_transactions",
+                """
+                CREATE TABLE IF NOT EXISTS acknowledged_transactions (
+                    txid TEXT PRIMARY KEY,
+                    coin TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    address TEXT,
+                    action TEXT NOT NULL,
+                    performed_by TEXT,
+                    details TEXT,
+                    created_at TEXT
                 )
                 """,
             ),
@@ -424,6 +440,77 @@ class AdminService:
         except sqlite3.Error as e:
             logger.error("Failed to list admin wallets", error=str(e))
         return wallets
+
+    def acknowledge_transaction(
+        self,
+        txid: str,
+        coin: str,
+        amount: float,
+        action: str,
+        performed_by: str,
+        address: str = None,
+        details: str = None,
+    ) -> bool:
+        """
+        Record a manually handled transaction (liquidity, settlement, or refund).
+        """
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO acknowledged_transactions
+                    (txid, coin, amount, address, action, performed_by, details, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (txid, coin, amount, address, action, performed_by, details, now),
+                )
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to acknowledge transaction {txid}", error=str(e))
+            return False
+
+    def is_transaction_acknowledged(self, txid: str) -> bool:
+        """Check if a transaction ID is already acknowledged/processed."""
+        try:
+            with self._pool.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT 1 FROM acknowledged_transactions WHERE txid = ?", (txid,)
+                ).fetchone()
+                return bool(row)
+        except sqlite3.Error as e:
+            logger.error(f"Failed to check acknowledgement for {txid}", error=str(e))
+            return False
+
+    def get_acknowledged_transactions(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """List recently acknowledged transactions."""
+        try:
+            with self._pool.get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT txid, coin, amount, address, action, performed_by, details, created_at
+                    FROM acknowledged_transactions
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            return [
+                {
+                    "txid": row[0],
+                    "coin": row[1],
+                    "amount": row[2],
+                    "address": row[3],
+                    "action": row[4],
+                    "performed_by": row[5],
+                    "details": row[6],
+                    "created_at": row[7],
+                }
+                for row in rows
+            ]
+        except sqlite3.Error as e:
+            logger.error("Failed to list acknowledged transactions", error=str(e))
+            return []
 
     def create_admin(
         self,
@@ -874,16 +961,11 @@ class AdminService:
                     ),
                 )
             logger.info(
-                f"Wallet action logged",
-                action_type=action_type,
-                coin=coin,
-                purpose=purpose,
-                performed_by=performed_by,
-                ip_address=ip_address,
+                f"Wallet action logged: {action_type} for {coin} by {performed_by}"
             )
             return True
-        except sqlite3.Error as e:
-            logger.error("Failed to log wallet action", error=str(e))
+        except Exception as e:
+            logger.error(f"Failed to log wallet action ({action_type})", error=str(e))
             return False
 
     def get_wallet_actions(self, limit: int = None) -> list:

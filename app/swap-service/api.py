@@ -494,6 +494,123 @@ def admin_reconcile_audit():
         return json_error(str(e), 500)
 
 
+@app.route("/api/v1/admin/audit/acknowledge", methods=["POST"])
+@require_admin_auth
+def admin_acknowledge_tx():
+    """Manually acknowledge a transaction as explained (e.g. liquidity topup)."""
+    data = request.json
+    txid = data.get("txid")
+    coin = data.get("coin")
+    amount = data.get("amount")
+    action = data.get("action", "liquidity")
+    details = data.get("details", "")
+
+    if not all([txid, coin, amount]):
+        return json_error("Missing required fields", 400)
+
+    try:
+        amount = float(amount)
+    except ValueError:
+        return json_error("Invalid amount", 400)
+
+    success = admin_service.acknowledge_transaction(
+        txid=txid,
+        coin=coin,
+        amount=amount,
+        action=action,
+        performed_by=g.admin_username,
+        details=details
+    )
+
+    if success:
+        admin_service.log_audit(
+            g.admin_username,
+            "acknowledge_tx",
+            "success",
+            g.admin_ip,
+            f"Acknowledged {txid} as {action}"
+        )
+        return json_success({"message": "Transaction acknowledged"})
+    else:
+        return json_error("Failed to acknowledge transaction", 500)
+
+
+@app.route("/api/v1/admin/audit/settle", methods=["POST"])
+@require_admin_auth
+def admin_settle_orphaned():
+    """Manually settle an orphaned transaction to a user address."""
+    data = request.json
+    txid = data.get("txid")
+    coin = data.get("coin")
+    amount = data.get("amount")
+    user_address = data.get("address")
+
+    if not all([txid, coin, amount, user_address]):
+        return json_error("Missing required fields (txid, coin, amount, address)", 400)
+
+    try:
+        amount = float(amount)
+        result = swap_engine.settle_orphaned_transaction(
+            txid=txid,
+            coin=coin,
+            amount=amount,
+            user_address=user_address,
+            username=g.admin_username
+        )
+        
+        admin_service.log_audit(
+            g.admin_username,
+            "settle_orphaned",
+            "success",
+            g.admin_ip,
+            f"Settled {txid} to {user_address}"
+        )
+        return json_success(result)
+    except (SwapError, InvalidAmountError) as e:
+        return json_error(str(e), 400)
+    except Exception as e:
+        logger.error(f"Error in manual settlement: {e}")
+        return json_error("Internal server error during settlement", 500)
+
+
+@app.route("/api/v1/admin/audit/refund", methods=["POST"])
+@require_admin_auth
+def admin_refund_orphaned():
+    """Refund an orphaned transaction."""
+    data = request.json
+    txid = data.get("txid")
+    coin = data.get("coin")
+    amount = data.get("amount")
+    target_address = data.get("address")
+
+    if not all([txid, coin, amount, target_address]):
+        return json_error("Missing required fields (txid, coin, amount, address)", 400)
+
+    try:
+        amount = float(amount)
+        result = swap_engine.refund_orphaned_transaction(
+            txid=txid,
+            coin=coin,
+            amount=amount,
+            target_address=target_address,
+            username=g.admin_username
+        )
+        
+        admin_service.log_audit(
+            g.admin_username,
+            "refund_orphaned",
+            "success",
+            g.admin_ip,
+            f"Refunded {txid} to {target_address}"
+        )
+        return json_success(result)
+    except (SwapError, InvalidAmountError) as e:
+        return json_error(str(e), 400)
+    except Exception as e:
+        logger.error(f"Error in manual refund: {e}")
+        return json_error("Internal server error during refund", 500)
+
+
 @app.route("/api/v1/admin/swaps/<swap_id>/audit", methods=["GET"])
 @require_admin_auth
 def admin_get_swap_audit(swap_id):

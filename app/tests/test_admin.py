@@ -19,9 +19,10 @@ class TestAdminService(unittest.TestCase):
         os.environ["DATA_DIR"] = self._tmpdir.name
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
 
-        for mod in ("config", "admin_service"):
-            if mod in sys.modules:
-                del sys.modules[mod]
+        # Clear any potential module variations
+        for mod_name in list(sys.modules.keys()):
+            if mod_name.startswith(("db_pool", "admin_service", "swap_history", "migrations", "config", "utils", "structured_logging", "logger")):
+                del sys.modules[mod_name]
 
         admin_service = importlib.import_module("admin_service")
         self.AdminService = admin_service.AdminService

@@ -89,15 +89,25 @@ class TestE2EApiFlow(unittest.TestCase):
         os.environ["TESTING_MODE"] = "false"
         os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
 
-        for mod in (
+        for mod in [
             "config",
+            "db_pool",
+            "migrations",
             "api",
             "swap_engine",
             "swap_history",
             "price_history",
-        ):
+            "admin_service",
+            "utils",
+            "logger",
+        ]:
             if mod in sys.modules:
                 del sys.modules[mod]
+        
+        # Also clear any submodules of swap-service if they were loaded with different names
+        for mod_name in list(sys.modules.keys()):
+            if mod_name.startswith(("db_pool", "admin_service", "swap_history", "migrations", "config", "utils", "structured_logging", "logger", "api", "swap_engine")):
+                del sys.modules[mod_name]
 
         api = importlib.import_module("api")
         swap_engine = importlib.import_module("swap_engine")

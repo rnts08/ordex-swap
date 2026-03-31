@@ -402,6 +402,45 @@
     </div>
   </div>
 
+  <!-- Manual Action Modal -->
+  <div class="modal fade" id="actionModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark border-secondary">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title text-white" id="actionModalTitle">Manual Transaction Action</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-white small">Action Type</label>
+            <input type="text" class="form-control bg-secondary text-white" id="action-display-type" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white small">Transaction ID</label>
+            <div class="mono small muted text-break" id="action-display-txid"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white small">Amount</label>
+            <div class="fw-bold text-warning" id="action-display-amount"></div>
+          </div>
+          <div id="address-input-group" class="mb-3 d-none">
+            <label class="form-label text-white small" id="address-label">Target Address</label>
+            <input type="text" class="form-control" id="action-target-address" placeholder="Enter recipient address">
+            <div class="form-text muted small mt-1" id="address-help">Funds will be sent to this address after fees.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white small">Notes / Details</label>
+            <textarea class="form-control" id="action-details" rows="2" placeholder="Optional audit notes..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-warning" id="confirm-action-btn">Confirm & Execute</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const API_BASE = '';
@@ -673,10 +712,10 @@
       container.classList.add('d-none');
 
       try {
-        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/scan-transactions`);
+        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/audit/reconcile?count=50`, { method: 'POST' });
         if (!resp.ok) throw new Error('Scan failed');
         const data = await resp.json();
-        const txs = data.data.transactions;
+        const txs = data.data.unaccounted_deposits;
         
         btn.disabled = false;
         msg.textContent = txs.length === 0 ? 'No unaccounted transactions found.' : `Found ${txs.length} items.`;
@@ -684,20 +723,21 @@
         if (txs.length > 0) {
           container.classList.remove('d-none');
           table.innerHTML = txs.map(t => {
-            let actionHtml = '-';
-            if (t.category === 'ORPHAN_DEPOSIT') {
-              actionHtml = `<button class="btn btn-sm btn-success py-0 px-1" onclick="adminActionSwap('${t.swap_id}', 'settle')">Settle to ${t.swap_id}</button>`;
-            } else if (t.category === 'LIQUIDITY_TOPUP') {
-              actionHtml = `<span class="badge bg-info">Liquidity (${t.purpose})</span>`;
-            }
+            const actions = `
+              <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">Acknowledge</button>
+                <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.amount})">Settle</button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.amount})">Refund</button>
+              </div>
+            `;
 
             return `
               <tr>
                 <td>${t.coin}</td>
-                <td><span class="badge ${t.category === 'ORPHAN_DEPOSIT' ? 'bg-warning' : 'bg-secondary'}">${t.category}</span></td>
+                <td><span class="badge bg-warning">UNACCOUNTED</span></td>
                 <td>${t.amount.toFixed(8)}</td>
                 <td class="small mono">${t.txid}<br><span class="muted">${t.address}</span></td>
-                <td>${actionHtml}</td>
+                <td>${actions}</td>
               </tr>
             `;
           }).join('');
@@ -705,6 +745,79 @@
       } catch (err) {
         btn.disabled = false;
         msg.textContent = 'Error: ' + err.message;
+      }
+    });
+
+    let currentActionData = null;
+    const actionModal = new bootstrap.Modal(document.getElementById('actionModal'));
+
+    function openActionModal(type, txid, coin, amount) {
+      currentActionData = { type, txid, coin, amount };
+      
+      document.getElementById('actionModalTitle').textContent = type.toUpperCase() + ' Transaction';
+      document.getElementById('action-display-type').value = type;
+      document.getElementById('action-display-txid').textContent = txid;
+      document.getElementById('action-display-amount').textContent = `${amount.toFixed(8)} ${coin}`;
+      document.getElementById('action-target-address').value = '';
+      document.getElementById('action-details').value = '';
+      
+      const addrGroup = document.getElementById('address-input-group');
+      if (type === 'settle' || type === 'refund') {
+        addrGroup.classList.remove('d-none');
+        document.getElementById('address-label').textContent = type === 'settle' ? 'User Settlement Address' : 'Refund Target Address';
+        document.getElementById('address-help').textContent = type === 'settle' 
+          ? 'Funds will be converted and sent to user minus swap fees.' 
+          : 'Funds will be returned to this address minus processing fees.';
+      } else {
+        addrGroup.classList.add('d-none');
+      }
+      
+      actionModal.show();
+    }
+
+    document.getElementById('confirm-action-btn').addEventListener('click', async () => {
+      if (!currentActionData) return;
+      
+      const { type, txid, coin, amount } = currentActionData;
+      const address = document.getElementById('action-target-address').value.trim();
+      const details = document.getElementById('action-details').value.trim();
+      
+      if ((type === 'settle' || type === 'refund') && !address) {
+        alert('Please enter a target address.');
+        return;
+      }
+
+      const btn = document.getElementById('confirm-action-btn');
+      btn.disabled = true;
+      btn.textContent = 'Executing...';
+
+      try {
+        let endpoint = `/api/v1/admin/audit/${type}`;
+        const resp = await fetchWithAuth(API_BASE + endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ txid, coin, amount, address, details })
+        });
+        
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.error || 'Action failed');
+        }
+
+        alert('Transaction processed successfully.');
+        actionModal.hide();
+        // Refresh whatever is visible
+        if (!document.getElementById('unaccounted-container').classList.contains('d-none')) {
+          document.getElementById('scan-transactions-btn').click();
+        }
+        if (!document.getElementById('reconciliation-results').classList.contains('d-none')) {
+          document.getElementById('run-reconcile-btn').click();
+        }
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Confirm & Execute';
       }
     });
 
@@ -752,13 +865,38 @@
                 <h6 class="text-danger mt-3 fw-bold">Unaccounted Deposits</h6>
                 <div class="table-responsive">
                     <table class="table table-dark table-sm">
-                        <thead><tr><th>Coin</th><th>Amount</th><th>TXID/Addr</th><th>Reason</th></tr></thead>
+                        <thead><tr><th>Coin</th><th>Amount</th><th>TXID/Addr</th><th>Reason</th><th>Actions</th></tr></thead>
                         <tbody>${r.unaccounted_deposits.map(t => `
                             <tr>
                                 <td>${t.coin}</td>
                                 <td>${t.amount.toFixed(8)}</td>
                                 <td class="mono small">${t.txid}<br><span class="muted">${t.address}</span></td>
                                 <td class="small">${t.reason}</td>
+                                <td>
+                                  <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="openActionModal('acknowledge', '${t.txid}', '${t.coin}', ${t.amount})">Ack</button>
+                                    <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="openActionModal('settle', '${t.txid}', '${t.coin}', ${t.amount})">Settle</button>
+                                    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="openActionModal('refund', '${t.txid}', '${t.coin}', ${t.amount})">Refund</button>
+                                  </div>
+                                </td>
+                            </tr>
+                        `).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+        if (r.acknowledged_deposits && r.acknowledged_deposits.length > 0) {
+            tablesHtml += `
+                <h6 class="text-info mt-3 fw-bold">Liquidity / Acknowledged Deposits</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm">
+                        <thead><tr><th>Coin</th><th>Amount</th><th>Category</th><th>TXID/Addr</th></tr></thead>
+                        <tbody>${r.acknowledged_deposits.map(t => `
+                            <tr>
+                                <td>${t.coin}</td>
+                                <td>${t.amount.toFixed(8)}</td>
+                                <td><span class="badge ${t.category === 'LIQUIDITY_TOPUP' ? 'bg-info' : 'bg-secondary'}">${t.category} ${t.purpose ? '('+t.purpose+')' : ''}</span></td>
+                                <td class="mono small">${t.txid}<br><span class="muted">${t.address}</span></td>
                             </tr>
                         `).join('')}</tbody>
                     </table>

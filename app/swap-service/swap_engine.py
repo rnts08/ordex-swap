@@ -74,11 +74,13 @@ class SwapEngine:
         confirmations_required: int = SWAP_CONFIRMATIONS_REQUIRED,
         min_fee_oxc: float = SWAP_MIN_FEE_OXC,
         min_fee_oxg: float = SWAP_MIN_FEE_OXG,
+        admin_service: "AdminService" = None,
     ):
         self.oracle = price_oracle
         self.oxc_wallet = oxc_wallet
         self.oxg_wallet = oxg_wallet
         self.history = history_service or SwapHistoryService()
+        self.admin = admin_service
         self.fee_percent = fee_percent
         self.min_amount = min_amount
         self.max_amount = max_amount
@@ -478,14 +480,25 @@ class SwapEngine:
         """
         Deep-scans the wallet transaction history and compares it against recorded swaps.
         Identifies missing deposits, mismatched amounts, or unaccounted funds.
+        Excludes known liquidity topups and acknowledged transactions.
         """
         results = {
             "scanned_count": 0,
             "missing_swaps": [],
             "mismatched_amounts": [],
             "unaccounted_deposits": [],
+            "acknowledged_deposits": [],
             "coin_stats": {"OXC": {"total_received": 0.0}, "OXG": {"total_received": 0.0}}
         }
+
+        # Fetch admin-controlled addresses
+        admin_wallets = self.admin.list_wallets() if self.admin else {}
+        admin_addrs = {} # {address: (coin, purpose)}
+        for c, purposes in admin_wallets.items():
+            for purpose, details in purposes.items():
+                addr = details.get("address")
+                if addr:
+                    admin_addrs[addr] = (c, purpose)
 
         for coin in ["OXC", "OXG"]:
             wallet = self.oxc_wallet if coin == "OXC" else self.oxg_wallet
@@ -503,7 +516,31 @@ class SwapEngine:
                     
                     results["coin_stats"][coin]["total_received"] += amount
                     
-                    # Search for swap by address or txid
+                    # 1. Is it an admin address (Liquidity/Fees)?
+                    if address in admin_addrs:
+                        c, purpose = admin_addrs[address]
+                        results["acknowledged_deposits"].append({
+                            "txid": txid,
+                            "address": address,
+                            "amount": amount,
+                            "coin": coin,
+                            "category": "LIQUIDITY_TOPUP",
+                            "purpose": purpose
+                        })
+                        continue
+
+                    # 2. Is it in the acknowledged_transactions table?
+                    if self.admin and self.admin.is_transaction_acknowledged(txid):
+                        results["acknowledged_deposits"].append({
+                            "txid": txid,
+                            "address": address,
+                            "amount": amount,
+                            "coin": coin,
+                            "category": "ACKNOWLEDGED"
+                        })
+                        continue
+
+                    # 3. Search for swap by address or txid
                     swap = self.history.get_swap_by_address(address)
                     if not swap:
                         # Search by txid just in case
@@ -536,6 +573,126 @@ class SwapEngine:
                 logger.error(f"Reconciliation error for {coin}: {e}")
         
         return results
+
+    def settle_orphaned_transaction(
+        self, txid: str, coin: str, amount: float, user_address: str, username: str
+    ) -> Dict[str, Any]:
+        """
+        Manually settle an orphaned transaction to a user address.
+        Applies standard fees and performs the withdrawal.
+        """
+        if not self.admin:
+            raise SwapError("Admin service not available for settlement")
+
+        if self.admin.is_transaction_acknowledged(txid):
+            raise SwapError(f"Transaction {txid} has already been acknowledged/processed")
+
+        # Calculate conversion (simulated swap for fee calculation)
+        # We assume the user wants the "other" coin, or just a settlement of the same? 
+        # Usually settlement means fulfilling the intended swap. 
+        # For simplicity, we'll ask for the target coin in the future, 
+        # but for now let's assume they want the base conversion if they didn't specify.
+        # However, the user request says "settle to the user (minus fees etc)".
+        
+        # Let's assume for now they want to settle the SAME coin or a flip.
+        # Actually, let's just do a direct send of the same coin minus a processing fee.
+        # Or better, let's treat it as a manual swap.
+        
+        target_coin = "OXG" if coin == "OXC" else "OXC"
+        conversion, _, _ = self._calculate_conversion(coin, target_coin, amount)
+        
+        net_amount = conversion["net_amount"]
+        if net_amount <= 0:
+            raise InvalidAmountError(f"Amount {amount} too small after fees")
+
+        # Perform withdrawal
+        wallet = self.oxc_wallet if target_coin == "OXC" else self.oxg_wallet
+        
+        if TESTING_MODE:
+            settle_txid = f"tx_manual_settle_{txid[:8]}"
+        else:
+            settle_txid = wallet.send(user_address, net_amount)
+
+        # Acknowledge in DB
+        details = {
+            "source_txid": txid,
+            "target_address": user_address,
+            "target_coin": target_coin,
+            "net_amount": net_amount,
+            "fee_amount": conversion["fee_amount"],
+            "type": "manual_settlement"
+        }
+        self.admin.acknowledge_transaction(
+            txid=txid,
+            coin=coin,
+            amount=amount,
+            action="settled",
+            performed_by=username,
+            address=user_address,
+            details=json.dumps(details)
+        )
+
+        return {
+            "txid": settle_txid,
+            "net_amount": net_amount,
+            "target_coin": target_coin
+        }
+
+    def refund_orphaned_transaction(
+        self, txid: str, coin: str, amount: float, target_address: str, username: str
+    ) -> Dict[str, Any]:
+        """
+        Refund an orphaned transaction to a specified address.
+        Deducts a small processing fee (e.g. 1% or minimum).
+        """
+        if not self.admin:
+            raise SwapError("Admin service not available for refund")
+
+        if self.admin.is_transaction_acknowledged(txid):
+            raise SwapError(f"Transaction {txid} has already been acknowledged/processed")
+
+        # Deduct a small 1% processing fee
+        processing_fee = amount * 0.01
+        refund_amount = amount - processing_fee
+        
+        # Ensure it meets minimums (approximate)
+        min_fee = self.min_fee_oxc if coin == "OXC" else self.min_fee_oxg
+        if processing_fee < min_fee:
+            processing_fee = min_fee
+            refund_amount = amount - processing_fee
+
+        if refund_amount <= 0:
+            raise InvalidAmountError(f"Amount {amount} too small for refund after fees")
+
+        wallet = self.oxc_wallet if coin == "OXC" else self.oxg_wallet
+        
+        if TESTING_MODE:
+            refund_txid = f"tx_manual_refund_{txid[:8]}"
+        else:
+            refund_txid = wallet.send(target_address, refund_amount)
+
+        # Acknowledge in DB
+        details = {
+            "source_txid": txid,
+            "target_address": target_address,
+            "refund_amount": refund_amount,
+            "fee_amount": processing_fee,
+            "type": "manual_refund"
+        }
+        self.admin.acknowledge_transaction(
+            txid=txid,
+            coin=coin,
+            amount=amount,
+            action="refunded",
+            performed_by=username,
+            address=target_address,
+            details=json.dumps(details)
+        )
+
+        return {
+            "txid": refund_txid,
+            "refund_amount": refund_amount
+        }
 
     def _settle_swap(self, swap_id: str) -> Dict[str, Any]:
         swap = self._pending_swaps.get(swap_id)
