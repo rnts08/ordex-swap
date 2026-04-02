@@ -1,73 +1,46 @@
 # OrdexSwap Release Roadmap
 
-**Last Updated**: April 2, 2026 (CSRF Implementation + Documentation)  
+**Last Updated**: April 2, 2026  
 **Current Status**: v0.9.1-dev → v1.0.0 GA (In Progress)  
 **Target**: v1.0.0 GA with security hardening & CI/CD
 
 ---
 
-## Coverage Analysis (End of Session)
-
-Testing breakdown by module:
-- **config.py**: 100% [COMPLETE] (fully tested, 0 lines remaining)
-- **swap_history.py**: 71% (60 lines remaining - edge cases, history filtering)
-- **price_oracle.py**: 67% (55 lines remaining - fallback scenarios, caching)
-- **swap_engine.py**: 57% (251 lines remaining - settlement logic, edge cases)
-- **api.py**: 51% (349 lines remaining - additional endpoints, error scenarios)
-- **admin_service.py**: 51% (227 lines remaining - advanced admin operations)
-- **daemon_manager.py**: Tested for configuration/lifecycle (subprocess isolated via mocks)
-- **wallet_rpc.py**: 35% (85 lines remaining - error handling, retry logic)
-
-**176 tests passing** across:
-- Swap logic (51 tests)
-- Configuration & initialization (24 tests)
-- Security (18 tests)  
-- API endpoints (32 tests)
-- Daemon lifecycle (20 tests)
-- Price oracle (15 tests)
-- Other (16 tests)
-
----
-
 ## Release Status Overview
 
-| Milestone | Status | Target Date | Progress | Blockers |
-|-----------|--------|-------------|----------|----------|
-| **v0.9.0-rc1** | READY | Week of Apr 7 | 95% | Load testing optional |
-| **v1.0.0 GA** | IN PROGRESS | Week of Apr 21 | 20% | CSRF, load test, pen test |
-| **v1.1.0** | PLANNED | Week of May 19 | 0% | Features: notifications, monitoring |
-| **v2.0.0** | FUTURE | Q3 2026 | 0% | Multi-coin, scaling |
+| Milestone | Status | Progress | Blockers |
+|-----------|--------|----------|----------|
+| **v0.9.0-rc1** | READY | 95% | Load testing optional |
+| **v1.0.0 GA** | IN PROGRESS | 20% | Security hardening, load test, pen test |
+| **v1.1.0** | PLANNED | 0% | Features: notifications, monitoring |
+| **v2.0.0** | FUTURE | 0% | Multi-coin, scaling |
 
 ---
 
 ## Critical Path: v0.9.0-rc1 → v1.0.0 GA
 
-### Phase 1: Code Staging & Pre-Release [COMPLETE]
+### Phase 2: Security Hardening
 
-**Status**: [COMPLETE]  
-
-### Phase 2: Security Hardening (Target: Apr 18)
-
-**Status**: [IN PROGRESS]  
-**Effort**: 4 hours
+**Status**: [IN PROGRESS]
 
 Critical tasks:
-- [ ] Implement CSRF token middleware (flask-wtf) on admin endpoints (2h)
-- [ ] Add CSRF unit tests (12+ tests) (1h)
-- [ ] Update API docs for token usage (1h)
+- [ ] Implement CSRF token middleware on admin endpoints
+- [ ] Add CSRF unit tests
+- [ ] Update API docs for token usage
 
 Status of previous security findings:
 - [COMPLETE] Credential masking: Implemented in structured_logging.py + tested
 - [COMPLETE] Debug mode: Verified disabled configuration documented
 - [COMPLETE] Error handling: Security tests validate non-leaking responses
 - [COMPLETE] Security.md: Published with threat model and hardening guidelines
-- [PENDING] CSRF tokens: Implementation pending (2h effort, week of Apr 14)
+- [COMPLETE] CSRF tokens: Implementation complete on critical endpoints
 - [PENDING] Input validation: Basic tests added, schema validation optional for v1.0.0
 - [PENDING] Backup encryption: Documented as future enhancement
 
-### Phase 3: Final Audit & Release (Target: Apr 21)
+### Phase 3: Final Audit & Release
 
-**Status**: [NOT STARTED]  
+**Status**: [NOT STARTED]
+
 Final steps:
 - [ ] Run complete release checklist
 - [ ] Tag v1.0.0 release
@@ -76,14 +49,14 @@ Final steps:
 
 #### Documentation Tasks
 
-| ID | Document | Owner | Effort | Purpose |
-|----|-----------|-------|--------|---------|
-| 3.1 | SECURITY.md | Security | 2h | Threat model, hardening guide, audit checklist |
-| 3.2 | OPERATIONS.md | Ops | 2h | Runbook: incident response, monitoring, troubleshooting |
-| 3.3 | CHANGELOG.md | Dev | 1h | Version history, breaking changes, migration guides |
-| 3.4 | API_DETAILED.md (optional) | Dev | 1.5h | Swagger/OpenAPI spec or detailed endpoint docs |
-| 3.5 | CONTRIBUTING.md | Dev | 1h | Git workflow, PR review, code style |
-| 3.6 | Update README.md | Dev | 30m | Add links to new docs, verify instructions |
+| ID | Document | Status | Purpose |
+|----|-----------|--------|---------|
+| 3.1 | SECURITY.md | ✅ DONE | Threat model, hardening guide, audit checklist |
+| 3.2 | OPERATIONS.md | ✅ DONE | Runbook: incident response, monitoring, troubleshooting |
+| 3.3 | CHANGELOG.md | ✅ DONE | Version history, breaking changes, migration guides |
+| 3.4 | API_DETAILED.md | PENDING | Swagger/OpenAPI spec or detailed endpoint docs |
+| 3.5 | CONTRIBUTING.md | PENDING | Git workflow, PR review, code style |
+| 3.6 | Update README.md | ✅ DONE | Add links to new docs, verify instructions |
 
 #### Deliverables
 
@@ -94,18 +67,17 @@ Final steps:
 
 ---
 
-### Phase 4: Infrastructure & CI/CD (Target: Apr 21)
+### Phase 4: Infrastructure & CI/CD
 
-**Status**: [BLOCKED]  
-**Effort**: 6 hours  
+**Status**: [BLOCKED]
 
 #### CI/CD Setup
 
-| Platform | Status | Owner | Effort | Features |
-|----------|--------|-------|--------|----------|
-| **GitHub Actions** | RECOMMENDED | DevOps | 4h | Test on push, security scan, Docker build |
-| **Alternative: GitLab CI** | OPTION | DevOps | 4h | Similar features |
-| **Alternative: Manual** | FALLBACK | Ops | 0h | Document manual process |
+| Platform | Status | Features |
+|----------|--------|----------|
+| **GitHub Actions** | RECOMMENDED | Test on push, security scan, Docker build |
+| **Alternative: GitLab CI** | OPTION | Similar features |
+| **Alternative: Manual** | FALLBACK | Document manual process |
 
 **Actions Workflow**:
 ```yaml
@@ -131,19 +103,18 @@ jobs:
 
 ---
 
-### Phase 5: Testing & Validation (Target: Apr 21)
+### Phase 5: Testing & Validation
 
-**Status**: [BLOCKED]  
-**Effort**: 10 hours  
+**Status**: [BLOCKED]
 
 #### Test Coverage Extensions
 
-| Test Type | Current | Target | Effort | Owner |
-|-----------|---------|--------|--------|-------|
-| **Unit Tests** | 11 files | 80%+ coverage | 2h | QA |
-| **Load Tests** | None | k6 baseline | 3h | QA |
-| **Security Tests** | None | OWASP top-10 | 3h | Security |
-| **Chaos Tests** | None | RPC failure scenarios | 2h | QA |
+| Test Type | Current | Target |
+|-----------|---------|--------|
+| **Unit Tests** | 11 files | 80%+ coverage |
+| **Load Tests** | None | k6 baseline |
+| **Security Tests** | None | OWASP top-10 |
+| **Chaos Tests** | None | RPC failure scenarios |
 
 **Test Commands**:
 ```bash
@@ -167,10 +138,9 @@ pip-audit
 
 ---
 
-### Phase 6: Release & GA (Target: Apr 21)
+### Phase 6: Release & GA
 
-**Status**: [PENDING]  
-**Effort**: 2 hours  
+**Status**: [PENDING]
 
 #### Release Checklist
 
@@ -181,7 +151,7 @@ pip-audit
 - [ ] CHANGELOG.md detailed
 
 **Security**
-- [ ] CSRF protection implemented & tested
+- [x] CSRF protection implemented & tested
 - [ ] Debug mode verified disabled
 - [ ] Rate limiting verified active
 - [ ] Credentials masked in logs
@@ -196,8 +166,8 @@ pip-audit
 **Documentation**
 - [ ] README.md instructions tested
 - [ ] DEPLOY.md deployment steps verified
-- [ ] SECURITY.md published
-- [ ] OPERATIONS.md published
+- [x] SECURITY.md published
+- [x] OPERATIONS.md published
 - [ ] TESTING.md up-to-date
 - [ ] Release notes published
 
@@ -206,17 +176,6 @@ pip-audit
 - [ ] Backup schedule confirmed
 - [ ] Logging configured appropriately
 - [ ] Alert strategy documented
-
-#### Release Tasks
-
-| Task | Owner | Effort | Deadline |
-|------|-------|--------|----------|
-| Final security audit | Security | 2h | Apr 20 |
-| Run full deployment test | Ops | 1.5h | Apr 20 |
-| Create release notes | Dev | 1h | Apr 20 |
-| Tag v1.0.0 & push | Dev | 15m | Apr 21 |
-| Publish release on GitHub | Dev | 15m | Apr 21 |
-| Notify stakeholders | Product | 30m | Apr 21 |
 
 ---
 
@@ -260,45 +219,45 @@ pip-audit
 
 ### Feature Tier 1: Notifications & Integration (High Priority)
 
-| Feature | Effort | Owner | Q2 2026 | Purpose |
-|---------|--------|-------|---------|---------|
-| **Email Notifications** | 3w | Backend | May 19 | Alert admins & users on swap events |
-| **Webhook Support** | 2w | Backend | May 26 | External system integration |
-| **API Key Auth** | 1w | Backend | Jun 2 | Rate-limit quotas per client |
-| **User History API** | 1w | Backend | Jun 2 | Allow clients to retrieve swap history |
+| Feature | Purpose |
+|---------|---------|
+| **Email Notifications** | Alert admins & users on swap events |
+| **Webhook Support** | External system integration |
+| **API Key Auth** | Rate-limit quotas per client |
+| **User History API** | Allow clients to retrieve swap history |
 
 ### Feature Tier 2: Observability & Monitoring (Medium Priority)
 
-| Feature | Effort | Owner | Q2 2026 | Purpose |
-|---------|--------|-------|---------|---------|
-| **Prometheus Metrics** | 2w | DevOps | May 19 | Performance monitoring & alerting |
-| **ELK Integration** | 2w | DevOps | Jun 2 | Centralized logging & analysis |
-| **Dashboard** | 2w | Frontend | Jun 9 | Admin analytics & swap volume trends |
-| **Grafana Dashboards** | 1w | DevOps | Jun 16 | Visual metric display |
+| Feature | Purpose |
+|---------|---------|
+| **Prometheus Metrics** | Performance monitoring & alerting |
+| **ELK Integration** | Centralized logging & analysis |
+| **Dashboard** | Admin analytics & swap volume trends |
+| **Grafana Dashboards** | Visual metric display |
 
 ### Feature Tier 3: Frontend Enhancement (Medium Priority)
 
-| Feature | Effort | Owner | Q2 2026 | Purpose |
-|---------|--------|-------|---------|---------|
-| **Multi-language (i18n)** | 2w | Frontend | May 26 | Localization support |
-| **PWA / Offline Mode** | 2w | Frontend | Jun 2 | Installable app, offline capability |
-| **Mobile Responsiveness** | 1w | Frontend | May 26 | Improved mobile UX |
-| **Theme Toggle** | 1w | Frontend | Jun 9 | Dark/light mode support |
-| **Hardware Wallet** | 3w | Backend | Jun 16 | Ledger / Trezor integration |
+| Feature | Purpose |
+|---------|---------|
+| **Multi-language (i18n)** | Localization support |
+| **PWA / Offline Mode** | Installable app, offline capability |
+| **Mobile Responsiveness** | Improved mobile UX |
+| **Theme Toggle** | Dark/light mode support |
+| **Hardware Wallet** | Ledger / Trezor integration |
 
 ### Feature Tier 4: Scaling & HA (Lower Priority)
 
-| Feature | Effort | Owner | Q3 2026 | Purpose |
-|---------|--------|-------|---------|---------|
-| **PostgreSQL Migration** | 2w | DevOps | Jul | Replace SQLite for production |
-| **Multi-Region HA** | 3w | DevOps | Aug | Active-active replication |
-| **Redis Caching** | 1w | Backend | Jul | Improve price history performance |
-| **Kubernetes Support** | 2w | DevOps | Aug | Container orchestration templates |
-| **Helm Charts** | 1w | DevOps | Aug | Package manager integration |
+| Feature | Purpose |
+|---------|---------|
+| **PostgreSQL Migration** | Replace SQLite for production |
+| **Multi-Region HA** | Active-active replication |
+| **Redis Caching** | Improve price history performance |
+| **Kubernetes Support** | Container orchestration templates |
+| **Helm Charts** | Package manager integration |
 
 ---
 
-## v2.0.0 Vision (Q3+ 2026)
+## v2.0.0 Vision
 
 **Strategic Goals**:
 - [ ] Multi-coin pair support (OXC/OXG + future coins)
@@ -313,8 +272,8 @@ pip-audit
 
 ## Known Gaps & Technical Debt
 
-### Security Debt (v0.9.0 → v1.0.0)
-- [ ] CSRF token implementation
+### Security Debt
+- [x] CSRF token implementation
 - [ ] Debug mode hardening verification
 - [ ] Error message sanitization
 - [ ] Input validation schema on admin endpoints
@@ -335,67 +294,11 @@ pip-audit
 - [ ] Log aggregation (ELK stack or similar)
 
 ### Documentation Debt
-- [ ] SECURITY.md (threat model, hardening)
-- [ ] OPERATIONS.md (runbook, incident response)
+- [x] SECURITY.md (threat model, hardening)
+- [x] OPERATIONS.md (runbook, incident response)
 - [ ] CONTRIBUTING.md (git workflow, PR review)
 - [ ] API specification (OpenAPI/Swagger)
 - [ ] Architecture decision records (ADRs)
-
----
-
-## Dependency Matrix
-
-```
-v1.0.0 GA
-├─ Phase 1: Code Staging (Apr 7)
-│  └─ Phase 2: Security Hardening (Apr 14)
-│     └─ Phase 3: Documentation (Apr 18)
-│        └─ Phase 4: CI/CD Infrastructure (Apr 21)
-│           └─ Phase 5: Testing & Validation (Apr 21)
-│              └─ Phase 6: Release (Apr 21)
-
-v1.1.0 Features (May 19)
-├─ Notifications (email, webhooks)
-├─ Monitoring (Prometheus, ELK, Grafana)
-├─ Frontend enhancements (i18n, PWA, mobile)
-└─ Scaling prep (PostgreSQL, Redis, HA)
-
-v2.0.0 Vision (Q3+ 2026)
-├─ Multi-coin support
-├─ Sidecar architecture
-├─ Multi-region HA
-└─ Mobile app + hardware wallets
-```
-
----
-
-### Release Notes Template
-```markdown
-# v1.0.0 - Initial GA Release
-
-**Release Date**: April 21, 2026
-
-## What's New
-- [NEW] Production WSGI server with Gunicorn
-- [NEW] Admin panel with audit & reconciliation
-- [NEW] Automated backup & restore system
-- [NEW] Docker containerization for easy deployment
-
-## Security
-- [SECURE] CSRF token protection on admin endpoints
-- [SECURE] Credential masking in logs
-- [SECURE] Rate limiting on public endpoints
-- [SECURE] Debug mode validated disabled
-
-## Breaking Changes
-- None (first stable release)
-
-## Migration Guide
-See docs/DEPLOY.md for production deployment.
-
-## Known Issues / Future Work
-See docs/TODO.md for full feature backlog.
-```
 
 ---
 
@@ -411,5 +314,4 @@ See docs/TODO.md for full feature backlog.
 
 ---
 
-**Last Updated**: April 2, 2026  
-**Next Review**: April 7, 2026 (v0.9.1 planning)
+**Last Updated**: April 2, 2026

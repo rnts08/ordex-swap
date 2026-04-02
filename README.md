@@ -74,6 +74,42 @@ See the `docs/` folder for detailed documentation:
 | `/api/v1/balance` | GET | Wallet balances |
 | `/api/v1/deposit/<coin>` | GET | Get deposit address |
 
+## CSRF Protection
+
+Admin endpoints are protected with CSRF tokens to prevent cross-site request forgery attacks.
+
+### How CSRF Tokens Work
+
+1. **Obtain a Token**: Before making state-changing requests to admin endpoints, fetch a CSRF token from `/api/v1/csrf-token`
+2. **Include the Token**: Include the token in the `X-CSRF-Token` header of your request
+3. **Validation**: The server validates the token on each protected request
+
+### Example Usage
+
+```bash
+# 1. Get CSRF token
+TOKEN=$(curl -s http://localhost:8080/api/v1/csrf-token | jq -r '.token')
+
+# 2. Use token in admin requests (example: withdraw)
+curl -X POST http://localhost:8080/api/v1/admin/withdraw \
+  -H "X-CSRF-Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0x...", "amount": 100, "coin": "OXC"}'
+```
+
+### Protected Endpoints
+
+The following endpoints require CSRF token validation:
+- `/api/v1/admin/scan` - Scan for deposits
+- `/api/v1/admin/settle` - Settle pending swaps
+- `/api/v1/admin/withdraw` - Withdraw funds
+- `/api/v1/admin/pause` - Pause swap service
+- `/api/v1/admin/resume` - Resume swap service
+
+### Development Mode
+
+When `TESTING_MODE=true`, CSRF protection is automatically disabled for easier testing.
+
 ## Configuration
 
 Environment variables (see `app/.env.example`):

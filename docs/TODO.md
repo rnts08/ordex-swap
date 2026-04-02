@@ -3,12 +3,6 @@
 - admin info about swap.
 - multi selection about orphaned swaps
 
-## Security Issues
-
-**No CSRF Protection** ✅ COMPLETED (withdraw endpoint protected, CSRF token implementation)
-**Debug Mode Potential** ✅ VERIFIED
-**Error Handling Inconsistency** ✅ TESTED
-
 ## Features to Consider
 
 ### High Priority

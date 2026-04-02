@@ -16,7 +16,7 @@
 
 2. **Pull and restart on production server (ordexswap.online):**
    ```bash
-   ssh user@ordexswap.online
+   ssh deploy@ordexswap.online
    cd /opt/ordex-swap/
    docker compose -f docker-compose.prod.yml up -d --build
    ```
