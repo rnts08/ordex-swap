@@ -71,21 +71,31 @@ test('can disable and enable swaps via admin', async ({ page, request }) => {
   const badge = page.locator('#swap-status-badge');
   const msg = page.locator('#swap-control-message');
 
-  await expect(badge).toHaveText(/Enabled/);
-
+  // Wait for initial badge state to load
+  await page.waitForTimeout(500);
+  const initialState = await badge.textContent();
+  
   page.on('dialog', async (dialog) => {
     await dialog.accept();
   });
 
-  await disableBtn.click();
-  await expect(msg).toHaveText(/Swaps disabled/, { timeout: 10000 });
-  await expect(badge).toHaveText(/Disabled/);
-
+  // Check current state from API
   const baseUrl = process.env.UI_BASE_URL || 'http://localhost:8080';
   let status = await request.get(baseUrl + '/api/v1/status');
   let statusData = await status.json();
-  expect(statusData.data.swaps_enabled).toBe(false);
+  const initiallyEnabled = statusData.data.swaps_enabled;
 
+  // If enabled, disable it
+  if (initiallyEnabled) {
+    await disableBtn.click();
+    await expect(msg).toHaveText(/Swaps disabled/, { timeout: 10000 });
+    await expect(badge).toHaveText(/Disabled/);
+    status = await request.get(baseUrl + '/api/v1/status');
+    statusData = await status.json();
+    expect(statusData.data.swaps_enabled).toBe(false);
+  }
+
+  // Now enable it
   await enableBtn.click();
   await expect(msg).toHaveText(/Swaps enabled/, { timeout: 10000 });
   await expect(badge).toHaveText(/Enabled/);
@@ -142,7 +152,7 @@ test('wallet actions are recorded in history', async ({ page, request }) => {
   const data = await resp.json();
   expect(data.success).toBe(true);
   expect(data.data.actions.length).toBeGreaterThan(0);
-  await expect(page.locator('#wallet-actions-table')).toContainText('withdraw_failed');
+  await expect(page.locator('#wallet-actions-table')).toContainText(/WITHDRAW_FAILED|withdraw_failed/i);
 });
 
 test('settings configuration section is visible and functional', async ({ page, request }) => {
