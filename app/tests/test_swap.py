@@ -13,6 +13,8 @@ _swap_service_path = os.path.join(
 if _swap_service_path not in sys.path:
     sys.path.insert(0, _swap_service_path)
 
+from test_helpers import setup_test_db
+
 
 class TestSwapEngine(unittest.TestCase):
     def setUp(self):
@@ -22,6 +24,8 @@ class TestSwapEngine(unittest.TestCase):
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
         os.environ["TESTING_MODE"] = "false"
         os.environ["SWAP_CONFIRMATIONS_REQUIRED"] = "0"
+
+        setup_test_db(os.environ["DB_PATH"])
 
         for mod in ("config", "swap_engine", "swap_history"):
             if mod in sys.modules:

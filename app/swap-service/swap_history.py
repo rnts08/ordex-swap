@@ -7,27 +7,17 @@ from datetime import datetime, timezone
 
 from config import DATA_DIR, DB_PATH, DEFAULT_LIMIT, STAT_INCLUDED_STATUSES
 from db_pool import get_pool
-from migrations import run_migrations
 
 logger = logging.getLogger(__name__)
 
 
 class SwapHistoryService:
-    def __init__(self, data_dir: str = None, run_migrations: bool = False):
+    def __init__(self, data_dir: str = None):
         self.data_dir = data_dir or DATA_DIR
         self.db_path = DB_PATH
         self._pool = get_pool(self.db_path)
 
         os.makedirs(self.data_dir, exist_ok=True)
-        # Always run migrations - they are idempotent and skipped if already applied
-        self.initialize_db()
-
-    def initialize_db(self) -> None:
-        """
-        Initialize database schema by running all migrations.
-        Should be called once during first startup, not on every app initialization.
-        """
-        self._init_db()
 
     def _log_audit(
         self,
@@ -50,44 +40,6 @@ class SwapHistoryService:
         except sqlite3.Error as e:
             # We don't want to crash the main flow if auditing fails, but we should log it
             logger.error(f"Failed to log swap audit for {swap_id}: {e}")
-
-    def _init_db(self) -> None:
-        migrations = [
-            (
-                "001_initial_swaps_table",
-                """
-                CREATE TABLE IF NOT EXISTS swaps (
-                    swap_id TEXT PRIMARY KEY,
-                    status TEXT NOT NULL,
-                    data_json TEXT NOT NULL,
-                    created_at TEXT,
-                    updated_at TEXT,
-                    completed_at TEXT,
-                    from_coin TEXT,
-                    from_amount REAL
-                )
-                """,
-            ),
-            (
-                "002_swap_audit_log",
-                """
-                CREATE TABLE IF NOT EXISTS swap_audit_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    swap_id TEXT NOT NULL,
-                    old_status TEXT,
-                    new_status TEXT NOT NULL,
-                    details TEXT,
-                    performed_by TEXT,
-                    created_at TEXT NOT NULL
-                )
-                """,
-            ),
-        ]
-        try:
-            with self._pool.get_connection() as conn:
-                run_migrations(conn, migrations)
-        except Exception as e:
-            logger.error(f"Failed to initialize swap history migrations: {e}")
 
     def add_swap(self, swap: Dict[str, Any]) -> None:
         swap_id = swap.get("swap_id")

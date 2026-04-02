@@ -1,3 +1,5 @@
+"""Core migration runner - applies migrations idempotently to SQLite database."""
+
 import sqlite3
 import logging
 from datetime import datetime, timezone
@@ -5,10 +7,15 @@ from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 
+
 def run_migrations(conn: sqlite3.Connection, migrations: List[Tuple[str, str]]) -> None:
     """
     Runs a list of migrations on the given connection idempotently.
     Each migration is a tuple of (migration_id, sql_query).
+
+    Args:
+        conn: SQLite connection object
+        migrations: List of (migration_id, sql_query) tuples
     """
     # 1. Ensure schema_migrations table exists
     conn.execute(
@@ -19,21 +26,20 @@ def run_migrations(conn: sqlite3.Connection, migrations: List[Tuple[str, str]]) 
         )
         """
     )
-    
+
     # 2. Get already applied migrations
     cursor = conn.execute("SELECT migration_id FROM schema_migrations")
     applied = {row[0] for row in cursor.fetchall()}
-    
+
     # 3. Apply new migrations
     for mid, query in migrations:
         if mid not in applied:
             logger.info(f"Applying migration: {mid}")
             try:
-                # Use a sub-transaction if possible, but execute() on conn is usually sufficient
                 conn.execute(query)
                 conn.execute(
                     "INSERT INTO schema_migrations (migration_id, applied_at) VALUES (?, ?)",
-                    (mid, datetime.now(timezone.utc).isoformat())
+                    (mid, datetime.now(timezone.utc).isoformat()),
                 )
                 conn.commit()
                 logger.debug(f"Migration {mid} applied successfully.")

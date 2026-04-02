@@ -11,6 +11,8 @@ _swap_service_path = os.path.join(
 if _swap_service_path not in sys.path:
     sys.path.insert(0, _swap_service_path)
 
+from test_helpers import setup_test_db
+
 
 class TestAdminService(unittest.TestCase):
     def setUp(self):
@@ -18,6 +20,9 @@ class TestAdminService(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         os.environ["DATA_DIR"] = self._tmpdir.name
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+
+        # Run migrations to initialize database schema
+        setup_test_db(os.environ["DB_PATH"])
 
         # Clear any potential module variations
         for mod_name in list(sys.modules.keys()):

@@ -12,6 +12,8 @@ _swap_service_path = os.path.join(
 if _swap_service_path not in sys.path:
     sys.path.insert(0, _swap_service_path)
 
+from test_helpers import setup_test_db
+
 
 class TestPriceOraclePersistentCache(unittest.TestCase):
     def setUp(self):
@@ -19,6 +21,8 @@ class TestPriceOraclePersistentCache(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         os.environ["DATA_DIR"] = self._tmpdir.name
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+
+        setup_test_db(os.environ["DB_PATH"])
 
         for mod in ("config", "price_oracle"):
             if mod in sys.modules:
@@ -57,6 +61,8 @@ class TestPriceHistoryService(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         os.environ["DATA_DIR"] = self._tmpdir.name
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+
+        setup_test_db(os.environ["DB_PATH"])
 
         for mod in ("config", "price_history"):
             if mod in sys.modules:
@@ -107,6 +113,8 @@ class TestSwapHistoryService(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         os.environ["DATA_DIR"] = self._tmpdir.name
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
+
+        setup_test_db(os.environ["DB_PATH"])
 
         for mod in ("config", "swap_history"):
             if mod in sys.modules:

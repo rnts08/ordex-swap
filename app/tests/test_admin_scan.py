@@ -12,6 +12,8 @@ _swap_service_path = os.path.join(
 if _swap_service_path not in sys.path:
     sys.path.insert(0, _swap_service_path)
 
+from test_helpers import setup_test_db
+
 class TestAdminTransactionScan(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory()
@@ -19,6 +21,8 @@ class TestAdminTransactionScan(unittest.TestCase):
         os.environ["DATA_DIR"] = self._tmpdir.name
         os.environ["DB_PATH"] = os.path.join(self._tmpdir.name, "test.db")
         os.environ["TESTING_MODE"] = "true"
+
+        setup_test_db(os.environ["DB_PATH"])
 
         # Force reload of modules to ensure clean state
         for mod in ["config", "swap_engine", "swap_history", "price_oracle", "wallet_rpc"]:
