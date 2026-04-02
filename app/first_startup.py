@@ -7,9 +7,11 @@ import time
 import logging
 from dotenv import load_dotenv
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "swap-service"))
+app_dir = os.path.dirname(__file__)
+sys.path.insert(0, app_dir)  # Add app directory for imports
+sys.path.insert(0, os.path.join(app_dir, "swap-service"))
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(app_dir, ".env"))
 
 from wallet_rpc import OXCWallet, OXGWallet, WalletRPCError
 from price_oracle import PriceOracle
