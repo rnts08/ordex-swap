@@ -4,7 +4,7 @@ test('admin dashboard login hides login card and shows graphs', async ({ page })
   await page.goto('/admin.html');
 
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   const loginBtn = page.locator('#login-btn');
   await loginBtn.click();
 
@@ -25,7 +25,7 @@ test('admin dashboard login hides login card and shows graphs', async ({ page })
 test('rotate buttons show confirmation dialog', async ({ page }) => {
   await page.goto('/admin.html');
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 
@@ -41,7 +41,7 @@ test('rotate buttons show confirmation dialog', async ({ page }) => {
 test('swap control shows enable/disable buttons', async ({ page }) => {
   await page.goto('/admin.html');
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 
@@ -62,7 +62,7 @@ test('swap control requires admin login', async ({ page }) => {
 test('can disable and enable swaps via admin', async ({ page, request }) => {
   await page.goto('/admin.html');
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 
@@ -81,7 +81,8 @@ test('can disable and enable swaps via admin', async ({ page, request }) => {
   await expect(msg).toHaveText(/Swaps disabled/, { timeout: 10000 });
   await expect(badge).toHaveText(/Disabled/);
 
-  let status = await request.get('http://localhost:8080/api/v1/status');
+  const baseUrl = process.env.UI_BASE_URL || 'http://localhost:8080';
+  let status = await request.get(baseUrl + '/api/v1/status');
   let statusData = await status.json();
   expect(statusData.data.swaps_enabled).toBe(false);
 
@@ -89,7 +90,7 @@ test('can disable and enable swaps via admin', async ({ page, request }) => {
   await expect(msg).toHaveText(/Swaps enabled/, { timeout: 10000 });
   await expect(badge).toHaveText(/Enabled/);
 
-  status = await request.get('http://localhost:8080/api/v1/status');
+  status = await request.get(baseUrl + '/api/v1/status');
   statusData = await status.json();
   expect(statusData.data.swaps_enabled).toBe(true);
 });
@@ -97,7 +98,7 @@ test('can disable and enable swaps via admin', async ({ page, request }) => {
 test('withdraw section shows input fields', async ({ page }) => {
   await page.goto('/admin.html');
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 
@@ -113,7 +114,7 @@ test('withdraw section shows input fields', async ({ page }) => {
 test('withdraw validates input and shows error for invalid address', async ({ page }) => {
   await page.goto('/admin.html');
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 
@@ -129,11 +130,11 @@ test('withdraw validates input and shows error for invalid address', async ({ pa
 test('wallet actions are recorded in history', async ({ page, request }) => {
   await page.goto('/admin.html');
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 
-  const auth = 'Basic ' + btoa('swap:changeme26');
+  const auth = 'Basic ' + btoa('swap:u6S9mYwvfv*-~Rf');
   const baseUrl = process.env.UI_BASE_URL || 'http://localhost:8080';
   const resp = await request.get(baseUrl + '/api/v1/admin/wallets/actions', {
     headers: { Authorization: auth }
@@ -147,7 +148,7 @@ test('wallet actions are recorded in history', async ({ page, request }) => {
 test('settings configuration section is visible and functional', async ({ page, request }) => {
   await page.goto('/admin.html');
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 
@@ -167,7 +168,7 @@ test('settings configuration section is visible and functional', async ({ page, 
 test('can update settings via admin interface', async ({ page, request }) => {
   await page.goto('/admin.html');
   await page.locator('#admin-user').fill('swap');
-  await page.locator('#admin-pass').fill('changeme26');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
   await page.locator('#login-btn').click();
   await expect(page.locator('#dashboard')).toBeVisible();
 
@@ -178,8 +179,9 @@ test('can update settings via admin interface', async ({ page, request }) => {
   const msg = page.locator('#settings-message');
   await expect(msg).toContainText(/updated successfully/i, { timeout: 10000 });
 
-  const auth = 'Basic ' + btoa('swap:changeme26');
-  const resp = await request.get('http://localhost:8080/api/v1/admin/settings', {
+  const auth = 'Basic ' + btoa('swap:u6S9mYwvfv*-~Rf');
+  const baseUrl = process.env.UI_BASE_URL || 'http://localhost:8080';
+  const resp = await request.get(baseUrl + '/api/v1/admin/settings', {
     headers: { Authorization: auth }
   });
   const data = await resp.json();
