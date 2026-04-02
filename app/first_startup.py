@@ -67,13 +67,10 @@ def ensure_wallet(
 
 
 def main() -> int:
-    logger.info("Initializing base wallets...")
-    oxc_wallet = OXCWallet(OXC_RPC_URL, OXC_RPC_USER, OXC_RPC_PASSWORD)
-    oxg_wallet = OXGWallet(OXG_RPC_URL, OXG_RPC_USER, OXG_RPC_PASSWORD)
-
-    ensure_wallet(oxc_wallet, "OXC", OXC_WALLET_NAME)
-    ensure_wallet(oxg_wallet, "OXG", OXG_WALLET_NAME)
-    logger.info("Base wallets initialized.")
+    logger.info("Initializing application on startup...")
+    
+    # Database migrations are already handled by entrypoint.sh
+    logger.info("Database migrations already applied")
 
     from admin_service import AdminService, validate_password
 
@@ -104,10 +101,8 @@ def main() -> int:
     else:
         logger.info("Admin users already exist, skipping creation.")
 
-    logger.info("Checking price history backfill...")
-    oracle = PriceOracle()
-    history = PriceHistoryService(oracle=oracle)
-    history.ensure_backfill(hours=24)
+    logger.info("Wallet daemon initialization will be handled by the Flask app daemon_manager")
+    logger.info("Application startup initialization complete")
     return 0
 
 
