@@ -2,7 +2,7 @@
 
 Off-chain centralized swap service for OXC (OrdexCoin) ↔ OXG (OrdexGold) exchange.
 
-**Status**: v0.9.0 Release Candidate (176 tests passing, full test coverage for core functionality)
+**Status**: v0.9.1 (176 tests passing, CSRF protection on critical endpoints)
 
 ## Features
 
@@ -43,6 +43,7 @@ See the `docs/` folder for detailed documentation:
 - [Backup & Restore](docs/BACKUPS.md) - Backup system and restore procedures
 - [Security Policy](docs/SECURITY.md) - Threat model, hardening measures, and incident response
 - [Release Roadmap](docs/ROADMAP.md) - v1.0.0 GA timeline and planned features
+- [Changelog](CHANGELOG.md) - Version history and breaking changes
 
 ## Architecture
 

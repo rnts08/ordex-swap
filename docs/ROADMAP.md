@@ -1,7 +1,7 @@
 # OrdexSwap Release Roadmap
 
-**Last Updated**: March 31, 2026 (Ongoing Development Session)  
-**Current Status**: v0.9.0-dev → v0.9.0-rc1 (In Progress)  
+**Last Updated**: April 2, 2026 (CSRF Implementation + Documentation)  
+**Current Status**: v0.9.1-dev → v1.0.0 GA (In Progress)  
 **Target**: v1.0.0 GA with security hardening & CI/CD
 
 ---
@@ -127,9 +127,9 @@ Final steps:
 
 #### Deliverables
 
-- [ ] SECURITY.md published
-- [ ] OPERATIONS.md with incident response playbooks
-- [ ] Release notes / CHANGELOG.md
+- [x] SECURITY.md published
+- [x] OPERATIONS.md with incident response playbooks
+- [x] Release notes / CHANGELOG.md
 - [ ] API documentation updated or linked
 
 ---
@@ -445,11 +445,11 @@ See docs/TODO.md for full feature backlog.
 - [docs/DEPLOY.md](./DEPLOY.md) - Production deployment guide
 - [docs/TESTING.md](./TESTING.md) - Testing procedures
 - [docs/BACKUPS.md](./BACKUPS.md) - Backup & restore system
-- [docs/SECURITY.md](./SECURITY.md) - *To be created*
-- [docs/OPERATIONS.md](./OPERATIONS.md) - *To be created*
+- [docs/SECURITY.md](./SECURITY.md) - Security policy, threat model, hardening guide
+- [CHANGELOG.md](../CHANGELOG.md) - Version history, breaking changes, migration guides
 - [AGENTS.md](../AGENTS.md) - Repository development guidelines
 
 ---
 
-**Last Updated**: March 31, 2026  
-**Next Review**: April 7, 2026 (v0.9.0-rc1 planning)
+**Last Updated**: April 2, 2026  
+**Next Review**: April 7, 2026 (v0.9.1 planning)

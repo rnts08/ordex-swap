@@ -2,6 +2,8 @@ import logging
 import math
 import re
 import base64
+import uuid
+import time
 from functools import wraps
 from flask import Flask, request, jsonify, g
 from flask_limiter import Limiter
@@ -53,6 +55,48 @@ price_oracle: PriceOracle = None
 price_history: PriceHistoryService = None
 swap_history: SwapHistoryService = None
 admin_service: AdminService = None
+
+# CSRF token storage: {token_string: (username, timestamp)}
+_csrf_tokens: dict = {}
+CSRF_TOKEN_EXPIRY_SECONDS = 3600  # 1 hour
+
+
+def generate_csrf_token(username: str) -> str:
+    """Generate a new CSRF token for the given username."""
+    token = str(uuid.uuid4())
+    timestamp = time.time()
+    _csrf_tokens[token] = (username, timestamp)
+    # Clean up expired tokens
+    _cleanup_csrf_tokens()
+    return token
+
+
+def _cleanup_csrf_tokens():
+    """Remove expired CSRF tokens from storage."""
+    current_time = time.time()
+    expired = [
+        tok for tok, (_, ts) in _csrf_tokens.items()
+        if current_time - ts > CSRF_TOKEN_EXPIRY_SECONDS
+    ]
+    for tok in expired:
+        _csrf_tokens.pop(tok, None)
+
+
+def validate_csrf_token(token: str, username: str) -> bool:
+    """Validate a CSRF token for the given username."""
+    if not token or not username:
+        return False
+    _cleanup_csrf_tokens()
+    stored = _csrf_tokens.get(token)
+    if not stored:
+        return False
+    stored_username, timestamp = stored
+    if stored_username != username:
+        return False
+    if time.time() - timestamp > CSRF_TOKEN_EXPIRY_SECONDS:
+        _csrf_tokens.pop(token, None)
+        return False
+    return True
 
 
 def init_app(
@@ -143,6 +187,33 @@ def require_admin_auth(func):
         g.admin_ip = ip_address
         return func(*args, **kwargs)
 
+    return wrapper
+
+
+def require_csrf_token(func):
+    """Decorator to require a valid CSRF token for state-changing admin operations."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # Only require CSRF token for state-changing methods (POST, PUT, DELETE)
+        if request.method not in ["POST", "PUT", "DELETE"]:
+            return func(*args, **kwargs)
+        
+        # Get username from Flask g (set by require_admin_auth)
+        username = getattr(g, "admin_username", None)
+        if not username:
+            return json_error("Authentication required", 401)
+        
+        # Get CSRF token from header
+        csrf_token = request.headers.get("X-CSRF-Token")
+        if not csrf_token:
+            return json_error("CSRF token required", 403, "CSRF_TOKEN_REQUIRED")
+        
+        # Validate the token
+        if not validate_csrf_token(csrf_token, username):
+            return json_error("Invalid or expired CSRF token", 403, "CSRF_TOKEN_INVALID")
+        
+        return func(*args, **kwargs)
+    
     return wrapper
 
 
@@ -389,6 +460,15 @@ def get_swap_stats():
     if swap_history:
         return json_success(swap_history.get_stats())
     return json_error("History service not available", 500)
+
+
+@app.route("/api/v1/admin/csrf-token", methods=["GET"])
+@require_admin_auth
+def get_csrf_token():
+    """Get a new CSRF token for state-changing admin operations."""
+    username = g.admin_username
+    token = generate_csrf_token(username)
+    return json_success({"csrf_token": token})
 
 
 @app.route("/api/v1/admin/status", methods=["GET"])
@@ -712,6 +792,7 @@ def admin_rotate_wallet():
 
 @app.route("/api/v1/admin/wallets/withdraw", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_withdraw():
     data = request.get_json() or {}
     coin = (data.get("coin") or "").upper()
