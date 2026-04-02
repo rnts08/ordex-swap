@@ -10,11 +10,11 @@ COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/swap-service/ ./swap-service/
+COPY app/migrations/ ./migrations/
 COPY app/main.py .
 COPY app/wsgi.py .
 COPY app/first_startup.py .
 COPY app/first-run.sh .
-COPY app/migrate_settings.py .
 COPY app/backup.py .
 COPY app/restore.py .
 
