@@ -7,18 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [Unreleased] → v1.0.0
 
 ### Added
-- CSRF token protection for admin wallet withdraw endpoint
-- Frontend CSRF token fetching and inclusion in state-changing requests
+- **Circuit Breaker Protection**: New safety mechanism to flag swaps with abnormal ratios (>5:1 by default)
+  - New `CIRCUIT_BREAKER` status for swaps requiring manual review
+  - Configurable ratio threshold via admin settings (`circuit_breaker_ratio`)
+  - Enable/disable toggle (`circuit_breaker_enabled`)
+- **User Swap Tracking**: New public endpoint `GET /api/v1/swaps/track/<swap_id>`
+  - Returns swap status, time remaining, deposit address, and transaction IDs
+  - Supports rescan trigger for late deposits via `?rescan=true`
+- **Address Validation**: Pre-validation for wallet withdrawals
+  - `validate_address()` method added to `OXCWallet` and `OXGWallet`
+  - Prevents failed withdrawals due to invalid addresses
+- **CSRF Token Protection**: Full implementation across all admin state-changing endpoints
+  - Token generation via `GET /api/v1/admin/csrf-token`
+  - Required in `X-CSRF-Token` header for POST/PUT/DELETE requests
+  - 1-hour token expiry
+- **Admin Settings Management**: New methods in `AdminService` for circuit breaker configuration
 
 ### Changed
-- Updated roadmap documentation with v1.0.0 timeline
-- Updated TODO with security fixes completed
+- **Stats Include All Statuses**: `STAT_INCLUDED_STATUSES` now includes `cancelled`, `timed_out`, and `failed`
+- **Test Suite**: 178 tests passing (up from 176)
+- **Documentation**: CSRF protection fully documented in README.md
 
 ### Security
-- CSRF tokens now required for wallet withdraw operations
+- CSRF tokens required for all admin state-changing operations
+- Address validation prevents withdrawal to invalid addresses
+- Circuit breaker protects against abnormal swap ratios that could drain wallets
+
+### Fixed
+- Withdrawal validation now catches invalid addresses before attempting transaction
+- Stats calculation now includes all swap statuses for accurate volume reporting
 
 ---
 

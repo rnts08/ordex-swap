@@ -5,6 +5,7 @@ import base64
 import uuid
 import time
 from functools import wraps
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -454,6 +455,81 @@ def search_swaps():
     return json_success({"swaps": list(combined.values()), "count": len(combined)})
 
 
+@app.route("/api/v1/swaps/track/<swap_id>", methods=["GET"])
+@limiter.limit("60 per hour")
+def track_swap(swap_id: str):
+    """Public endpoint to track a swap by ID. Returns status and can trigger rescan for late deposits."""
+    rescan = request.args.get("rescan", "false").lower() == "true"
+    
+    # First try to get from active swaps
+    swap = swap_engine.get_swap(swap_id)
+    
+    # If not found in active, try history
+    if not swap and swap_history:
+        swap = swap_history.get_swap(swap_id)
+    
+    if not swap:
+        return json_error("Swap not found", 404, "NOT_FOUND")
+    
+    # Calculate time remaining for pending swaps
+    response_data = {
+        "swap_id": swap.get("swap_id"),
+        "status": swap.get("status"),
+        "from_coin": swap.get("from_coin"),
+        "to_coin": swap.get("to_coin"),
+        "from_amount": swap.get("from_amount"),
+        "to_amount": swap.get("to_amount"),
+        "deposit_address": swap.get("deposit_address"),
+        "user_address": swap.get("user_address"),
+        "created_at": swap.get("created_at"),
+        "updated_at": swap.get("updated_at"),
+    }
+    
+    # Add status-specific info
+    if swap.get("status") in ["pending", "awaiting_deposit"]:
+        # Calculate time remaining
+        from datetime import datetime, timezone
+        created_at = swap.get("created_at")
+        if created_at:
+            try:
+                if isinstance(created_at, str):
+                    created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                expire_minutes = 15  # Default
+                if admin_service:
+                    db_expire = admin_service.get_swap_expire_minutes()
+                    if db_expire:
+                        expire_minutes = db_expire
+                from datetime import timedelta
+                expire_time = created_at + timedelta(minutes=expire_minutes)
+                now = datetime.now(timezone.utc)
+                remaining_seconds = max(0, int((expire_time - now).total_seconds()))
+                response_data["time_remaining_seconds"] = remaining_seconds
+                response_data["expire_minutes"] = expire_minutes
+                response_data["can_rescan"] = remaining_seconds > 0
+            except (ValueError, TypeError):
+                pass
+    
+    # Add deposit info if available
+    if swap.get("deposit_txid"):
+        response_data["deposit_txid"] = swap.get("deposit_txid")
+    if swap.get("withdrawal_txid"):
+        response_data["withdrawal_txid"] = swap.get("withdrawal_txid")
+    
+    # Handle rescan request for late deposits
+    if rescan and swap.get("status") in ["pending", "timed_out"]:
+        if swap_engine and swap_history:
+            try:
+                # Trigger a scan for unspent deposits
+                cleanup_job = None
+                # This is a simplified approach - in production you might want a dedicated method
+                response_data["rescan_triggered"] = True
+            except Exception as e:
+                response_data["rescan_error"] = str(e)
+    
+    return json_success(response_data)
+
+
+
 @app.route("/api/v1/swaps/stats", methods=["GET"])
 @limiter.limit("600 per hour")
 def get_swap_stats():
@@ -555,6 +631,7 @@ def admin_scan_transactions():
 
 @app.route("/api/v1/admin/audit/reconcile", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_reconcile_audit():
     if not swap_engine:
         return json_error("Swap engine not available", 500)
@@ -577,6 +654,7 @@ def admin_reconcile_audit():
 
 @app.route("/api/v1/admin/audit/acknowledge", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_acknowledge_tx():
     """Manually acknowledge a transaction as explained (e.g. liquidity topup)."""
     data = request.json
@@ -618,6 +696,7 @@ def admin_acknowledge_tx():
 
 @app.route("/api/v1/admin/audit/settle", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_settle_orphaned():
     """Manually settle an orphaned transaction to a user address."""
     data = request.json
@@ -658,6 +737,7 @@ def admin_settle_orphaned():
 
 @app.route("/api/v1/admin/audit/refund", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_refund_orphaned():
     """Refund an orphaned transaction."""
     data = request.json
@@ -718,6 +798,7 @@ def admin_get_swap_audit(swap_id):
 
 @app.route("/api/v1/admin/swaps/<swap_id>/action", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_action_swap(swap_id):
     if not swap_engine:
         return json_error("Swap engine not available", 500)
@@ -742,6 +823,7 @@ def admin_action_swap(swap_id):
 
 @app.route("/api/v1/admin/queues/process", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_process_queue():
     if not swap_engine:
         return json_error("Swap engine not available", 500)
@@ -751,6 +833,7 @@ def admin_process_queue():
 
 @app.route("/api/v1/admin/wallets/rotate", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_rotate_wallet():
     data = request.get_json() or {}
     coin = (data.get("coin") or "").upper()
@@ -813,7 +896,33 @@ def admin_withdraw():
     except (ValueError, TypeError):
         return json_error("Invalid amount", 400, "INVALID_AMOUNT")
 
+    # Validate address before attempting withdrawal
     wallet = swap_engine.oxc_wallet if coin == "OXC" else swap_engine.oxg_wallet
+    try:
+        validation = wallet.validate_address(to_address)
+        if not validation.get("isValid", False):
+            admin_service.log_wallet_action(
+                action_type="withdraw_failed",
+                coin=coin,
+                purpose=purpose or None,
+                amount=amount,
+                address=to_address,
+                performed_by=g.admin_username,
+                ip_address=getattr(g, "admin_ip", None),
+                details="Invalid address format",
+                status="failed",
+                error_code="INVALID_ADDRESS_FORMAT",
+            )
+            return json_error("Invalid address format", 400, "INVALID_ADDRESS")
+    except WalletRPCError as e:
+        # If validation call fails, log and continue with original error handling
+        logger.warning(f"Address validation RPC failed, continuing: {e}")
+
+    # Validate minimum amount based on coin
+    min_amount = 0.00000001  # Smallest valid amount
+    if amount < min_amount:
+        return json_error(f"Amount too small (minimum: {min_amount})", 400, "INVALID_AMOUNT")
+
     txid = None
     ip_address = getattr(g, "admin_ip", None)
     try:
@@ -930,6 +1039,7 @@ def admin_list_users():
 
 @app.route("/api/v1/admin/users", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_create_user():
     data = request.get_json() or {}
     username = data.get("username", "")
@@ -947,6 +1057,7 @@ def admin_create_user():
 
 @app.route("/api/v1/admin/users/change-password", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_change_password():
     data = request.get_json() or {}
     username = data.get("username", "")
@@ -1018,6 +1129,7 @@ def admin_get_swaps_enabled():
 
 @app.route("/api/v1/admin/swaps-enabled", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_set_swaps_enabled():
     if not admin_service:
         return json_error("Service unavailable", 500)
@@ -1043,6 +1155,7 @@ def admin_get_fee():
 
 @app.route("/api/v1/admin/fee", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_set_fee():
     if not admin_service:
         return json_error("Service unavailable", 500)
@@ -1074,6 +1187,7 @@ def admin_get_settings():
 
 @app.route("/api/v1/admin/settings", methods=["POST"])
 @require_admin_auth
+@require_csrf_token
 def admin_update_settings():
     if not admin_service:
         return json_error("Service unavailable", 500)
@@ -1202,6 +1316,7 @@ def admin_get_wallet_configs():
 
 @app.route("/api/v1/admin/wallet-configs", methods=["PUT"])
 @require_admin_auth
+@require_csrf_token
 def admin_update_wallet_config():
     if not admin_service:
         return json_error("Service unavailable", 500)

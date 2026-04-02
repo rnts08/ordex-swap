@@ -790,14 +790,6 @@
       updateQuote();
     });
 
-    // Escuchar cambios en el select de abajo (Mejora de UX)
-    toCoin.addEventListener('change', () => {
-      fromCoin.value = toCoin.value === 'OXC' ? 'OXG' : 'OXC';
-      document.getElementById('from-amount').min = Math.ceil(currentMinAmount);
-      document.getElementById('from-amount').title = 'Min: ' + Math.ceil(currentMinAmount) + ' | Max: ' + currentMaxAmount;
-      updateCoinImages(); // Actualizar logos
-      updateQuote();
-    });
 
     refreshSwapsBtn.addEventListener('click', () => {
       loadRecentSwaps();

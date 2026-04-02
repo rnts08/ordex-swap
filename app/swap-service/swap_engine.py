@@ -36,6 +36,7 @@ class SwapStatus(Enum):
     TIMED_OUT = "timed_out"
     LATE_DEPOSIT = "late_deposit"
     RECONCILED = "reconciled"
+    CIRCUIT_BREAKER = "circuit_breaker"  # Swap flagged for abnormal ratio, requires manual review
 
 
 class SwapError(Exception):

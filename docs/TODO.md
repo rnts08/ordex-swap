@@ -1,8 +1,5 @@
 # Improvements, Features, and Security Analysis
 
-- admin info about swap.
-- multi selection about orphaned swaps
-
 ## Features to Consider
 
 ### High Priority

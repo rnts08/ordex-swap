@@ -65,4 +65,5 @@ BACKUP_ENABLED = os.getenv("BACKUP_ENABLED", "true").lower() == "true"
 PRICE_HISTORY_MAX_ENTRIES = 1000
 
 SUPPORTED_COINS = ["OXC", "OXG"]
-STAT_INCLUDED_STATUSES = ["completed", "reconciled", "late_deposit", "pending", "processing", "delayed"]
+# Stats include all swap statuses to show full volume including cancelled/failed/timed_out
+STAT_INCLUDED_STATUSES = ["completed", "reconciled", "late_deposit", "pending", "processing", "delayed", "cancelled", "timed_out", "failed"]

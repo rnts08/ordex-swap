@@ -652,6 +652,86 @@ class AdminService:
             logger.error("Failed to set swap_expire_minutes", error=str(e))
             return False
 
+    def get_circuit_breaker_ratio(self) -> float:
+        """Get the maximum allowed swap ratio (from_amount / to_amount) before circuit breaker triggers."""
+        try:
+            with self._pool.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    ("circuit_breaker_ratio",),
+                ).fetchone()
+            if row:
+                return float(row[0])
+            return 5.0  # Default ratio
+        except sqlite3.Error as e:
+            logger.error("Failed to get circuit_breaker_ratio", error=str(e))
+            return 5.0
+
+    def set_circuit_breaker_ratio(
+        self, ratio: float, username: str = None, ip_address: str = None
+    ) -> bool:
+        """Set the maximum allowed swap ratio before circuit breaker triggers."""
+        try:
+            ratio = float(ratio)
+            if ratio <= 1.0 or ratio > 100.0:
+                return False
+        except (ValueError, TypeError):
+            return False
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("circuit_breaker_ratio", str(ratio), now),
+                )
+            self.log_audit(
+                username or "system",
+                "set_circuit_breaker_ratio",
+                "success",
+                ip_address,
+                f"ratio={ratio}",
+            )
+            return True
+        except sqlite3.Error as e:
+            logger.error("Failed to set circuit_breaker_ratio", error=str(e))
+            return False
+
+    def get_circuit_breaker_enabled(self) -> bool:
+        """Check if circuit breaker protection is enabled."""
+        try:
+            with self._pool.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    ("circuit_breaker_enabled",),
+                ).fetchone()
+            return row[0] == "true" if row else True
+        except sqlite3.Error as e:
+            logger.error("Failed to get circuit_breaker_enabled", error=str(e))
+            return True
+
+    def set_circuit_breaker_enabled(
+        self, enabled: bool, username: str = None, ip_address: str = None
+    ) -> bool:
+        """Enable or disable circuit breaker protection."""
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._pool.get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    ("circuit_breaker_enabled", "true" if enabled else "false", now),
+                )
+            self.log_audit(
+                username or "system",
+                "set_circuit_breaker_enabled",
+                "success",
+                ip_address,
+                f"enabled={enabled}",
+            )
+            return True
+        except sqlite3.Error as e:
+            logger.error("Failed to set circuit_breaker_enabled", error=str(e))
+            return False
+
     def get_swap_min_fee(self, coin: str) -> float:
         try:
             with self._pool.get_connection() as conn:

@@ -79,6 +79,9 @@ def migrate_settings() -> None:
         ("swap_max_amount", "10000.0"),
         ("swap_expire_minutes", "15"),
         ("swaps_enabled", "true"),
+        # Circuit breaker settings for abnormal swap ratio protection
+        ("circuit_breaker_ratio", "5.0"),  # Max allowed ratio (from_amount / to_amount)
+        ("circuit_breaker_enabled", "true"),
     ]
 
     now = datetime.now(timezone.utc).isoformat()

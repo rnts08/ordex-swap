@@ -10,6 +10,7 @@
 
 ## Build, Test, and Development Commands
 Run commands from `app/` unless noted.
+- Always run in a virtual environment with `python3 -m venv .venv && source .venv/bin/activate` before running any pip install or other code.
 - `pip install -r requirements.txt` installs backend dependencies.
 - `TESTING_MODE=true python main.py` runs the API in testing mode (mocked wallets, no daemons).
 - `python main.py` runs production mode (requires `ordexcoind` and `ordexgoldd` in `app/`).

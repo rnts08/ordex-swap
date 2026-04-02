@@ -176,6 +176,9 @@ class OXCWallet:
     def send(self, address: str, amount: float) -> str:
         return self.rpc.send_to_address(address, amount, "swap-output")
 
+    def validate_address(self, address: str) -> Dict[str, Any]:
+        return self.rpc.validate_address(address)
+
 
 class OXGWallet:
     def __init__(
@@ -201,3 +204,6 @@ class OXGWallet:
 
     def send(self, address: str, amount: float) -> str:
         return self.rpc.send_to_address(address, amount, "swap-output")
+
+    def validate_address(self, address: str) -> Dict[str, Any]:
+        return self.rpc.validate_address(address)

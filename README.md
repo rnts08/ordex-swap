@@ -76,39 +76,50 @@ See the `docs/` folder for detailed documentation:
 
 ## CSRF Protection
 
-Admin endpoints are protected with CSRF tokens to prevent cross-site request forgery attacks.
+Admin state-changing endpoints (POST, PUT, DELETE) are protected with CSRF tokens to prevent cross-site request forgery attacks.
 
 ### How CSRF Tokens Work
 
-1. **Obtain a Token**: Before making state-changing requests to admin endpoints, fetch a CSRF token from `/api/v1/csrf-token`
-2. **Include the Token**: Include the token in the `X-CSRF-Token` header of your request
-3. **Validation**: The server validates the token on each protected request
+1. **Obtain a Token**: After authenticating with admin credentials, fetch a CSRF token from `GET /api/v1/admin/csrf-token`
+2. **Include the Token**: Include the token in the `X-CSRF-Token` header of your state-changing requests
+3. **Validation**: The server validates the token on each protected request. Tokens expire after 1 hour.
 
 ### Example Usage
 
 ```bash
-# 1. Get CSRF token
-TOKEN=$(curl -s http://localhost:8080/api/v1/csrf-token | jq -r '.token')
+# 1. Get CSRF token (requires admin auth)
+TOKEN=$(curl -s -u admin:password http://localhost:8080/api/v1/admin/csrf-token | jq -r '.data.csrf_token')
 
 # 2. Use token in admin requests (example: withdraw)
-curl -X POST http://localhost:8080/api/v1/admin/withdraw \
+curl -X POST http://localhost:8080/api/v1/admin/wallets/withdraw \
+  -u admin:password \
   -H "X-CSRF-Token: $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"address": "0x...", "amount": 100, "coin": "OXC"}'
+  -d '{"coin": "OXC", "amount": 100, "to_address": "0x..."}'
 ```
 
 ### Protected Endpoints
 
-The following endpoints require CSRF token validation:
-- `/api/v1/admin/scan` - Scan for deposits
-- `/api/v1/admin/settle` - Settle pending swaps
-- `/api/v1/admin/withdraw` - Withdraw funds
-- `/api/v1/admin/pause` - Pause swap service
-- `/api/v1/admin/resume` - Resume swap service
+All admin endpoints that modify state require CSRF token validation:
+- `POST /api/v1/admin/wallets/withdraw` - Withdraw funds
+- `POST /api/v1/admin/wallets/rotate` - Rotate wallet addresses
+- `POST /api/v1/admin/audit/settle` - Settle orphaned transactions
+- `POST /api/v1/admin/audit/refund` - Refund orphaned transactions
+- `POST /api/v1/admin/audit/acknowledge` - Acknowledge transactions
+- `POST /api/v1/admin/swaps/<id>/action` - Perform actions on swaps
+- `POST /api/v1/admin/settings` - Update settings
+- `PUT /api/v1/admin/wallet-configs` - Update wallet configuration
+
+### Frontend Usage
+
+The admin dashboard (`admin.html`) automatically handles CSRF token management:
+- Token is fetched upon login
+- Token is included in all state-changing requests
+- Token is refreshed as needed
 
 ### Development Mode
 
-When `TESTING_MODE=true`, CSRF protection is automatically disabled for easier testing.
+When `TESTING_MODE=true`, CSRF protection remains enabled for security testing. The token can be obtained via the API and used in automated tests.
 
 ## Configuration
 
