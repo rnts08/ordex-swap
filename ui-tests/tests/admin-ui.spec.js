@@ -134,7 +134,8 @@ test('wallet actions are recorded in history', async ({ page, request }) => {
   await expect(page.locator('#dashboard')).toBeVisible();
 
   const auth = 'Basic ' + btoa('swap:changeme26');
-  const resp = await request.get('http://localhost:8080/api/v1/admin/wallets/actions', {
+  const baseUrl = process.env.UI_BASE_URL || 'http://localhost:8080';
+  const resp = await request.get(baseUrl + '/api/v1/admin/wallets/actions', {
     headers: { Authorization: auth }
   });
   const data = await resp.json();
