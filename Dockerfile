@@ -15,8 +15,10 @@ COPY app/main.py .
 COPY app/wsgi.py .
 COPY app/first_startup.py .
 COPY app/first-run.sh .
+COPY app/entrypoint.sh .
 COPY app/backup.py .
 COPY app/restore.py .
+RUN chmod +x ./entrypoint.sh ./first-run.sh
 
 COPY data/bin/ ./data/bin/
 RUN chmod +x ./data/bin/ordexcoind ./data/bin/ordexgoldd
@@ -30,4 +32,4 @@ ENV API_PORT=8000
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--threads", "4", "--preload", "--access-logfile", "-", "--error-logfile", "-", "wsgi:app"]
+ENTRYPOINT ["/app/entrypoint.sh"]
