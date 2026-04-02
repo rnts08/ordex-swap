@@ -13,12 +13,20 @@ logger = logging.getLogger(__name__)
 
 
 class SwapHistoryService:
-    def __init__(self, data_dir: str = None):
+    def __init__(self, data_dir: str = None, run_migrations: bool = False):
         self.data_dir = data_dir or DATA_DIR
         self.db_path = DB_PATH
         self._pool = get_pool(self.db_path)
 
         os.makedirs(self.data_dir, exist_ok=True)
+        # Always run migrations - they are idempotent and skipped if already applied
+        self.initialize_db()
+
+    def initialize_db(self) -> None:
+        """
+        Initialize database schema by running all migrations.
+        Should be called once during first startup, not on every app initialization.
+        """
         self._init_db()
 
     def _log_audit(

@@ -691,9 +691,11 @@ def admin_rotate_wallet():
             performed_by=g.admin_username,
             ip_address=ip_address,
             details="Failed to generate new address",
+            status="failed",
+            error_code="ADDRESS_GENERATION_FAILED",
         )
         return json_error("Failed to rotate wallet", 500)
-    admin_service.log_wallet_action(
+    if not admin_service.log_wallet_action(
         action_type="rotate",
         coin=coin,
         purpose=purpose,
@@ -701,7 +703,9 @@ def admin_rotate_wallet():
         performed_by=g.admin_username,
         ip_address=ip_address,
         details=f"New address generated for {purpose} wallet",
-    )
+        status="success",
+    ):
+        logger.warning(f"Failed to log successful rotation for {coin} {purpose}", coin=coin, purpose=purpose)
     return json_success({"coin": coin, "purpose": purpose, "address": address})
 
 
@@ -733,6 +737,17 @@ def admin_withdraw():
     try:
         txid = wallet.send(to_address, amount)
     except WalletRPCError as e:
+        error_msg = str(e)
+        # Extract more specific error code from exception
+        if "insufficient" in error_msg.lower():
+            error_code = "INSUFFICIENT_BALANCE"
+        elif "invalid address" in error_msg.lower() or "bad address" in error_msg.lower():
+            error_code = "INVALID_ADDRESS"
+        elif "connection" in error_msg.lower():
+            error_code = "RPC_CONNECTION_ERROR"
+        else:
+            error_code = "RPC_ERROR"
+        
         admin_service.log_wallet_action(
             action_type="withdraw_failed",
             coin=coin,
@@ -741,11 +756,13 @@ def admin_withdraw():
             address=to_address,
             performed_by=g.admin_username,
             ip_address=ip_address,
-            details="Wallet RPC error during withdrawal",
+            details=f"Wallet RPC error: {error_msg}",
+            status="failed",
+            error_code=error_code,
         )
         return json_error("Withdraw failed", 500, "WITHDRAW_ERROR")
 
-    admin_service.log_wallet_action(
+    if not admin_service.log_wallet_action(
         action_type="withdraw",
         coin=coin,
         purpose=purpose or None,
@@ -755,7 +772,9 @@ def admin_withdraw():
         performed_by=g.admin_username,
         ip_address=ip_address,
         details=f"Withdrew {amount} {coin} to external address",
-    )
+        status="success",
+    ):
+        logger.warning(f"Failed to log successful withdrawal: {txid}", coin=coin, amount=amount, txid=txid)
 
     return json_success(
         {"coin": coin, "amount": amount, "to_address": to_address, "txid": txid}

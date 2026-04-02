@@ -54,9 +54,17 @@ def sanitize_ip(ip: str) -> str:
 
 
 class AdminService:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str = None, run_migrations: bool = False):
         self.db_path = db_path or DB_PATH
         self._pool = get_pool(self.db_path)
+        # Always run migrations - they are idempotent and skipped if already applied
+        self.initialize_db()
+
+    def initialize_db(self) -> None:
+        """
+        Initialize database schema by running all migrations.
+        Should be called once during first startup, not on every app initialization.
+        """
         self._init_db()
 
     def _init_db(self) -> None:
@@ -129,8 +137,24 @@ class AdminService:
                     performed_by TEXT,
                     ip_address TEXT,
                     created_at TEXT,
-                    details TEXT
+                    details TEXT,
+                    status TEXT DEFAULT 'pending',
+                    error_code TEXT
                 )
+                """,
+            ),
+            (
+                "009_wallet_actions_status",
+                """
+                ALTER TABLE wallet_actions 
+                ADD COLUMN status TEXT DEFAULT 'pending'
+                """,
+            ),
+            (
+                "010_wallet_actions_error_code",
+                """
+                ALTER TABLE wallet_actions 
+                ADD COLUMN error_code TEXT
                 """,
             ),
             (
@@ -937,15 +961,25 @@ class AdminService:
         performed_by: str = None,
         ip_address: str = None,
         details: str = None,
+        status: str = None,
+        error_code: str = None,
     ) -> bool:
         try:
             now = datetime.now(timezone.utc).isoformat()
+            
+            # Determine status based on action_type if not explicitly provided
+            if status is None:
+                if action_type.endswith("_failed"):
+                    status = "failed"
+                else:
+                    status = "success"
+            
             with self._pool.get_connection() as conn:
                 conn.execute(
                     """
                     INSERT INTO wallet_actions 
-                    (action_type, coin, purpose, amount, address, txid, performed_by, ip_address, created_at, details)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (action_type, coin, purpose, amount, address, txid, performed_by, ip_address, created_at, details, status, error_code)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         action_type,
@@ -958,14 +992,44 @@ class AdminService:
                         ip_address,
                         now,
                         details,
+                        status,
+                        error_code,
                     ),
                 )
             logger.info(
-                f"Wallet action logged: {action_type} for {coin} by {performed_by}"
+                f"Wallet action logged: {action_type} for {coin} by {performed_by}",
+                action_type=action_type,
+                coin=coin,
+                status=status,
             )
             return True
+        except sqlite3.DatabaseError as e:
+            logger.error(
+                f"Failed to log wallet action ({action_type}) - Database error",
+                error_code="DB_ERROR",
+                action_type=action_type,
+                coin=coin,
+                details=str(e),
+            )
+            return False
+        except sqlite3.OperationalError as e:
+            logger.error(
+                f"Failed to log wallet action ({action_type}) - Operational error",
+                error_code="DB_OPERATIONAL_ERROR",
+                action_type=action_type,
+                coin=coin,
+                details=str(e),
+            )
+            return False
         except Exception as e:
-            logger.error(f"Failed to log wallet action ({action_type})", error=str(e))
+            logger.error(
+                f"Failed to log wallet action ({action_type}) - Unexpected error",
+                error_code="UNKNOWN_ERROR",
+                action_type=action_type,
+                coin=coin,
+                error=str(type(e).__name__),
+                details=str(e),
+            )
             return False
 
     def get_wallet_actions(self, limit: int = None) -> list:
@@ -978,7 +1042,7 @@ class AdminService:
             with self._pool.get_connection() as conn:
                 rows = conn.execute(
                     """
-                    SELECT action_type, coin, purpose, amount, address, txid, performed_by, ip_address, created_at, details
+                    SELECT action_type, coin, purpose, amount, address, txid, performed_by, ip_address, created_at, details, status, error_code
                     FROM wallet_actions
                     ORDER BY created_at DESC
                     LIMIT ?
@@ -997,10 +1061,12 @@ class AdminService:
                         "ip_address": row[7],
                         "created_at": row[8],
                         "details": row[9],
+                        "status": row[10] or "unknown",
+                        "error_code": row[11],
                         "source_table": "wallet_actions"
                     })
         except sqlite3.Error as e:
-            logger.error(f"Failed to fetch wallet_actions: {e}")
+            logger.error(f"Failed to fetch wallet_actions: {e}", error_code="DB_FETCH_ERROR")
 
         # 2. Fetch from acknowledged_transactions (Settlements, Refunds, Audits)
         try:
@@ -1025,10 +1091,12 @@ class AdminService:
                         "performed_by": row[5],
                         "created_at": row[6],
                         "details": row[7],
+                        "status": "success",
+                        "error_code": None,
                         "source_table": "acknowledged_transactions"
                     })
         except sqlite3.Error as e:
-            logger.error(f"Failed to fetch acknowledged_transactions: {e}")
+            logger.error(f"Failed to fetch acknowledged_transactions: {e}", error_code="DB_FETCH_ERROR")
 
         # 3. Sort Combined List and Truncate
         actions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
