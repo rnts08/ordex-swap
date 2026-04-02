@@ -40,7 +40,10 @@ API_HOST = os.getenv("API_HOST", "127.0.0.1")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
 TESTING_MODE = os.getenv("TESTING_MODE", "false").lower() == "true"
-RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+# Disable rate limiting in testing mode, or if explicitly disabled
+RATE_LIMIT_ENABLED = (
+    os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true" and not TESTING_MODE
+)
 
 SWAP_CONFIRMATIONS_REQUIRED = int(os.getenv("SWAP_CONFIRMATIONS_REQUIRED", "1"))
 if TESTING_MODE:
