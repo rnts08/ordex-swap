@@ -18,12 +18,8 @@ COPY app/first-run.sh .
 COPY app/backup.py .
 COPY app/restore.py .
 
-RUN if [ "$BUILD_TEST" = "true" ]; then \
-      COPY app/tests/ ./tests/; \
-    fi
-
-COPY data/bin/ /app/data/bin/
-RUN chmod +x /app/data/bin/ordexcoind /app/data/bin/ordexgoldd
+COPY data/bin/ ./data/bin/
+RUN chmod +x ./data/bin/ordexcoind ./data/bin/ordexgoldd
 
 COPY frontend/ ./frontend/
 
