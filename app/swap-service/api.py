@@ -26,6 +26,7 @@ from config import (
     API_PORT,
     SUPPORTED_COINS,
     TESTING_MODE,
+    RATE_LIMIT_ENABLED,
     SWAP_FEE_PERCENT,
     SWAP_CONFIRMATIONS_REQUIRED,
     SWAP_MIN_FEE_OXC,
@@ -43,8 +44,8 @@ limiter = Limiter(
     app=app,
     key_func=lambda: request.headers.get("X-Forwarded-For", request.remote_addr),
     storage_uri="memory://",
-    default_limits=["200 per day", "50 per hour"],
-    enabled=not TESTING_MODE,
+    default_limits=["500 per day", "200 per hour"],
+    enabled=RATE_LIMIT_ENABLED,
 )
 
 swap_engine: SwapEngine = None
