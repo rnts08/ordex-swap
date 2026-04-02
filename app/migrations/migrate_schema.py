@@ -151,6 +151,38 @@ def get_all_migrations() -> List[Tuple[str, str]]:
     ]
 
 
+def table_has_column(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
+    """Check if a table has a specific column."""
+    try:
+        cursor = conn.execute(f"PRAGMA table_info({table_name})")
+        columns = {row[1] for row in cursor.fetchall()}
+        return column_name in columns
+    except sqlite3.Error:
+        return False
+
+
+def ensure_wallet_actions_columns(conn: sqlite3.Connection) -> None:
+    """Ensure wallet_actions table has all required columns (for old databases)."""
+    table_name = "wallet_actions"
+    required_columns = {
+        "ip_address": "TEXT",
+        "status": "TEXT DEFAULT 'success'",
+        "error_code": "TEXT"
+    }
+    
+    for column_name, column_def in required_columns.items():
+        if not table_has_column(conn, table_name, column_name):
+            try:
+                alter_query = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"
+                logger.info(f"Adding missing column to {table_name}: {column_name}")
+                conn.execute(alter_query)
+                conn.commit()
+                logger.info(f"Successfully added column {column_name} to {table_name}")
+            except sqlite3.Error as e:
+                logger.error(f"Failed to add column {column_name} to {table_name}: {e}")
+                raise
+
+
 def run_migrations() -> None:
     """Execute all pending schema migrations."""
     db_path = os.getenv("DB_PATH", DB_PATH)
@@ -207,6 +239,14 @@ def run_migrations() -> None:
             else:
                 logger.debug(f"Skipping already applied migration: {mid}")
                 skipped_count += 1
+
+        # Ensure wallet_actions table has all required columns (handles old databases)
+        logger.info("Checking for missing columns in existing tables...")
+        try:
+            if table_has_column(conn, "wallet_actions", "id"):  # Check if table exists
+                ensure_wallet_actions_columns(conn)
+        except sqlite3.Error as e:
+            logger.warning(f"Could not verify wallet_actions table: {e}")
 
         logger.info(f"\nSchema migration complete: {applied_count} applied, {skipped_count} skipped.")
 
