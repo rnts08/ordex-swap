@@ -75,11 +75,6 @@ def main() -> int:
     ensure_wallet(oxg_wallet, "OXG", OXG_WALLET_NAME)
     logger.info("Base wallets initialized.")
 
-    logger.info("Running database migrations...")
-    from migrations.run_migrations import migrate
-    migrate()
-    logger.info("Database migrations complete.")
-
     from admin_service import AdminService, validate_password
 
     admin_service = AdminService()

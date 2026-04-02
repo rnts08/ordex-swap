@@ -4,7 +4,7 @@ import os
 import tempfile
 import sqlite3
 import pytest
-from migrations.run_migrations import migrate
+from migrations.migrate_schema import run_migrations
 
 
 class TestMigrationsIdempotent:
@@ -17,7 +17,7 @@ class TestMigrationsIdempotent:
             os.environ["DB_PATH"] = db_path
 
             # First run - create all tables
-            migrate()
+            run_migrations()
 
             # Verify initial schema is created
             conn = sqlite3.connect(db_path)
@@ -46,7 +46,7 @@ class TestMigrationsIdempotent:
             conn.close()
 
             # Second run - migrations should skip already applied migrations
-            migrate()
+            run_migrations()
 
             # Verify schema is unchanged
             conn = sqlite3.connect(db_path)
@@ -70,7 +70,7 @@ class TestMigrationsIdempotent:
             conn.close()
 
             # Third run - extra safety check
-            migrate()
+            run_migrations()
 
             # Verify everything still intact
             conn = sqlite3.connect(db_path)
@@ -91,7 +91,7 @@ class TestMigrationsIdempotent:
             db_path = os.path.join(tmpdir, "test.db")
             os.environ["DB_PATH"] = db_path
 
-            migrate()
+            run_migrations()
 
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row

@@ -20,6 +20,9 @@ def setup_test_db(db_path: Optional[str] = None) -> str:
         if not db_path:
             raise ValueError("DB_PATH environment variable not set")
     
+    # Set DB_PATH environment variable for migration script
+    os.environ["DB_PATH"] = db_path
+    
     # Ensure swap-service is in path
     swap_service_path = os.path.join(
         os.path.dirname(os.path.dirname(__file__)), "swap-service"
@@ -27,31 +30,24 @@ def setup_test_db(db_path: Optional[str] = None) -> str:
     if swap_service_path not in sys.path:
         sys.path.insert(0, swap_service_path)
     
-    # Ensure migrations are in path
-    migrations_path = os.path.dirname(os.path.dirname(__file__))
-    if migrations_path not in sys.path:
-        sys.path.insert(0, migrations_path)
+    # Ensure app directory is in path
+    app_path = os.path.dirname(os.path.dirname(__file__))
+    if app_path not in sys.path:
+        sys.path.insert(0, app_path)
     
-    # Run migrations
-    from migrations.runner import run_migrations
-    from migrations.admin_migrations import get_admin_migrations
-    from migrations.swap_migrations import get_swap_migrations
+    # Run migrations using standalone scripts
+    from migrations.migrate_schema import run_migrations
+    from migrations.migrate_settings import migrate_settings
     
     # Create database if it doesn't exist
     if not os.path.exists(db_path):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         open(db_path, "a").close()
     
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    # Run schema migrations first
+    run_migrations()
     
-    # Apply migrations
-    admin_migrations = get_admin_migrations()
-    swap_migrations = get_swap_migrations()
-    
-    run_migrations(conn, admin_migrations)
-    run_migrations(conn, swap_migrations)
-    
-    conn.close()
+    # Then run settings migrations
+    migrate_settings()
     
     return db_path

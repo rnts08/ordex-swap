@@ -29,7 +29,6 @@ rsync -av --exclude='.git' \
     --exclude='.venv/' \
     --exclude='app/.venv/' \
     --exclude='app/venv' \
-    --exclude='app/.env' \
     --exclude='app/.env.example' \
     --exclude='app/migrations/__pycache__' \
     --exclude='app/pytest.ini' \
@@ -47,16 +46,6 @@ rsync -av --exclude='.git' \
 echo "Copying daemon binaries..."
 ssh $USER@$SERVER "mkdir -p $DEPLOY_DIR/data/bin"
 rsync -av data/bin/ $USER@$SERVER:$DEPLOY_DIR/data/bin/
-
-# Copy current .env as production environment
-echo "Copying environment configuration..."
-if [ -f app/.env ]; then
-    scp app/.env $USER@$SERVER:$DEPLOY_DIR/app/.env
-    echo "Production .env copied."
-else
-    echo "ERROR: app/.env not found!"
-    exit 1
-fi
 
 echo ""
 echo "========================================"
