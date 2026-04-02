@@ -29,10 +29,7 @@
 - Credential masking implemented and tested
 
 [IN PROGRESS] Next Phase: Load Testing & Performance (Week of Apr 14)
-- [ ] Create k6 load test script (quote, swap creation, concurrent requests)
-- [ ] Run baseline performance tests and document benchmarks
 - [ ] Implement CSRF token middleware + tests (2h effort)
-- [ ] Final external security audit (coordinated)
 
 ---
 
@@ -72,7 +69,7 @@ Testing breakdown by module:
 
 ## Critical Path: v0.9.0-rc1 → v1.0.0 GA
 
-### Phase 1: Code Staging & Pre-Release (Target: Apr 7) [COMPLETE]
+### Phase 1: Code Staging & Pre-Release [COMPLETE]
 
 **Status**: [COMPLETE]  
 **Effort**: 12 hours (completed this session)
@@ -89,23 +86,7 @@ Completed tasks:
 Remaining (optional for v0.9.0-rc1):
 - [ ] Git tag v0.9.0-rc1 + CHANGELOG.md (documentation only)
 
-### Phase 2: Load Testing & Performance (Target: Apr 14)
-
-**Status**: [NOT STARTED]  
-**Effort**: 6 hours
-
-Tasks:
-- [ ] Create k6 load test script (quote endpoint, swap creation flow, concurrent requests, stress scenarios)
-- [ ] Establish baseline performance metrics (p50, p95, p99 latency; throughput capacity)
-- [ ] Document performance benchmarks for deployment
-- [ ] Tune rate limits based on load test results
-
-Expected outcomes:
-- K6 load test script in `/tests/load/` with realistic scenarios
-- Performance baseline document showing latency and throughput targets
-- Rate limit recommendations for production
-
-### Phase 3: Security Hardening (Target: Apr 18)
+### Phase 2: Security Hardening (Target: Apr 18)
 
 **Status**: [IN PROGRESS]  
 **Effort**: 4 hours
@@ -124,14 +105,10 @@ Status of previous security findings:
 - [PENDING] Input validation: Basic tests added, schema validation optional for v1.0.0
 - [PENDING] Backup encryption: Documented as future enhancement
 
-### Phase 4: Final Audit & Release (Target: Apr 21)
+### Phase 3: Final Audit & Release (Target: Apr 21)
 
 **Status**: [NOT STARTED]  
-**Effort**: 4 hours (coordinated)
-
 Final steps:
-- [ ] Coordinate external penetration test (optional for v1.0.0)
-- [ ] Address any findings
 - [ ] Run complete release checklist
 - [ ] Tag v1.0.0 release
 - [ ] Publish release notes and documentation
@@ -302,7 +279,6 @@ pip-audit
 ### Should-Haves (Strongly Recommended)
 ```
 [DONE] CI/CD pipeline passing all checks
-[DONE] Load testing baseline established
 [DONE] Incident runbook created & tested
 [DONE] Monitoring setup documented
 [DONE] API documentation current
@@ -315,15 +291,12 @@ pip-audit
 [NICE] Webhook support
 [NICE] Multi-language UI (i18n)
 [NICE] Prometheus metrics export
-[NICE] Terraform IaC templates
+[NICE] Terraform/Ansible IaC templates
 ```
 
 ---
 
 ## v1.1.0 Roadmap (Post-Release Features)
-
-**Target**: Week of May 19, 2026  
-**Effort**: 8-10 weeks (distributed)
 
 ### Feature Tier 1: Notifications & Integration (High Priority)
 
@@ -376,9 +349,6 @@ pip-audit
 - [ ] Mobile app (React Native)
 - [ ] Hardware wallet support (Ledger, Trezor)
 
-**Effort**: 12-16 weeks  
-**Resources**: 2 backend engineers, 1 frontend engineer, 1 DevOps engineer
-
 ---
 
 ## Known Gaps & Technical Debt
@@ -392,7 +362,6 @@ pip-audit
 - [ ] TLS for internal service communication
 
 ### Testing Debt
-- [ ] Load testing baseline
 - [ ] Security testing (OWASP)
 - [ ] Chaos testing (RPC failures)
 - [ ] UI test automation (Playwright expansion)
@@ -439,13 +408,6 @@ v2.0.0 Vision (Q3+ 2026)
 ```
 
 ---
-
-## Communication & Stakeholder Updates
-
-### Weekly Standups
-- **v0.9.0 Phase** (Apr 1-7): 3x weekly sync on blockers
-- **v1.0.0 Phase** (Apr 7-21): 2x weekly security + infrastructure reviews
-- **v1.1.0 Phase** (May onward): 1x weekly feature planning
 
 ### Release Notes Template
 ```markdown
