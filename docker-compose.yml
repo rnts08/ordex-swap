@@ -1,8 +1,8 @@
 services:
   ordex-swap:
     build:
-      context: ./app
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: ./Dockerfile
       args:
         BUILD_TEST: ${BUILD_TEST:-false}
     ports:
