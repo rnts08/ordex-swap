@@ -148,6 +148,36 @@ def get_all_migrations() -> List[Tuple[str, str]]:
             CREATE INDEX IF NOT EXISTS idx_swaps_created_at ON swaps(created_at)
             """,
         ),
+        (
+            "009_admin_state_override",
+            """
+            ALTER TABLE swaps ADD COLUMN admin_override INTEGER DEFAULT 0
+            """,
+        ),
+        (
+            "010_admin_set_state",
+            """
+            ALTER TABLE swaps ADD COLUMN admin_set_state TEXT
+            """,
+        ),
+        (
+            "011_admin_override_reason",
+            """
+            ALTER TABLE swaps ADD COLUMN admin_override_reason TEXT
+            """,
+        ),
+        (
+            "012_admin_override_by",
+            """
+            ALTER TABLE swaps ADD COLUMN admin_override_by TEXT
+            """,
+        ),
+        (
+            "013_admin_override_at",
+            """
+            ALTER TABLE swaps ADD COLUMN admin_override_at TEXT
+            """,
+        ),
     ]
 
 

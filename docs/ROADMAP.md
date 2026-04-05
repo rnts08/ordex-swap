@@ -1,6 +1,6 @@
 # OrdexSwap Release Roadmap
 
-**Last Updated**: April 2, 2026  
+**Last Updated**: April 3, 2026  
 **Current Status**: v0.9.1 → v1.0.0 GA (Ready for Release)  
 **Target**: v1.0.0 GA with security hardening & CI/CD
 
@@ -10,8 +10,8 @@
 
 | Milestone | Status | Progress | Blockers |
 |-----------|--------|----------|----------|
-| **v0.9.0-rc1** | READY | 100% | None |
-| **v1.0.0 GA** | READY | 95% | CI/CD pipeline (optional) |
+| **v0.9.0-rc1** | RELEASED | 100% | None |
+| **v1.0.0 GA** | READY | 95% | Minor fixes (user IP capture, CSRF consistency) |
 | **v1.1.0** | PLANNED | 0% | Features: notifications, monitoring |
 | **v2.0.0** | FUTURE | 0% | Multi-coin, scaling |
 

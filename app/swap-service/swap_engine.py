@@ -1,4 +1,5 @@
 import uuid
+import json
 import logging
 from typing import Optional, Dict, Any, List
 from enum import Enum
@@ -36,7 +37,87 @@ class SwapStatus(Enum):
     TIMED_OUT = "timed_out"
     LATE_DEPOSIT = "late_deposit"
     RECONCILED = "reconciled"
-    CIRCUIT_BREAKER = "circuit_breaker"  # Swap flagged for abnormal ratio, requires manual review
+    CIRCUIT_BREAKER = "circuit_breaker"
+    INVALID = "invalid"
+
+
+# Valid state transitions map
+# Key: current state, Value: set of allowed next states
+VALID_STATE_TRANSITIONS = {
+    SwapStatus.PENDING.value: {
+        SwapStatus.AWAITING_DEPOSIT.value,  # Deposit confirmed, awaiting confirmations
+        SwapStatus.PROCESSING.value,        # Deposit confirmed, ready to settle
+        SwapStatus.CANCELLED.value,         # User cancelled before deposit
+        SwapStatus.EXPIRED.value,           # Swap expired
+        SwapStatus.TIMED_OUT.value,         # Swap timed out
+        SwapStatus.CIRCUIT_BREAKER.value,   # Flagged by circuit breaker
+        SwapStatus.INVALID.value,           # Admin marked as invalid
+    },
+    SwapStatus.AWAITING_DEPOSIT.value: {
+        SwapStatus.PROCESSING.value,        # Confirmations received, ready to settle
+        SwapStatus.CANCELLED.value,         # User cancelled while awaiting
+        SwapStatus.EXPIRED.value,           # Swap expired
+        SwapStatus.TIMED_OUT.value,         # Swap timed out
+        SwapStatus.INVALID.value,           # Admin marked as invalid
+    },
+    SwapStatus.PROCESSING.value: {
+        SwapStatus.COMPLETED.value,         # Settlement successful
+        SwapStatus.DELAYED.value,           # Low liquidity, will retry
+        SwapStatus.FAILED.value,            # Settlement failed
+        SwapStatus.INVALID.value,           # Admin marked as invalid
+    },
+    SwapStatus.DELAYED.value: {
+        SwapStatus.COMPLETED.value,         # Retry successful
+        SwapStatus.FAILED.value,            # Retry failed permanently
+        SwapStatus.CANCELLED.value,         # Admin cancelled delayed swap
+        SwapStatus.INVALID.value,           # Admin marked as invalid
+    },
+    SwapStatus.LATE_DEPOSIT.value: {
+        SwapStatus.RECONCILED.value,        # Admin reconciled late deposit
+        SwapStatus.COMPLETED.value,         # Admin manually completed
+        SwapStatus.CANCELLED.value,         # Admin cancelled
+        SwapStatus.INVALID.value,           # Admin marked as invalid
+    },
+    SwapStatus.CIRCUIT_BREAKER.value: {
+        SwapStatus.COMPLETED.value,         # Admin released - settled
+        SwapStatus.CANCELLED.value,         # Admin released - cancelled
+        SwapStatus.INVALID.value,           # Admin marked as invalid
+    },
+    # Terminal states - no further transitions allowed except by admin override
+    SwapStatus.COMPLETED.value: set(),
+    SwapStatus.FAILED.value: set(),
+    SwapStatus.EXPIRED.value: set(),
+    SwapStatus.CANCELLED.value: set(),
+    SwapStatus.TIMED_OUT.value: set(),
+    SwapStatus.RECONCILED.value: set(),
+    SwapStatus.INVALID.value: set(),
+}
+
+# States that are considered terminal (no further processing)
+TERMINAL_STATES = {
+    SwapStatus.COMPLETED.value,
+    SwapStatus.FAILED.value,
+    SwapStatus.EXPIRED.value,
+    SwapStatus.CANCELLED.value,
+    SwapStatus.TIMED_OUT.value,
+    SwapStatus.RECONCILED.value,
+    SwapStatus.INVALID.value,
+}
+
+# States that are considered active (still being processed)
+ACTIVE_STATES = {
+    SwapStatus.PENDING.value,
+    SwapStatus.AWAITING_DEPOSIT.value,
+    SwapStatus.PROCESSING.value,
+    SwapStatus.DELAYED.value,
+    SwapStatus.CIRCUIT_BREAKER.value,
+}
+
+# States that require admin intervention
+ADMIN_INTERVENTION_STATES = {
+    SwapStatus.LATE_DEPOSIT.value,
+    SwapStatus.CIRCUIT_BREAKER.value,
+}
 
 
 class SwapError(Exception):
@@ -242,7 +323,7 @@ class SwapEngine:
         }
 
     def create_swap(
-        self, from_coin: str, to_coin: str, amount: float, user_address: str
+        self, from_coin: str, to_coin: str, amount: float, user_address: str, user_ip: str = None
     ) -> Dict[str, Any]:
         self.validate_swap_request(from_coin, to_coin, amount)
 
@@ -272,6 +353,7 @@ class SwapEngine:
             "net_amount": conversion["net_amount"],
             "rate": conversion["rate"],
             "user_address": user_address,
+            "user_ip": user_ip,
             "deposit_address": deposit_address,
             "status": SwapStatus.PENDING.value,
             "created_at": now.isoformat(),
@@ -279,6 +361,19 @@ class SwapEngine:
             "deposit_txid": None,
             "settle_txid": None,
         }
+
+        if self.admin:
+            cb_enabled = self.admin.get_circuit_breaker_enabled()
+            cb_ratio = self.admin.get_circuit_breaker_ratio()
+            if cb_enabled and amount > 0 and conversion["net_amount"] > 0:
+                ratio = amount / conversion["net_amount"]
+                if ratio > cb_ratio:
+                    swap["status"] = SwapStatus.CIRCUIT_BREAKER.value
+                    swap["circuit_breaker_ratio"] = ratio
+                    swap["circuit_breaker_threshold"] = cb_ratio
+                    logger.warning(
+                        f"Swap {swap_id} flagged as circuit_breaker: ratio {ratio:.2f} > threshold {cb_ratio}"
+                    )
 
         self._pending_swaps[swap_id] = swap
         self.history.add_swap(swap)
@@ -299,16 +394,32 @@ class SwapEngine:
     def confirm_deposit(self, swap_id: str, deposit_txid: str) -> Dict[str, Any]:
         swap = self._pending_swaps.get(swap_id)
         if not swap:
-            # Check history
             swap = self.history.get_swap(swap_id)
             if not swap:
                 raise SwapError(f"Swap not found: {swap_id}")
+
+        # Check if admin has overridden this swap to a terminal state
+        # Admin state is supreme and should not be overridden by late deposit detection
+        if swap.get("admin_override") and swap.get("admin_set_state") in [
+            SwapStatus.COMPLETED.value,
+            SwapStatus.CANCELLED.value,
+            SwapStatus.FAILED.value,
+            SwapStatus.EXPIRED.value,
+            SwapStatus.TIMED_OUT.value,
+            SwapStatus.INVALID.value,
+        ]:
+            logger.info(
+                f"Admin override active on swap {swap_id} - respecting admin state '{swap.get('admin_set_state')}'"
+            )
+            return swap
+
+        # Handle swaps from history (not in pending cache)
+        if swap_id not in self._pending_swaps:
             if swap["status"] in [
                 SwapStatus.EXPIRED.value,
                 SwapStatus.CANCELLED.value,
                 SwapStatus.TIMED_OUT.value,
             ]:
-                # Determine actual amount received for this deposit
                 actual_amount = swap.get("from_amount", 0.0)
                 try:
                     from_coin = swap["from_coin"]
@@ -339,6 +450,7 @@ class SwapEngine:
                 return swap
             raise SwapError(f"Swap already completed or unprocessable: {swap_id}")
 
+        # Handle pending swaps
         if swap["status"] not in [
             SwapStatus.PENDING.value,
             SwapStatus.AWAITING_DEPOSIT.value,
@@ -347,8 +459,9 @@ class SwapEngine:
                 SwapStatus.EXPIRED.value,
                 SwapStatus.CANCELLED.value,
                 SwapStatus.TIMED_OUT.value,
+                SwapStatus.INVALID.value,
+                SwapStatus.CIRCUIT_BREAKER.value,
             ]:
-                # Determine actual amount received for this deposit
                 actual_amount = swap.get("from_amount", 0.0)
                 try:
                     from_coin = swap["from_coin"]
@@ -982,6 +1095,142 @@ class SwapEngine:
         logger.info(f"Swap {swap_id} cancelled")
 
         return swap
+
+    def set_swap_status(
+        self, swap_id: str, new_status: str, performed_by: str = "admin", reason: str = None
+    ) -> Dict[str, Any]:
+        """Admin method to set any swap to any status. Admin state is supreme and will not be overwritten by background jobs."""
+        valid_statuses = [s.value for s in SwapStatus]
+        if new_status not in valid_statuses:
+            raise SwapError(
+                f"Invalid status: {new_status}. Must be one of {valid_statuses}"
+            )
+
+        swap = self._pending_swaps.get(swap_id)
+        if not swap:
+            swap = self.history.get_swap(swap_id)
+            if not swap:
+                raise SwapError(f"Swap not found: {swap_id}")
+
+        old_status = swap["status"]
+        now = datetime.now(timezone.utc)
+        
+        # Set the new status
+        swap["status"] = new_status
+        swap["updated_at"] = now.isoformat()
+        
+        # Set admin override flags - this makes admin state supreme
+        swap["admin_override"] = True
+        swap["admin_set_state"] = new_status
+        swap["admin_override_reason"] = reason
+        swap["admin_override_by"] = performed_by
+        swap["admin_override_at"] = now.isoformat()
+        
+        # Set admin_locked for certain terminal states
+        swap["admin_locked"] = new_status in [
+            SwapStatus.CANCELLED.value,
+            SwapStatus.INVALID.value,
+            SwapStatus.CIRCUIT_BREAKER.value,
+        ]
+
+        if swap_id in self._pending_swaps and new_status in [
+            SwapStatus.CANCELLED.value,
+            SwapStatus.INVALID.value,
+            SwapStatus.EXPIRED.value,
+            SwapStatus.TIMED_OUT.value,
+            SwapStatus.CIRCUIT_BREAKER.value,
+        ]:
+            del self._pending_swaps[swap_id]
+
+        self.history.update_swap(swap_id, swap)
+        self.history._log_audit(
+            swap_id,
+            new_status,
+            old_status=old_status,
+            details=f"Admin state change by {performed_by}. Reason: {reason or 'Not provided'}",
+            performed_by=performed_by,
+        )
+
+        logger.info(
+            f"Admin changed swap {swap_id} status from {old_status} to {new_status} by {performed_by}. Reason: {reason}"
+        )
+
+        return swap
+
+    def clear_admin_override(self, swap_id: str, performed_by: str = "admin") -> Dict[str, Any]:
+        """Clear admin override on a swap, allowing normal processing to resume."""
+        swap = self._pending_swaps.get(swap_id)
+        if not swap:
+            swap = self.history.get_swap(swap_id)
+            if not swap:
+                raise SwapError(f"Swap not found: {swap_id}")
+
+        if not swap.get("admin_override"):
+            raise SwapError(f"Swap {swap_id} does not have an admin override")
+
+        # Clear admin override flags
+        swap["admin_override"] = False
+        swap["admin_set_state"] = None
+        swap["admin_override_reason"] = None
+        swap["admin_override_by"] = None
+        swap["admin_override_at"] = None
+        swap["admin_locked"] = False
+        swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        self.history.update_swap(swap_id, swap)
+        self.history._log_audit(
+            swap_id,
+            swap["status"],
+            old_status=swap["status"],
+            details=f"Admin override cleared by {performed_by}",
+            performed_by=performed_by,
+        )
+
+        logger.info(f"Admin cleared override on swap {swap_id} by {performed_by}")
+        return swap
+
+    def release_circuit_breaker(
+        self, swap_id: str, action: str, performed_by: str = "admin"
+    ) -> Dict[str, Any]:
+        """Release a circuit breaker swap by settling or cancelling it."""
+        swap = self._pending_swaps.get(swap_id)
+        if not swap:
+            swap = self.history.get_swap(swap_id)
+            if not swap:
+                raise SwapError(f"Swap not found: {swap_id}")
+
+        if swap["status"] != SwapStatus.CIRCUIT_BREAKER.value:
+            raise SwapError(f"Swap is not in circuit_breaker state: {swap['status']}")
+
+        if action == "settle":
+            result = self._settle_swap(swap_id)
+            self.history._log_audit(
+                swap_id,
+                result["status"],
+                old_status=SwapStatus.CIRCUIT_BREAKER.value,
+                details=f"Circuit breaker released - settled by {performed_by}",
+                performed_by=performed_by,
+            )
+            return result
+        elif action == "cancel":
+            swap["status"] = SwapStatus.CANCELLED.value
+            swap["updated_at"] = datetime.now(timezone.utc).isoformat()
+            if swap_id in self._pending_swaps:
+                del self._pending_swaps[swap_id]
+            self.history.update_swap(swap_id, swap)
+            self.history._log_audit(
+                swap_id,
+                SwapStatus.CANCELLED.value,
+                old_status=SwapStatus.CIRCUIT_BREAKER.value,
+                details=f"Circuit breaker released - cancelled by {performed_by}",
+                performed_by=performed_by,
+            )
+            logger.info(f"Circuit breaker swap {swap_id} cancelled by {performed_by}")
+            return swap
+        else:
+            raise SwapError(
+                f"Invalid action for circuit breaker release: {action}. Use 'settle' or 'cancel'"
+            )
 
     def list_swaps(self, status: str = None, include_inactive: bool = False) -> list:
         return self.history.get_all_swaps(

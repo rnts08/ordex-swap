@@ -76,7 +76,8 @@ def _cleanup_csrf_tokens():
     """Remove expired CSRF tokens from storage."""
     current_time = time.time()
     expired = [
-        tok for tok, (_, ts) in _csrf_tokens.items()
+        tok
+        for tok, (_, ts) in _csrf_tokens.items()
         if current_time - ts > CSRF_TOKEN_EXPIRY_SECONDS
     ]
     for tok in expired:
@@ -127,36 +128,176 @@ def json_success(data):
     return jsonify(response)
 
 
-def sanitize_error_message(error: Exception, default_message: str) -> str:
+# Allowlist of safe error messages that can be shown to users
+# These are user-friendly messages that don't leak internal details
+SAFE_USER_ERROR_MESSAGES = {
+    # Validation errors
+    "Invalid amount": "Invalid amount",
+    "Invalid user_address": "Invalid user_address",
+    "Invalid coin": "Invalid coin",
+    "Invalid address format": "Invalid address format",
+    "Invalid action": "Invalid action",
+    "Invalid request": "Invalid request",
+    "Invalid or expired CSRF token": "Invalid or expired CSRF token",
+    # Missing field errors
+    "Missing required fields": "Missing required fields",
+    "Missing from, to, or amount": "Missing from, to, or amount",
+    "Missing user_address": "Missing user_address",
+    "Missing deposit_txid": "Missing deposit_txid",
+    "Missing status field": "Missing status field",
+    "Missing address parameter": "Missing address parameter",
+    "Missing to_address": "Missing to_address",
+    "Missing amount": "Missing amount",
+    "Missing required fields (txid, coin, amount, address)": "Missing required fields",
+    # Authentication errors
+    "Authentication required": "Authentication required",
+    "Invalid credentials": "Invalid credentials",
+    "CSRF token required": "CSRF token required",
+    # Swap-specific errors
+    "Swap not found": "Swap not found",
+    "Swap operation failed": "Swap operation failed",
+    "Swap in invalid state": "Swap in invalid state",
+    "Swap already completed or unprocessable": "Swap already completed or unprocessable",
+    "Cannot swap same coin": "Cannot swap same coin",
+    "Cannot cancel swap in state": "Cannot cancel swap in this state",
+    # Validation range errors
+    "below minimum": "Amount below minimum allowed",
+    "above maximum": "Amount above maximum allowed",
+    "too small": "Amount too small",
+    "too large": "Amount too large",
+    # Service errors
+    "Service unavailable": "Service temporarily unavailable",
+    "Price unavailable": "Price temporarily unavailable",
+    "Swap temporarily unavailable": "Swap temporarily unavailable",
+    "Wallet error": "Wallet service temporarily unavailable",
+    # Liquidity errors
+    "Liquidity delay": "Swap temporarily delayed due to liquidity",
+    "Insufficient liquidity": "Swap temporarily delayed due to liquidity",
+    # State errors
+    "Unsupported pair": "Currency pair not supported",
+    "Fee too high": "Invalid amount after fees",
+    "Zero or negative output": "Invalid amount after fees",
+    # Admin errors
+    "Operation failed": "Operation failed",
+    "Update failed": "Update failed",
+}
+
+# Safe error prefixes that can be shown to users
+SAFE_ERROR_PREFIXES = [
+    "Invalid",
+    "Missing",
+    "Unsupported",
+    "Cannot",
+    "Authentication",
+    "CSRF",
+    "Amount",
+    "Currency",
+    "Service",
+    "Price",
+    "Swap",
+    "Wallet",
+    "Liquidity",
+    "Operation",
+    "Update",
+]
+
+# Error codes that are safe to expose to users
+SAFE_ERROR_CODES = {
+    "MISSING_PARAMS",
+    "INVALID_AMOUNT",
+    "INVALID_ADDRESS",
+    "INVALID_COIN",
+    "VALIDATION_ERROR",
+    "NOT_FOUND",
+    "AUTHENTICATION_REQUIRED",
+    "CSRF_TOKEN_REQUIRED",
+    "CSRF_TOKEN_INVALID",
+    "SWAPS_DISABLED",
+    "LIQUIDITY_DELAY",
+    "PRICE_UNAVAILABLE",
+    "WALLET_ERROR",
+    "SWAP_ERROR",
+}
+
+
+def sanitize_error_message(error: Exception, default_message: str = "An error occurred") -> str:
+    """
+    Sanitize error messages for user-facing responses.
+    
+    Uses an allowlist approach to only return error messages that are:
+    1. Pre-approved safe messages
+    2. Start with safe prefixes
+    3. Don't contain potentially leaking internal details
+    
+    For admin debugging, the full error is always logged with structured logging.
+    
+    Args:
+        error: The exception that was raised
+        default_message: The fallback message to use if the error is not safe
+        
+    Returns:
+        A sanitized error message safe for user-facing responses
+    """
+    if not error:
+        return default_message
+    
     error_msg = str(error)
-    if not error_msg or len(error_msg) > 100:
+    if not error_msg:
         return default_message
-
-    leaking_patterns = [
-        " at ",
-        "/",
-        "\\",
-        "line ",
-        "traceback",
-        "python",
-        "sqlite3",
-        "urllib",
-    ]
-    if any(p in error_msg.lower() for p in leaking_patterns):
-        return default_message
-
-    safe_patterns = [
-        "invalid",
-        "missing",
-        "required",
-        "cannot",
-        "must be",
-        "failed",
-        "error",
-    ]
-    if any(p in error_msg.lower() for p in safe_patterns):
-        return error_msg[:100]
+    
+    # Truncate very long messages
+    if len(error_msg) > 200:
+        error_msg = error_msg[:200]
+    
+    # Check for exact match in allowlist
+    if error_msg in SAFE_USER_ERROR_MESSAGES:
+        return SAFE_USER_ERROR_MESSAGES[error_msg]
+    
+    # Check for partial match in allowlist (case-insensitive)
+    error_lower = error_msg.lower()
+    for safe_msg in SAFE_USER_ERROR_MESSAGES:
+        if safe_msg.lower() in error_lower:
+            return SAFE_USER_ERROR_MESSAGES[safe_msg]
+    
+    # Check if message starts with a safe prefix
+    for prefix in SAFE_ERROR_PREFIXES:
+        if error_msg.startswith(prefix):
+            # Additional check: ensure it doesn't contain leaking patterns
+            leaking_patterns = [" at 0x", "File \"", "line ", "Traceback", "sqlite3", "urllib"]
+            if not any(p in error_msg for p in leaking_patterns):
+                return error_msg[:150]
+    
+    # Default to safe message
     return default_message
+
+
+def log_error_for_admin(error: Exception, context: str = None, swap_id: str = None):
+    """
+    Log full error details for admin review.
+    
+    This function logs the complete error information including stack trace
+    for admin debugging. These logs are only visible to administrators
+    through the audit log and monitoring systems.
+    
+    Args:
+        error: The exception to log
+        context: Additional context about where the error occurred
+        swap_id: Optional swap ID for correlation
+    """
+    import traceback
+    
+    error_details = {
+        "error_type": type(error).__name__,
+        "error_message": str(error),
+        "traceback": traceback.format_exc(),
+        "context": context,
+        "swap_id": swap_id,
+    }
+    
+    if swap_id:
+        logger.error(f"Error in swap {swap_id}: {error}", **error_details)
+    else:
+        logger.error(f"Error{f' in {context}' if context else ''}: {error}", **error_details)
 
 
 def _parse_basic_auth(header_value: str):
@@ -193,28 +334,31 @@ def require_admin_auth(func):
 
 def require_csrf_token(func):
     """Decorator to require a valid CSRF token for state-changing admin operations."""
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         # Only require CSRF token for state-changing methods (POST, PUT, DELETE)
         if request.method not in ["POST", "PUT", "DELETE"]:
             return func(*args, **kwargs)
-        
+
         # Get username from Flask g (set by require_admin_auth)
         username = getattr(g, "admin_username", None)
         if not username:
             return json_error("Authentication required", 401)
-        
+
         # Get CSRF token from header
         csrf_token = request.headers.get("X-CSRF-Token")
         if not csrf_token:
             return json_error("CSRF token required", 403, "CSRF_TOKEN_REQUIRED")
-        
+
         # Validate the token
         if not validate_csrf_token(csrf_token, username):
-            return json_error("Invalid or expired CSRF token", 403, "CSRF_TOKEN_INVALID")
-        
+            return json_error(
+                "Invalid or expired CSRF token", 403, "CSRF_TOKEN_INVALID"
+            )
+
         return func(*args, **kwargs)
-    
+
     return wrapper
 
 
@@ -333,8 +477,11 @@ def create_swap():
     if not math.isfinite(amount):
         return json_error("Invalid amount", 400, "INVALID_AMOUNT")
 
+    # Capture user IP for audit trail
+    user_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+
     try:
-        swap = swap_engine.create_swap(from_coin, to_coin, amount, user_address)
+        swap = swap_engine.create_swap(from_coin, to_coin, amount, user_address, user_ip=user_ip)
         return json_success(swap)
     except LiquidityHoldError as e:
         return json_error(
@@ -440,16 +587,16 @@ def search_swaps():
     address = request.args.get("address", "").strip()
     if not address:
         return json_error("Missing address parameter", 400, "MISSING_PARAMS")
-    
+
     # Search in history
     if not swap_history:
         return json_error("History service unavailable", 503)
-    
+
     # We search by address in the swap data
     results = swap_history.search_swaps(address, field="user_address")
     # Also search by deposit address
     deposit_results = swap_history.search_swaps(address, field="deposit_address")
-    
+
     # Combine and unique
     combined = {s["swap_id"]: s for s in results + deposit_results}
     return json_success({"swaps": list(combined.values()), "count": len(combined)})
@@ -460,17 +607,17 @@ def search_swaps():
 def track_swap(swap_id: str):
     """Public endpoint to track a swap by ID. Returns status and can trigger rescan for late deposits."""
     rescan = request.args.get("rescan", "false").lower() == "true"
-    
+
     # First try to get from active swaps
     swap = swap_engine.get_swap(swap_id)
-    
+
     # If not found in active, try history
     if not swap and swap_history:
         swap = swap_history.get_swap(swap_id)
-    
+
     if not swap:
         return json_error("Swap not found", 404, "NOT_FOUND")
-    
+
     # Calculate time remaining for pending swaps
     response_data = {
         "swap_id": swap.get("swap_id"),
@@ -484,22 +631,26 @@ def track_swap(swap_id: str):
         "created_at": swap.get("created_at"),
         "updated_at": swap.get("updated_at"),
     }
-    
+
     # Add status-specific info
     if swap.get("status") in ["pending", "awaiting_deposit"]:
         # Calculate time remaining
         from datetime import datetime, timezone
+
         created_at = swap.get("created_at")
         if created_at:
             try:
                 if isinstance(created_at, str):
-                    created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                    created_at = datetime.fromisoformat(
+                        created_at.replace("Z", "+00:00")
+                    )
                 expire_minutes = 15  # Default
                 if admin_service:
                     db_expire = admin_service.get_swap_expire_minutes()
                     if db_expire:
                         expire_minutes = db_expire
                 from datetime import timedelta
+
                 expire_time = created_at + timedelta(minutes=expire_minutes)
                 now = datetime.now(timezone.utc)
                 remaining_seconds = max(0, int((expire_time - now).total_seconds()))
@@ -508,13 +659,13 @@ def track_swap(swap_id: str):
                 response_data["can_rescan"] = remaining_seconds > 0
             except (ValueError, TypeError):
                 pass
-    
+
     # Add deposit info if available
     if swap.get("deposit_txid"):
         response_data["deposit_txid"] = swap.get("deposit_txid")
     if swap.get("withdrawal_txid"):
         response_data["withdrawal_txid"] = swap.get("withdrawal_txid")
-    
+
     # Handle rescan request for late deposits
     if rescan and swap.get("status") in ["pending", "timed_out"]:
         if swap_engine and swap_history:
@@ -525,9 +676,8 @@ def track_swap(swap_id: str):
                 response_data["rescan_triggered"] = True
             except Exception as e:
                 response_data["rescan_error"] = str(e)
-    
-    return json_success(response_data)
 
+    return json_success(response_data)
 
 
 @app.route("/api/v1/swaps/stats", methods=["GET"])
@@ -615,7 +765,7 @@ def admin_swaps():
 def admin_scan_transactions():
     if not swap_engine:
         return json_error("Swap engine not available", 500)
-    
+
     # Get admin wallets for mapping
     admin_wallets = {}
     if admin_service:
@@ -635,16 +785,16 @@ def admin_scan_transactions():
 def admin_reconcile_audit():
     if not swap_engine:
         return json_error("Swap engine not available", 500)
-    
+
     count = request.args.get("count", 100, type=int)
     try:
         results = swap_engine.reconcile_full_history(count=count)
         admin_service.log_audit(
-            g.admin_username, 
-            "full_reconciliation", 
-            "success", 
-            g.admin_ip, 
-            f"Scanned {results['scanned_count']} transactions"
+            g.admin_username,
+            "full_reconciliation",
+            "success",
+            g.admin_ip,
+            f"Scanned {results['scanned_count']} transactions",
         )
         return json_success(results)
     except Exception as e:
@@ -678,7 +828,7 @@ def admin_acknowledge_tx():
         amount=amount,
         action=action,
         performed_by=g.admin_username,
-        details=details
+        details=details,
     )
 
     if success:
@@ -687,7 +837,7 @@ def admin_acknowledge_tx():
             "acknowledge_tx",
             "success",
             g.admin_ip,
-            f"Acknowledged {txid} as {action}"
+            f"Acknowledged {txid} as {action}",
         )
         return json_success({"message": "Transaction acknowledged"})
     else:
@@ -717,15 +867,15 @@ def admin_settle_orphaned():
             amount=amount,
             user_address=user_address,
             username=g.admin_username,
-            swap_id=swap_id
+            swap_id=swap_id,
         )
-        
+
         admin_service.log_audit(
             g.admin_username,
             "settle_orphaned",
             "success",
             g.admin_ip,
-            f"Settled {txid} to {user_address}"
+            f"Settled {txid} to {user_address}",
         )
         return json_success(result)
     except (SwapError, InvalidAmountError) as e:
@@ -756,15 +906,15 @@ def admin_refund_orphaned():
             coin=coin,
             amount=amount,
             target_address=target_address,
-            username=g.admin_username
+            username=g.admin_username,
         )
-        
+
         admin_service.log_audit(
             g.admin_username,
             "refund_orphaned",
             "success",
             g.admin_ip,
-            f"Refunded {txid} to {target_address}"
+            f"Refunded {txid} to {target_address}",
         )
         return json_success(result)
     except (SwapError, InvalidAmountError) as e:
@@ -783,7 +933,47 @@ def admin_get_swap(swap_id):
     if not swap:
         return json_error("Swap not found", 404)
     audit = admin_service.get_swap_audit_log(swap_id) if admin_service else []
-    return json_success({"swap": swap, "audit": audit})
+
+    swap_data = {
+        "swap_id": swap.get("swap_id"),
+        "status": swap.get("status"),
+        "from_coin": swap.get("from_coin"),
+        "to_coin": swap.get("to_coin"),
+        "from_amount": swap.get("from_amount"),
+        "to_amount": swap.get("to_amount"),
+        "fee_amount": swap.get("fee_amount"),
+        "net_amount": swap.get("net_amount"),
+        "rate": swap.get("rate"),
+        "user_address": swap.get("user_address"),
+        "user_ip": swap.get("user_ip"),
+        "deposit_address": swap.get("deposit_address"),
+        "deposit_txid": swap.get("deposit_txid"),
+        "settle_txid": swap.get("settle_txid"),
+        "withdrawal_txid": swap.get("withdrawal_txid"),
+        "created_at": swap.get("created_at"),
+        "updated_at": swap.get("updated_at"),
+        "completed_at": swap.get("completed_at"),
+        "expires_at": swap.get("expires_at"),
+        "delay_code": swap.get("delay_code"),
+        "delay_reason": swap.get("delay_reason"),
+        "error": swap.get("error"),
+        "reconciled_by": swap.get("reconciled_by"),
+        "actual_from_amount": swap.get("actual_from_amount"),
+        "actual_to_amount": swap.get("actual_to_amount"),
+        "actual_fee_amount": swap.get("actual_fee_amount"),
+        "actual_net_amount": swap.get("actual_net_amount"),
+        "circuit_breaker_ratio": swap.get("circuit_breaker_ratio"),
+        "circuit_breaker_threshold": swap.get("circuit_breaker_threshold"),
+        "admin_locked": swap.get("admin_locked", False),
+        # Admin override information
+        "admin_override": swap.get("admin_override", False),
+        "admin_set_state": swap.get("admin_set_state"),
+        "admin_override_reason": swap.get("admin_override_reason"),
+        "admin_override_by": swap.get("admin_override_by"),
+        "admin_override_at": swap.get("admin_override_at"),
+        "audit": audit,
+    }
+    return json_success(swap_data)
 
 
 @app.route("/api/v1/admin/swaps/<swap_id>/audit", methods=["GET"])
@@ -791,7 +981,7 @@ def admin_get_swap(swap_id):
 def admin_get_swap_audit(swap_id):
     if not admin_service:
         return json_error("Admin service not available", 500)
-    
+
     audit_trail = admin_service.get_swap_audit_log(swap_id)
     return json_success({"swap_id": swap_id, "audit_trail": audit_trail})
 
@@ -806,7 +996,7 @@ def admin_action_swap(swap_id):
     action = data.get("action")
     if action not in ["settle", "cancel"]:
         return json_error("Invalid action", 400)
-    
+
     try:
         if action == "settle":
             swap = swap_engine._settle_swap(swap_id)
@@ -818,6 +1008,74 @@ def admin_action_swap(swap_id):
         return json_error(str(e), 400)
     except Exception as e:
         logger.error(f"Failed to perform {action} on swap {swap_id}: {e}")
+        return json_error(str(e), 500)
+
+
+@app.route("/api/v1/admin/swaps/<swap_id>/status", methods=["PUT"])
+@require_admin_auth
+@require_csrf_token
+def admin_set_swap_status(swap_id):
+    if not swap_engine:
+        return json_error("Swap engine not available", 500)
+    data = request.get_json() or {}
+    new_status = data.get("status")
+    if not new_status:
+        return json_error("Missing status field", 400)
+
+    reason = data.get("reason", "")
+    
+    try:
+        swap = swap_engine.set_swap_status(
+            swap_id, new_status, performed_by=g.admin_username, reason=reason
+        )
+        return json_success({"swap": swap})
+    except SwapError as e:
+        return json_error(str(e), 400)
+    except Exception as e:
+        logger.error(f"Failed to set status for swap {swap_id}: {e}")
+        return json_error(str(e), 500)
+
+
+@app.route("/api/v1/admin/swaps/<swap_id>/clear-override", methods=["POST"])
+@require_admin_auth
+@require_csrf_token
+def admin_clear_override(swap_id):
+    """Clear admin override on a swap, allowing normal processing to resume."""
+    if not swap_engine:
+        return json_error("Swap engine not available", 500)
+
+    try:
+        swap = swap_engine.clear_admin_override(
+            swap_id, performed_by=g.admin_username
+        )
+        return json_success({"swap": swap})
+    except SwapError as e:
+        return json_error(str(e), 400)
+    except Exception as e:
+        logger.error(f"Failed to clear override for swap {swap_id}: {e}")
+        return json_error(str(e), 500)
+
+
+@app.route("/api/v1/admin/swaps/<swap_id>/release", methods=["POST"])
+@require_admin_auth
+@require_csrf_token
+def admin_release_circuit_breaker(swap_id):
+    if not swap_engine:
+        return json_error("Swap engine not available", 500)
+    data = request.get_json() or {}
+    action = data.get("action")
+    if action not in ["settle", "cancel"]:
+        return json_error("Invalid action. Use 'settle' or 'cancel'", 400)
+
+    try:
+        swap = swap_engine.release_circuit_breaker(
+            swap_id, action, performed_by=g.admin_username
+        )
+        return json_success({"swap": swap, "action": action})
+    except SwapError as e:
+        return json_error(str(e), 400)
+    except Exception as e:
+        logger.error(f"Failed to release circuit breaker for swap {swap_id}: {e}")
         return json_error(str(e), 500)
 
 
@@ -869,7 +1127,11 @@ def admin_rotate_wallet():
         details=f"New address generated for {purpose} wallet",
         status="success",
     ):
-        logger.warning(f"Failed to log successful rotation for {coin} {purpose}", coin=coin, purpose=purpose)
+        logger.warning(
+            f"Failed to log successful rotation for {coin} {purpose}",
+            coin=coin,
+            purpose=purpose,
+        )
     return json_success({"coin": coin, "purpose": purpose, "address": address})
 
 
@@ -921,7 +1183,9 @@ def admin_withdraw():
     # Validate minimum amount based on coin
     min_amount = 0.00000001  # Smallest valid amount
     if amount < min_amount:
-        return json_error(f"Amount too small (minimum: {min_amount})", 400, "INVALID_AMOUNT")
+        return json_error(
+            f"Amount too small (minimum: {min_amount})", 400, "INVALID_AMOUNT"
+        )
 
     txid = None
     ip_address = getattr(g, "admin_ip", None)
@@ -932,13 +1196,15 @@ def admin_withdraw():
         # Extract more specific error code from exception
         if "insufficient" in error_msg.lower():
             error_code = "INSUFFICIENT_BALANCE"
-        elif "invalid address" in error_msg.lower() or "bad address" in error_msg.lower():
+        elif (
+            "invalid address" in error_msg.lower() or "bad address" in error_msg.lower()
+        ):
             error_code = "INVALID_ADDRESS"
         elif "connection" in error_msg.lower():
             error_code = "RPC_CONNECTION_ERROR"
         else:
             error_code = "RPC_ERROR"
-        
+
         admin_service.log_wallet_action(
             action_type="withdraw_failed",
             coin=coin,
@@ -965,7 +1231,12 @@ def admin_withdraw():
         details=f"Withdrew {amount} {coin} to external address",
         status="success",
     ):
-        logger.warning(f"Failed to log successful withdrawal: {txid}", coin=coin, amount=amount, txid=txid)
+        logger.warning(
+            f"Failed to log successful withdrawal: {txid}",
+            coin=coin,
+            amount=amount,
+            txid=txid,
+        )
 
     return json_success(
         {"coin": coin, "amount": amount, "to_address": to_address, "txid": txid}
@@ -976,31 +1247,35 @@ def admin_withdraw():
 @require_admin_auth
 def admin_wallet_actions():
     limit = int(request.args.get("limit", 100))
-    
+
     # 1. Fetch DB logs
     actions = admin_service.get_wallet_actions(limit)
     logged_txids = {a.get("txid") for a in actions if a.get("txid")}
-    
+
     # 2. Perform quick RPC discovery (last 50 transactions per wallet)
     # This catches manual RPC/Console actions that were never logged in DB.
     try:
         discovery = swap_engine.reconcile_full_history(count=50)
-        
+
         # Unaccounted Withdrawals are manual/external sends
         for w in discovery.get("unaccounted_withdrawals", []):
             if w["txid"] not in logged_txids:
-                actions.append({
-                    "action_type": "EXTERNAL_SEND",
-                    "coin": w["coin"],
-                    "purpose": "MANUAL / RPC",
-                    "amount": w["amount"],
-                    "address": w["address"],
-                    "txid": w["txid"],
-                    "performed_by": "EXTERNAL / CONSOLE",
-                    "created_at": datetime.now(timezone.utc).isoformat(), # We don't have block time here easily
-                    "details": "Manual transaction discovered via RPC scan",
-                    "source_table": "rpc_discovery"
-                })
+                actions.append(
+                    {
+                        "action_type": "EXTERNAL_SEND",
+                        "coin": w["coin"],
+                        "purpose": "MANUAL / RPC",
+                        "amount": w["amount"],
+                        "address": w["address"],
+                        "txid": w["txid"],
+                        "performed_by": "EXTERNAL / CONSOLE",
+                        "created_at": datetime.now(
+                            timezone.utc
+                        ).isoformat(),  # We don't have block time here easily
+                        "details": "Manual transaction discovered via RPC scan",
+                        "source_table": "rpc_discovery",
+                    }
+                )
                 logged_txids.add(w["txid"])
 
         # Unaccounted Deposits are manual/external receives (topups)
@@ -1008,18 +1283,20 @@ def admin_wallet_actions():
             if d["txid"] not in logged_txids:
                 # Filter out standard swap deposits (those aren't 'wallet actions' in the manual sense)
                 # But if they are 'UNACCOUNTED' in discovery, they ARE manual topups or orphaned funds.
-                actions.append({
-                    "action_type": "EXTERNAL_RECEIVE",
-                    "coin": d["coin"],
-                    "purpose": "LIQUIDITY TOPUP",
-                    "amount": d["amount"],
-                    "address": d["address"],
-                    "txid": d["txid"],
-                    "performed_by": "EXTERNAL / CONSOLE",
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "details": f"External deposit discovered: {d.get('reason', 'Unknown reason')}",
-                    "source_table": "rpc_discovery"
-                })
+                actions.append(
+                    {
+                        "action_type": "EXTERNAL_RECEIVE",
+                        "coin": d["coin"],
+                        "purpose": "LIQUIDITY TOPUP",
+                        "amount": d["amount"],
+                        "address": d["address"],
+                        "txid": d["txid"],
+                        "performed_by": "EXTERNAL / CONSOLE",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "details": f"External deposit discovered: {d.get('reason', 'Unknown reason')}",
+                        "source_table": "rpc_discovery",
+                    }
+                )
                 logged_txids.add(d["txid"])
 
     except Exception as e:

@@ -10,10 +10,11 @@ Off-chain centralized swap service for OXC (OrdexCoin) ↔ OXG (OrdexGold) excha
 - Real-time price oracle with fallback support (NestEx)
 - Configurable swap fees and rate limits
 - Automated deposit address generation per swap
+- **Admin Override System** - Complete control to change any swap's state with full audit trail
 - Admin dashboard for operations and monitoring
-- Automatic backup system with restore capabilities
+- Automated backup system with restore capabilities
 - Comprehensive security testing and hardening
-- Full test suite (176 tests, 54% code coverage)
+- Full test suite (184 tests, 55% code coverage)
 - Docker containerization with production configs
 
 ## Quick Start (Development)

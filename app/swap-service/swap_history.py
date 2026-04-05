@@ -53,15 +53,21 @@ class SwapHistoryService:
                         """
                         INSERT INTO swaps (
                             swap_id, status, data_json, created_at, updated_at, completed_at,
-                            from_coin, from_amount
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            from_coin, from_amount, admin_override, admin_set_state, 
+                            admin_override_reason, admin_override_by, admin_override_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(swap_id) DO UPDATE SET
                             status=excluded.status,
                             data_json=excluded.data_json,
                             updated_at=excluded.updated_at,
                             completed_at=excluded.completed_at,
                             from_coin=excluded.from_coin,
-                            from_amount=excluded.from_amount
+                            from_amount=excluded.from_amount,
+                            admin_override=excluded.admin_override,
+                            admin_set_state=excluded.admin_set_state,
+                            admin_override_reason=excluded.admin_override_reason,
+                            admin_override_by=excluded.admin_override_by,
+                            admin_override_at=excluded.admin_override_at
                         """,
                         (
                             swap_id,
@@ -72,6 +78,11 @@ class SwapHistoryService:
                             swap.get("completed_at"),
                             swap.get("from_coin"),
                             swap.get("from_amount"),
+                            swap.get("admin_override", 0),
+                            swap.get("admin_set_state"),
+                            swap.get("admin_override_reason"),
+                            swap.get("admin_override_by"),
+                            swap.get("admin_override_at"),
                         ),
                     )
             except sqlite3.Error as e:
@@ -98,7 +109,12 @@ class SwapHistoryService:
                         updated_at = ?,
                         completed_at = ?,
                         from_coin = ?,
-                        from_amount = ?
+                        from_amount = ?,
+                        admin_override = ?,
+                        admin_set_state = ?,
+                        admin_override_reason = ?,
+                        admin_override_by = ?,
+                        admin_override_at = ?
                     WHERE swap_id = ?
                     """,
                     (
@@ -108,6 +124,11 @@ class SwapHistoryService:
                         completed_at,
                         existing.get("from_coin"),
                         existing.get("from_amount"),
+                        existing.get("admin_override", 0),
+                        existing.get("admin_set_state"),
+                        existing.get("admin_override_reason"),
+                        existing.get("admin_override_by"),
+                        existing.get("admin_override_at"),
                         swap_id,
                     ),
                 )
@@ -149,12 +170,23 @@ class SwapHistoryService:
         try:
             with self._pool.get_connection() as conn:
                 row = conn.execute(
-                    "SELECT data_json FROM swaps WHERE swap_id = ?",
+                    """
+                    SELECT data_json, admin_override, admin_set_state, 
+                           admin_override_reason, admin_override_by, admin_override_at
+                    FROM swaps WHERE swap_id = ?
+                    """,
                     (swap_id,),
                 ).fetchone()
             if not row:
                 return None
-            return json.loads(row[0])
+            swap = json.loads(row[0])
+            # Merge admin override columns into swap data
+            swap["admin_override"] = bool(row[1]) if row[1] is not None else False
+            swap["admin_set_state"] = row[2]
+            swap["admin_override_reason"] = row[3]
+            swap["admin_override_by"] = row[4]
+            swap["admin_override_at"] = row[5]
+            return swap
         except (sqlite3.Error, json.JSONDecodeError) as e:
             logger.error(f"Failed to fetch swap {swap_id}: {e}")
             return None

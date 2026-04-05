@@ -346,8 +346,8 @@ class TestCredentialMasking(unittest.TestCase):
         error = Exception("Invalid amount provided")
         sanitized = self.api_module.sanitize_error_message(error, "Service error")
         
-        # Safe message should pass through
-        self.assertEqual(sanitized, "Invalid amount provided")
+        # Safe message should be mapped to the allowlisted version
+        self.assertEqual(sanitized, "Invalid amount")
 
     def test_structured_logger_exists(self):
         """Structured logger should be configured for logging."""

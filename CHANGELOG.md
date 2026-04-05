@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] → v1.0.0
 
 ### Added
+- **Admin Override System**: Complete control for admins to change any swap's state
+  - New `set_swap_status()` method allows admin to set any valid status on any swap
+  - Admin state is supreme - overrides automatic late_deposit detection
+  - New `clear_admin_override()` method to resume normal processing
+  - Full audit trail with reason, timestamp, and admin username
+  - Database columns: `admin_override`, `admin_set_state`, `admin_override_reason`, `admin_override_by`, `admin_override_at`
 - **Circuit Breaker Protection**: New safety mechanism to flag swaps with abnormal ratios (>5:1 by default)
   - New `CIRCUIT_BREAKER` status for swaps requiring manual review
   - Configurable ratio threshold via admin settings (`circuit_breaker_ratio`)
@@ -28,17 +34,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Stats Include All Statuses**: `STAT_INCLUDED_STATUSES` now includes `cancelled`, `timed_out`, and `failed`
-- **Test Suite**: 178 tests passing (up from 176)
+- **Test Suite**: 184 tests passing (up from 176)
 - **Documentation**: CSRF protection fully documented in README.md
+- **Admin Dashboard**: Enhanced swap detail modal with comprehensive information display
+  - Shows user output address, user IP (when captured), all transaction IDs
+  - Displays admin override information and full audit history
+  - Provides admin controls for status changes and circuit breaker release
 
 ### Security
 - CSRF tokens required for all admin state-changing operations
 - Address validation prevents withdrawal to invalid addresses
 - Circuit breaker protects against abnormal swap ratios that could drain wallets
+- Admin override system provides complete audit trail for manual interventions
 
 ### Fixed
 - Withdrawal validation now catches invalid addresses before attempting transaction
 - Stats calculation now includes all swap statuses for accurate volume reporting
+
+### Known Issues
+- `user_ip` field displayed in admin modal but not yet captured on swap creation (planned fix)
+- Admin override race condition: late deposit detection may still trigger on admin-overridden swaps (planned fix)
 
 ---
 

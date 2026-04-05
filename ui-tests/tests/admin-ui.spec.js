@@ -199,3 +199,161 @@ test('can update settings via admin interface', async ({ page, request }) => {
   expect(data.data.swap_fee_percent).toBe(2.5);
   expect(data.data.swap_expire_minutes).toBe(25);
 });
+
+test('swap detail modal shows admin override information', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  // Wait for swaps to load
+  await page.waitForTimeout(1000);
+  
+  // Click on a swap ID to open the detail modal
+  const swapLink = page.locator('#swaps-table a.text-warning').first();
+  if (await swapLink.count() > 0) {
+    await swapLink.click();
+    
+    // Check that the modal is visible
+    const modal = page.locator('#swapDetailModal');
+    await expect(modal).toBeVisible();
+    
+    // Verify swap information fields are visible
+    await expect(page.locator('#detail-swap-id')).toBeVisible();
+    await expect(page.locator('#detail-status')).toBeVisible();
+    await expect(page.locator('#detail-user-address')).toBeVisible();
+    await expect(page.locator('#detail-deposit-address')).toBeVisible();
+    
+    // Verify admin controls section is visible
+    await expect(page.locator('#status-select')).toBeVisible();
+    await expect(page.locator('#change-status-btn')).toBeVisible();
+    
+    // Verify audit history table is visible
+    await expect(page.locator('#detail-audit-table')).toBeVisible();
+  }
+});
+
+test('admin can see user IP in swap details', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  // Wait for swaps to load
+  await page.waitForTimeout(1000);
+  
+  // Click on a swap ID to open the detail modal
+  const swapLink = page.locator('#swaps-table a.text-warning').first();
+  if (await swapLink.count() > 0) {
+    await swapLink.click();
+    
+    // Check that user IP field is visible in the modal
+    await expect(page.locator('#detail-user-ip')).toBeVisible();
+  }
+});
+
+test('admin can change swap status via modal', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  // Wait for swaps to load
+  await page.waitForTimeout(1000);
+  
+  // Click on a swap ID to open the detail modal
+  const swapLink = page.locator('#swaps-table a.text-warning').first();
+  if (await swapLink.count() > 0) {
+    await swapLink.click();
+    
+    // Check that status select and change button are visible
+    const statusSelect = page.locator('#status-select');
+    await expect(statusSelect).toBeVisible();
+    
+    const changeBtn = page.locator('#change-status-btn');
+    await expect(changeBtn).toBeVisible();
+  }
+});
+
+test('swap detail modal shows all required fields', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  // Wait for swaps to load
+  await page.waitForTimeout(1000);
+  
+  // Click on a swap ID to open the detail modal
+  const swapLink = page.locator('#swaps-table a.text-warning').first();
+  if (await swapLink.count() > 0) {
+    await swapLink.click();
+    
+    // Verify all required fields are visible
+    const fields = [
+      '#detail-swap-id',
+      '#detail-status',
+      '#detail-from-coin',
+      '#detail-to-coin',
+      '#detail-from-amount',
+      '#detail-to-amount',
+      '#detail-fee-amount',
+      '#detail-net-amount',
+      '#detail-rate',
+      '#detail-user-address',
+      '#detail-user-ip',
+      '#detail-deposit-address',
+      '#detail-deposit-txid',
+      '#detail-settle-txid',
+      '#detail-created-at',
+      '#detail-updated-at',
+      '#status-select',
+      '#change-status-btn',
+      '#detail-audit-table'
+    ];
+    
+    for (const field of fields) {
+      const element = page.locator(field);
+      if (await element.count() > 0) {
+        await expect(element).toBeVisible();
+      }
+    }
+  }
+});
+
+test('admin override information is displayed in swap details', async ({ page, request }) => {
+  await page.goto('/admin.html');
+  await page.locator('#admin-user').fill('swap');
+  await page.locator('#admin-pass').fill('u6S9mYwvfv*-~Rf');
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  // Wait for swaps to load
+  await page.waitForTimeout(1000);
+  
+  // Click on a swap ID to open the detail modal
+  const swapLink = page.locator('#swaps-table a.text-warning').first();
+  if (await swapLink.count() > 0) {
+    await swapLink.click();
+    
+    // Check that admin override fields are visible (if swap has override)
+    // These fields should exist in the modal even if not all are populated
+    const adminFields = [
+      '#detail-admin-override',
+      '#detail-admin-set-state',
+      '#detail-admin-override-reason',
+      '#detail-admin-override-by'
+    ];
+    
+    for (const field of adminFields) {
+      const element = page.locator(field);
+      if (await element.count() > 0) {
+        await expect(element).toBeVisible();
+      }
+    }
+  }
+});

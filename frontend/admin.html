@@ -359,29 +359,174 @@
     </div>
   </div>
 
-  <!-- Audit Modal -->
-  <div class="modal fade" id="auditModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+  <!-- Swap Detail Modal -->
+  <div class="modal fade" id="swapDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
       <div class="modal-content bg-dark border-secondary">
         <div class="modal-header border-secondary">
-          <h5 class="modal-title text-white">Swap Audit History</h5>
+          <h5 class="modal-title text-white">Swap Details</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <div class="small muted mb-2">Detailed trace for Swap ID: <span id="audit-swap-id" class="text-white mono"></span></div>
-          <div class="table-responsive">
-            <table class="table table-dark table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Old Status</th>
-                  <th>New Status</th>
-                  <th>Performed By</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody id="audit-trail-table"></tbody>
-            </table>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="card p-3 bg-secondary bg-opacity-25 border-secondary">
+                <h6 class="text-warning fw-bold mb-3">Swap Information</h6>
+                <div class="row g-2 small">
+                  <div class="col-6 muted">Swap ID</div>
+                  <div class="col-6 text-white mono" id="detail-swap-id">--</div>
+                  <div class="col-6 muted">Status</div>
+                  <div class="col-6"><span class="badge" id="detail-status">--</span></div>
+                  <div class="col-6 muted">From</div>
+                  <div class="col-6 text-white" id="detail-from">--</div>
+                  <div class="col-6 muted">To</div>
+                  <div class="col-6 text-white" id="detail-to">--</div>
+                  <div class="col-6 muted">Rate</div>
+                  <div class="col-6 text-white mono" id="detail-rate">--</div>
+                  <div class="col-6 muted">Admin Locked</div>
+                  <div class="col-6 text-white" id="detail-locked">--</div>
+                  <div class="col-6 muted">User IP</div>
+                  <div class="col-6 text-white mono" id="detail-user-ip">--</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card p-3 bg-secondary bg-opacity-25 border-secondary">
+                <h6 class="text-warning fw-bold mb-3">Amounts & Fees</h6>
+                <div class="row g-2 small">
+                  <div class="col-6 muted">From Amount</div>
+                  <div class="col-6 text-white mono" id="detail-from-amount">--</div>
+                  <div class="col-6 muted">To Amount (gross)</div>
+                  <div class="col-6 text-white mono" id="detail-to-amount">--</div>
+                  <div class="col-6 muted">Fee Amount</div>
+                  <div class="col-6 text-warning mono" id="detail-fee">--</div>
+                  <div class="col-6 muted">Net Amount</div>
+                  <div class="col-6 text-success mono" id="detail-net">--</div>
+                  <div class="col-6 muted">Actual From</div>
+                  <div class="col-6 text-white mono" id="detail-actual-from">--</div>
+                  <div class="col-6 muted">Actual Net</div>
+                  <div class="col-6 text-success mono" id="detail-actual-net">--</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card p-3 bg-secondary bg-opacity-25 border-secondary">
+                <h6 class="text-warning fw-bold mb-3">Addresses</h6>
+                <div class="row g-2 small">
+                  <div class="col-12 muted">User Destination Address</div>
+                  <div class="col-12 text-white mono break-all" id="detail-user-address">--</div>
+                  <div class="col-12 muted">Deposit Address</div>
+                  <div class="col-12 text-white mono break-all" id="detail-deposit-address">--</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card p-3 bg-secondary bg-opacity-25 border-secondary">
+                <h6 class="text-warning fw-bold mb-3">Transaction IDs</h6>
+                <div class="row g-2 small">
+                  <div class="col-12 muted">Deposit TXID</div>
+                  <div class="col-12 text-white mono break-all" id="detail-deposit-txid">--</div>
+                  <div class="col-12 muted">Settle TXID</div>
+                  <div class="col-12 text-white mono break-all" id="detail-settle-txid">--</div>
+                  <div class="col-12 muted">Withdrawal TXID</div>
+                  <div class="col-12 text-white mono break-all" id="detail-withdrawal-txid">--</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card p-3 bg-secondary bg-opacity-25 border-secondary">
+                <h6 class="text-warning fw-bold mb-3">Timestamps</h6>
+                <div class="row g-2 small">
+                  <div class="col-6 muted">Created</div>
+                  <div class="col-6 text-white" id="detail-created">--</div>
+                  <div class="col-6 muted">Updated</div>
+                  <div class="col-6 text-white" id="detail-updated">--</div>
+                  <div class="col-6 muted">Completed</div>
+                  <div class="col-6 text-white" id="detail-completed">--</div>
+                  <div class="col-6 muted">Expires</div>
+                  <div class="col-6 text-white" id="detail-expires">--</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card p-3 bg-secondary bg-opacity-25 border-secondary">
+                <h6 class="text-warning fw-bold mb-3">Additional Info</h6>
+                <div class="row g-2 small">
+                  <div class="col-6 muted">Delay Code</div>
+                  <div class="col-6 text-white" id="detail-delay-code">--</div>
+                  <div class="col-12 muted">Delay Reason</div>
+                  <div class="col-12 text-white" id="detail-delay-reason">--</div>
+                  <div class="col-12 muted">Error</div>
+                  <div class="col-12 text-danger" id="detail-error">--</div>
+                  <div class="col-6 muted">Reconciled By</div>
+                  <div class="col-6 text-white" id="detail-reconciled">--</div>
+                  <div class="col-6 muted">CB Ratio</div>
+                  <div class="col-6 text-white mono" id="detail-cb-ratio">--</div>
+                  <div class="col-6 muted">CB Threshold</div>
+                  <div class="col-6 text-white mono" id="detail-cb-threshold">--</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-3 mt-3 bg-secondary bg-opacity-25 border-secondary">
+            <h6 class="text-warning fw-bold mb-3">Admin Controls</h6>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-4">
+                <label class="form-label text-white small fw-bold">Change Status</label>
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="status-select">
+                  <option value="pending">pending</option>
+                  <option value="awaiting_deposit">awaiting_deposit</option>
+                  <option value="processing">processing</option>
+                  <option value="completed">completed</option>
+                  <option value="delayed">delayed</option>
+                  <option value="failed">failed</option>
+                  <option value="expired">expired</option>
+                  <option value="cancelled">cancelled</option>
+                  <option value="timed_out">timed_out</option>
+                  <option value="late_deposit">late_deposit</option>
+                  <option value="reconciled">reconciled</option>
+                  <option value="circuit_breaker">circuit_breaker</option>
+                  <option value="invalid">invalid</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <button class="btn btn-sm btn-warning w-100" id="change-status-btn">Apply</button>
+              </div>
+              <div class="col-md-3" id="circuit-breaker-actions" style="display:none;">
+                <label class="form-label text-white small fw-bold">Circuit Breaker</label>
+                <div class="d-flex gap-1">
+                  <button class="btn btn-sm btn-success flex-fill" onclick="releaseCircuitBreaker('settle')">Settle</button>
+                  <button class="btn btn-sm btn-danger flex-fill" onclick="releaseCircuitBreaker('cancel')">Cancel</button>
+                </div>
+              </div>
+              <div class="col-md-3" id="late-deposit-actions" style="display:none;">
+                <label class="form-label text-white small fw-bold">Late Deposit</label>
+                <div class="d-flex gap-1">
+                  <button class="btn btn-sm btn-success flex-fill" onclick="initiateSettleSwap(currentDetailSwapId)">Settle</button>
+                  <button class="btn btn-sm btn-danger flex-fill" onclick="adminActionSwap(currentDetailSwapId, 'cancel')">Cancel</button>
+                </div>
+              </div>
+            </div>
+            <div class="small mt-2 muted" id="status-change-msg"></div>
+          </div>
+
+          <div class="card p-3 mt-3 bg-secondary bg-opacity-25 border-secondary">
+            <h6 class="text-warning fw-bold mb-3">Audit History</h6>
+            <div class="table-responsive">
+              <table class="table table-dark table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Old Status</th>
+                    <th>New Status</th>
+                    <th>Performed By</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="detail-audit-table"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -564,18 +709,87 @@
     }
 
     async function showAuditHistory(swapId) {
-      const modal = new bootstrap.Modal(document.getElementById('auditModal'));
-      document.getElementById('audit-swap-id').textContent = swapId;
-      document.getElementById('audit-trail-table').innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
+      showSwapDetail(swapId);
+    }
+
+    let currentDetailSwapId = null;
+
+    async function showSwapDetail(swapId) {
+      currentDetailSwapId = swapId;
+      const modal = new bootstrap.Modal(document.getElementById('swapDetailModal'));
       modal.show();
 
-      try {
-        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps/${swapId}/audit`);
-        if (!resp.ok) throw new Error('Failed to fetch audit log');
-        const data = await resp.json();
-        const trail = data.data.audit_trail;
+      document.getElementById('detail-swap-id').textContent = swapId;
+      document.getElementById('status-change-msg').textContent = '';
 
-        document.getElementById('audit-trail-table').innerHTML = trail.map(t => `
+      const fields = [
+        'status', 'from', 'to', 'rate', 'locked',
+        'from-amount', 'to-amount', 'fee', 'net',
+        'actual-from', 'actual-net',
+        'user-address', 'deposit-address',
+        'deposit-txid', 'settle-txid', 'withdrawal-txid',
+        'created', 'updated', 'completed', 'expires',
+        'delay-code', 'delay-reason', 'error', 'reconciled',
+        'cb-ratio', 'cb-threshold'
+      ];
+      fields.forEach(f => {
+        const el = document.getElementById('detail-' + f);
+        if (el) el.textContent = 'Loading...';
+      });
+      document.getElementById('detail-audit-table').innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
+
+      try {
+        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps/${swapId}`);
+        if (!resp.ok) throw new Error('Failed to fetch swap details');
+        const data = await resp.json();
+        const s = data.data;
+
+        const statusBadge = document.getElementById('detail-status');
+        statusBadge.textContent = s.status || 'unknown';
+        statusBadge.className = 'badge ' + statusBadgeClass(s.status);
+
+        document.getElementById('detail-swap-id').textContent = s.swap_id || '--';
+        document.getElementById('detail-from').textContent = `${s.from_amount || 0} ${s.from_coin || '--'}`;
+        document.getElementById('detail-to').textContent = `${s.net_amount || 0} ${s.to_coin || '--'}`;
+        document.getElementById('detail-rate').textContent = s.rate || '--';
+        document.getElementById('detail-locked').textContent = s.admin_locked ? 'Yes' : 'No';
+        document.getElementById('detail-locked').className = s.admin_locked ? 'text-danger fw-bold' : 'text-success';
+
+        document.getElementById('detail-from-amount').textContent = s.from_amount ?? '--';
+        document.getElementById('detail-to-amount').textContent = s.to_amount ?? '--';
+        document.getElementById('detail-fee').textContent = s.fee_amount ?? '--';
+        document.getElementById('detail-net').textContent = s.net_amount ?? '--';
+        document.getElementById('detail-actual-from').textContent = s.actual_from_amount ?? '--';
+        document.getElementById('detail-actual-net').textContent = s.actual_net_amount ?? '--';
+
+        document.getElementById('detail-user-address').textContent = s.user_address || '--';
+        document.getElementById('detail-deposit-address').textContent = s.deposit_address || '--';
+
+        document.getElementById('detail-deposit-txid').textContent = s.deposit_txid || '--';
+        document.getElementById('detail-settle-txid').textContent = s.settle_txid || '--';
+        document.getElementById('detail-withdrawal-txid').textContent = s.withdrawal_txid || '--';
+
+        document.getElementById('detail-created').textContent = s.created_at ? new Date(s.created_at).toLocaleString() : '--';
+        document.getElementById('detail-updated').textContent = s.updated_at ? new Date(s.updated_at).toLocaleString() : '--';
+        document.getElementById('detail-completed').textContent = s.completed_at ? new Date(s.completed_at).toLocaleString() : '--';
+        document.getElementById('detail-expires').textContent = s.expires_at ? new Date(s.expires_at).toLocaleString() : '--';
+
+        document.getElementById('detail-delay-code').textContent = s.delay_code || '--';
+        document.getElementById('detail-delay-reason').textContent = s.delay_reason || '--';
+        document.getElementById('detail-error').textContent = s.error || '--';
+        document.getElementById('detail-reconciled').textContent = s.reconciled_by || '--';
+        document.getElementById('detail-cb-ratio').textContent = s.circuit_breaker_ratio ? s.circuit_breaker_ratio.toFixed(2) : '--';
+        document.getElementById('detail-cb-threshold').textContent = s.circuit_breaker_threshold ?? '--';
+
+        document.getElementById('status-select').value = s.status || '';
+
+        const cbActions = document.getElementById('circuit-breaker-actions');
+        const ldActions = document.getElementById('late-deposit-actions');
+        cbActions.style.display = s.status === 'circuit_breaker' ? 'block' : 'none';
+        ldActions.style.display = s.status === 'late_deposit' ? 'block' : 'none';
+
+        const audit = s.audit || [];
+        document.getElementById('detail-audit-table').innerHTML = audit.map(t => `
           <tr>
             <td class="small">${new Date(t.created_at).toLocaleString()}</td>
             <td><span class="badge bg-secondary">${t.old_status || 'initial'}</span></td>
@@ -584,8 +798,73 @@
             <td class="small">${t.details || '-'}</td>
           </tr>
         `).join('') || '<tr><td colspan="5" class="muted">No audit history found.</td></tr>';
+
       } catch (err) {
-        document.getElementById('audit-trail-table').innerHTML = `<tr><td colspan="5" class="text-danger">Error: ${err.message}</td></tr>`;
+        document.getElementById('detail-audit-table').innerHTML = `<tr><td colspan="5" class="text-danger">Error: ${err.message}</td></tr>`;
+      }
+    }
+
+    function statusBadgeClass(status) {
+      const map = {
+        'completed': 'bg-success', 'pending': 'bg-primary', 'processing': 'bg-info',
+        'delayed': 'bg-warning text-dark', 'failed': 'bg-danger', 'expired': 'bg-secondary',
+        'cancelled': 'bg-dark border border-secondary', 'timed_out': 'bg-dark border border-secondary',
+        'late_deposit': 'bg-warning text-dark', 'reconciled': 'bg-success',
+        'circuit_breaker': 'bg-danger', 'invalid': 'bg-dark border border-danger text-danger',
+        'awaiting_deposit': 'bg-info'
+      };
+      return map[status] || 'bg-secondary';
+    }
+
+    document.getElementById('change-status-btn').addEventListener('click', async () => {
+      if (!currentDetailSwapId) return;
+      const newStatus = document.getElementById('status-select').value;
+      const msg = document.getElementById('status-change-msg');
+      msg.textContent = '';
+
+      if (!confirm(`Change swap ${currentDetailSwapId} status to "${newStatus}"?`)) return;
+
+      try {
+        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps/${currentDetailSwapId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (resp.ok) {
+          msg.textContent = `Status changed to "${newStatus}"`;
+          msg.className = 'small mt-2 text-success';
+          showSwapDetail(currentDetailSwapId);
+          loadSwaps();
+        } else {
+          const data = await resp.json().catch(() => ({}));
+          msg.textContent = data.error || 'Failed to change status';
+          msg.className = 'small mt-2 text-danger';
+        }
+      } catch (err) {
+        msg.textContent = 'Error: ' + err.message;
+        msg.className = 'small mt-2 text-danger';
+      }
+    });
+
+    async function releaseCircuitBreaker(action) {
+      if (!currentDetailSwapId) return;
+      if (!confirm(`Are you sure you want to ${action} circuit breaker swap ${currentDetailSwapId}?`)) return;
+
+      try {
+        const resp = await fetchWithAuth(`${API_BASE}/api/v1/admin/swaps/${currentDetailSwapId}/release`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action })
+        });
+        if (resp.ok) {
+          showSwapDetail(currentDetailSwapId);
+          loadSwaps();
+        } else {
+          const data = await resp.json().catch(() => ({}));
+          alert(data.error || `Failed to ${action} circuit breaker swap.`);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
       }
     }
 
@@ -611,15 +890,18 @@
       if (!resp.ok) return;
       const data = await resp.json();
       swapsTable.innerHTML = data.data.swaps.map(s => {
-        let statusHtml = s.status;
+        let statusHtml = `<span class="badge ${statusBadgeClass(s.status)}">${s.status}</span>`;
         if (s.status === 'late_deposit') {
-          statusHtml = `<span class="text-warning fw-bold me-2">late_deposit</span>
+          statusHtml = `<span class="badge bg-warning text-dark me-2">late_deposit</span>
             <button class="btn btn-sm btn-success py-0 px-1 me-1" onclick="initiateSettleSwap('${s.swap_id}')">Settle</button>
             <button class="btn btn-sm btn-danger py-0 px-1" onclick="adminActionSwap('${s.swap_id}', 'cancel')">Cancel</button>`;
+        } else if (s.status === 'circuit_breaker') {
+          statusHtml = `<span class="badge bg-danger me-2">circuit_breaker</span>
+            <button class="btn btn-sm btn-success py-0 px-1 me-1" onclick="showSwapDetail('${s.swap_id}')">Review</button>`;
         }
         return `
         <tr>
-          <td class="mono"><a href="javascript:void(0)" class="text-warning text-decoration-none" onclick="showAuditHistory('${s.swap_id}')">${s.swap_id}</a></td>
+          <td class="mono"><a href="javascript:void(0)" class="text-warning text-decoration-none" onclick="showSwapDetail('${s.swap_id}')">${s.swap_id.substring(0, 13)}...</a></td>
           <td>${s.from_amount} ${s.from_coin}</td>
           <td>${s.net_amount} ${s.to_coin}</td>
           <td>${s.fee_amount}</td>
@@ -951,7 +1233,7 @@
             return;
         }
         const data = await resp.json();
-        const s = data.data.swap;
+        const s = data.data;
         
         openActionModal('settle', s.deposit_txid, s.from_coin, s.from_amount, swap_id, {
             is_swap: true,
@@ -960,7 +1242,7 @@
             to_coin: s.to_coin,
             fee_amount: s.fee_amount,
             net_amount: s.net_amount,
-            target_address: s.to_address
+            target_address: s.user_address
         });
     }
 

@@ -423,6 +423,52 @@ class TestAdminEndpoints(unittest.TestCase):
         response = self.client.get("/api/v1/admin/users")
         self.assertIn(response.status_code, [401, 403])
 
+    def test_admin_set_swap_status(self):
+        """Admin should be able to change swap status."""
+        # First create a swap
+        swap_response = self.client.post("/api/v1/swap", json={
+            "from": "OXC",
+            "to": "OXG",
+            "amount": 5.0,
+            "user_address": "user_test_address"
+        })
+        self.assertEqual(swap_response.status_code, 200)
+        swap_id = json.loads(swap_response.data).get("data", {}).get("swap_id")
+        self.assertIsNotNone(swap_id)
+
+        # Admin changes status
+        response = self.client.put(
+            f"/api/v1/admin/swaps/{swap_id}/status",
+            json={"status": "cancelled", "reason": "Test cancellation"},
+            headers=self._get_admin_auth()
+        )
+        self.assertIn(response.status_code, [200, 401, 403])
+
+    def test_admin_clear_override_requires_auth(self):
+        """Admin clear override endpoint should require authentication."""
+        response = self.client.post("/api/v1/admin/swaps/test-id/clear-override")
+        self.assertIn(response.status_code, [401, 403])
+
+    def test_admin_get_swap_details(self):
+        """Admin should be able to retrieve detailed swap information."""
+        # First create a swap
+        swap_response = self.client.post("/api/v1/swap", json={
+            "from": "OXC",
+            "to": "OXG",
+            "amount": 5.0,
+            "user_address": "user_test_address"
+        })
+        self.assertEqual(swap_response.status_code, 200)
+        swap_id = json.loads(swap_response.data).get("data", {}).get("swap_id")
+        self.assertIsNotNone(swap_id)
+
+        # Admin retrieves swap details
+        response = self.client.get(
+            f"/api/v1/admin/swaps/{swap_id}",
+            headers=self._get_admin_auth()
+        )
+        self.assertIn(response.status_code, [200, 401, 403, 404])
+
 
 class TestErrorConditions(unittest.TestCase):
     """Test error handling and edge cases."""

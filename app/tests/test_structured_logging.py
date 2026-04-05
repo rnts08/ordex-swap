@@ -94,9 +94,11 @@ class TestErrorSanitization(unittest.TestCase):
         class FakeError(Exception):
             pass
 
+        # "invalid amount provided" contains "Invalid amount" which is in the allowlist
         e = FakeError("invalid amount provided")
         result = sanitize_error_message(e, "Validation failed")
-        self.assertEqual(result, "invalid amount provided")
+        # Should return the allowlisted version
+        self.assertEqual(result, "Invalid amount")
 
     def test_sanitize_error_message_with_long_message(self):
         from api import sanitize_error_message
@@ -134,9 +136,10 @@ class TestErrorSanitization(unittest.TestCase):
         class FakeError(Exception):
             pass
 
+        # "must be" is no longer in safe prefixes, so this should return default
         e = FakeError("amount must be greater than 0")
         result = sanitize_error_message(e, "Validation failed")
-        self.assertEqual(result, "amount must be greater than 0")
+        self.assertEqual(result, "Validation failed")
 
 
 if __name__ == "__main__":
