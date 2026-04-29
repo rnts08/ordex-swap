@@ -52,14 +52,13 @@ After deployment, the server will have:
 ├── Dockerfile
 ├── Dockerfile.frontend
 ├── docker-compose.prod.yml
-└── Caddyfile
+└── Caddyfile (removed - deployed separately)
 ```
 
 ## Containers
 
 - **ordex-swap**: Python API (port 8000, internal)
 - **frontend**: Nginx serving static files (port 8080, internal)
-- **caddy**: Reverse proxy with auto-TLS (ports 80, 443)
 
 ## Managing Swaps
 

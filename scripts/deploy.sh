@@ -23,7 +23,6 @@ rsync -av --exclude='.git' \
     --exclude='app/__pycache__' \
     --exclude='app/swap-service/__pycache__' \
     --exclude='app/.pytest_cache' \
-    --exclude='app/.ruff_cache' \
     --exclude='app/htmlcov' \
     --exclude='app/venv/' \
     --exclude='.venv/' \
@@ -40,6 +39,7 @@ rsync -av --exclude='.git' \
     --exclude='.ruff*' \
     --exclude='docs' \
     --exclude='scripts' \
+    --exclude='Caddyfile' \
     ./ $USER@$SERVER:$DEPLOY_DIR/
 
 # Copy daemon binaries
@@ -51,7 +51,8 @@ echo ""
 echo "========================================"
 echo "Files deployed to $DEPLOY_DIR"
 echo "========================================"
-echo "To deploy, run on server:"
-echo "  cd $DEPLOY_DIR"
-echo "  docker compose -f docker-compose.prod.yml up -d --build"
+echo "Rebuilding and restarting containers on server..."
+ssh $USER@$SERVER "cd $DEPLOY_DIR && docker compose -f docker-compose.prod.yml up -d --build"
+echo ""
+echo "Deployment completed!"
 echo ""

@@ -35,24 +35,8 @@ services:
     networks:
       - ordex-net
 
-  caddy:
-    image: caddy:2-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ordex-caddy-data:/data
-    depends_on:
-      - ordex-swap
-      - frontend
-    restart: unless-stopped
-    networks:
-      - ordex-net
-
 volumes:
   ordex-data:
-  ordex-caddy-data:
 
 networks:
   ordex-net:

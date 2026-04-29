@@ -158,5 +158,13 @@ docker compose -f docker-compose.prod.yml up -d --build
 # Verify health
 curl http://localhost:8080/health
 ```
+### Support the project
+
+***ETH/ERC20:*** 0x968cC7D93c388614f620Ef812C5fdfe64029B92d
+
+***SOL:*** HB2o6q6vsW5796U5y7NxNqA7vYZW1vuQjpAHDo7FAMG8
+
+***BTC:*** bc1qkmzc6d49fl0edyeynezwlrfqv486nmk6p5pmta
+
 
 See [DEPLOY.md](docs/DEPLOY.md) for production deployment guidelines.
